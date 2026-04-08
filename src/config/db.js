@@ -8,4 +8,13 @@ const pool = new Pool({
   database: process.env.DB_NAME,
 });
 
+
+pool.query('SELECT NOW()', (err, res) => {
+  if (err) {
+    console.error('Error DB:', err);
+  } else {
+    console.log('DB conectada');
+  }
+});
+
 module.exports = pool;

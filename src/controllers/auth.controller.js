@@ -38,5 +38,5 @@ const authController = {
     }
   },
 };
-
+console.log(req.body);
 module.exports = authController;
