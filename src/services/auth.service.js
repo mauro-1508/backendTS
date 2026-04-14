@@ -5,8 +5,8 @@ const jwt = require('jsonwebtoken');
 const authRepository = require('../repositories/auth.repository');
 
 const authService = {
-  register: async ({ nombre, email, password }) => {
-    if (!nombre || !email || !password) {
+  register: async ({ name, email, password }) => {
+    if (!name || !email || !password) {
       throw new Error('Nombre, email y contraseña son obligatorios');
     }
 
@@ -19,7 +19,7 @@ const authService = {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await authRepository.createUser({
-      nombre,
+      name,
       email,
       password: hashedPassword,
     });
@@ -64,7 +64,7 @@ const authService = {
         token,
         user: {
           user_id: user.user_id,
-          nombre: user.nombre,
+          name: user.name,
           email: user.email,
         },
       },

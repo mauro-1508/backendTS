@@ -8,6 +8,11 @@ const pool = new Pool({
   database: process.env.DB_NAME,
 });
 
+console.log("DB:", process.env.DB_NAME);
+
+pool.query('SELECT current_database()', (err, res) => {
+  console.log("Connected to DB:", res?.rows[0]);
+});
 
 pool.query('SELECT NOW()', (err, res) => {
   if (err) {

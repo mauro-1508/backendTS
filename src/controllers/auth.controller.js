@@ -2,6 +2,7 @@ const authService = require('../services/auth.service');
 
 const authController = {
   register: async (req, res) => {
+     console.log(req.body);   
     try {
       const { name, email, password } = req.body;
 
@@ -38,5 +39,4 @@ const authController = {
     }
   },
 };
-console.log(req.body);
 module.exports = authController;
