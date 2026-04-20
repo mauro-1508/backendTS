@@ -3,8 +3,8 @@ const jwt = require('jsonwebtoken');
 const authMiddleware = (req, res, next) => {
     const authHeader = req.headers.authorization;
 
-    if (!authHeader) {
-        return res.status(401).json({ message: "No autorizado" });
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        return res.status(401).json({ message: "Formato de token inválido" });
     }
 
     const token = authHeader.split(' ')[1];
