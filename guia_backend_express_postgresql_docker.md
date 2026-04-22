@@ -779,6 +779,18 @@ docker stop postgres-container
 docker start postgres-container
 ```
 
----
+
 
 Este archivo puede servir como base para que todo el equipo monte el backend más rápido y entienda qué hace cada parte.
+
+###agregaciones sin meter:
+- agregar
+ el middaleware de autenticación, para que primero se enfoque en la lógica de negocio y la conexión con la base de datos. Luego, una vez que los endpoints básicos estén funcionando, se puede agregar el middleware de autenticación para proteger las rutas.
+
+- agregar 
+el endpoint de perfil (`GET /api/profile`) después de tener `register` y `login` funcionando, para que el equipo pueda enfocarse en una cosa a la vez y entender bien cada parte antes de avanzar a la siguiente.
+
+- agregar
+la intalacion de nodemailer y la configuración del servicio de correo para enviar notificaciones, ya que eso puede ser un poco más complejo y es mejor abordarlo después de tener la base del backend funcionando correctamente.
+
+---
