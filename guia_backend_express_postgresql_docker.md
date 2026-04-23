@@ -745,6 +745,33 @@ Lo que ya se hizo conceptualmente fue:
 
 ---
 
+
+## 🔄 Flujo completo de recuperación de contraseña
+
+```
+1. POST /api/auth/forgot-password
+   body: { email }
+   → Genera código de 6 dígitos
+   → Guarda hash del código en BD (expira en 15 min)
+   → Envía código al correo del usuario
+
+2. POST /api/auth/verify-code
+   body: { email, code }
+   → Hashea el código recibido
+   → Lo compara con el de la BD
+   → Verifica que no esté usado ni expirado
+
+3. POST /api/auth/reset-password
+   body: { email, code, newPassword }
+   → Verifica el código nuevamente
+   → Hashea la nueva contraseña con bcrypt
+   → Actualiza la contraseña en la BD
+   → Marca el código como usado (used_at = NOW())
+```
+
+---
+
+
 ## 23. Comandos clave resumidos
 
 ### Instalar dependencias
