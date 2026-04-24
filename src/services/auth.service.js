@@ -5,8 +5,8 @@ const jwt = require('jsonwebtoken');
 const authRepository = require('../repositories/auth.repository');
 
 const authService = {
-  register: async ({ nombre, email, password }) => {
-    if (!nombre || !email || !password) {
+  register: async ({ name, email, password }) => {
+    if (!name || !email || !password) {
       throw new Error('Nombre, email y contraseña son obligatorios');
     }
 
@@ -19,7 +19,7 @@ const authService = {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await authRepository.createUser({
-      nombre,
+      name,
       email,
       password: hashedPassword,
     });
@@ -42,7 +42,7 @@ const authService = {
       throw new Error('Credenciales inválidas');
     }
 
-    const isPasswordValid = await bcrypt.compare(password, user.password);
+    const isPasswordValid = await bcrypt.compare(password, user.password);  
 
     if (!isPasswordValid) {
       throw new Error('Credenciales inválidas');
@@ -64,11 +64,96 @@ const authService = {
         token,
         user: {
           user_id: user.user_id,
-          nombre: user.nombre,
+          name: user.name,
           email: user.email,
         },
       },
     };
+  },
+  forgotPassword: async ({ email }) => {
+    if (!email) {
+      throw new Error('El email es obligatorio');
+    }
+
+    const user = await authRepository.findUserByEmail(email);
+
+    // Por seguridad respondemos igual aunque el email no exista
+    // así no revelamos qué correos están registrados
+    if (!user) {
+      return { success: true, message: 'Si el correo existe, recibirás un enlace' };
+    }
+
+    // Generar token aleatorio y hashearlo para guardarlo en la BD
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+
+    // Expira en 1 hora
+    const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
+
+    await authRepository.createResetToken({
+      userId: user.user_id,
+      tokenHash,
+      expiresAt,
+    });
+
+    // El link lleva el token sin hashear (el frontend lo manda de vuelta)
+    const resetLink = `${process.env.FRONTEND_URL}/reset-password?token=${rawToken}`;
+
+    await transporter.sendMail({
+      from: `"Signa App" <${process.env.EMAIL_USER}>`,
+      to: user.email,
+      subject: 'Recuperación de contraseña - Signa',
+      html: `
+        <h2>Recuperar contraseña</h2>
+        <p>Hola ${user.name}, recibimos una solicitud para restablecer tu contraseña.</p>
+        <p>Haz clic en el botón para continuar:</p>
+        <a href="${resetLink}" style="background:#3B82F6;color:white;padding:10px 20px;border-radius:5px;text-decoration:none;">
+          Restablecer contraseña
+        </a>
+        <p>Este enlace expira en 1 hora.</p>
+        <p>Si no solicitaste esto, ignora este correo.</p>
+      `,
+    });
+
+    return { success: true, message: 'Si el correo existe, recibirás un enlace' };
+  },
+
+  resetPassword: async ({ token, newPassword }) => {
+    if (!token || !newPassword) {
+      throw new Error('Token y nueva contraseña son obligatorios');
+    }
+
+    if (newPassword.length < 8) {
+      throw new Error('La contraseña debe tener al menos 8 caracteres');
+    }
+
+    // Hashear el token recibido para comparar con el de la BD
+    const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+
+    const resetToken = await authRepository.findResetToken(tokenHash);
+
+    if (!resetToken) {
+      throw new Error('Token inválido');
+    }
+
+    if (resetToken.used_at) {
+      throw new Error('Este token ya fue utilizado');
+    }
+
+    if (new Date() > new Date(resetToken.expires_at)) {
+      throw new Error('El token ha expirado');
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await authRepository.updatePassword({
+      userId: resetToken.user_id,
+      hashedPassword,
+    });
+
+    await authRepository.markTokenAsUsed(resetToken.token_id);
+
+    return { success: true, message: 'Contraseña actualizada correctamente' };
   },
 };
 
