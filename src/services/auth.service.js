@@ -179,7 +179,45 @@ const authService = {
 
     return { success: true, message: 'Contraseña actualizada correctamente' };
   },
-};
 
+  googleLogin: async ({ email, name }) => {
+    if (!email || !name) {
+      throw new Error('Email y nombre son obligatorios');
+    }
+    const existingUser = await authRepository.findUserByEmail(email);
+
+    if (existingUser) {
+      // Si el usuario ya existe, simplemente generamos un token
+      const token = jwt.sign(
+        {
+          user_id: existingUser.user_id,
+          email: existingUser.email,
+        },
+        process.env.JWT_SECRET,
+        { expiresIn: '1d' }
+      );
+      return { success: true, message: 'Inicio de sesión exitoso', data: { token } };
+    }
+
+    // Si el usuario no existe, lo creamos
+    const newUser = await authRepository.createUser({
+      email,
+      name,
+      password: null, // No tiene contraseña
+    });
+
+    // Generamos un token para el nuevo usuario
+    const token = jwt.sign(
+      {
+        user_id: newUser.user_id,
+        email: newUser.email,
+      },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+
+    return { success: true, message: 'Cuenta creada y sesión iniciada', data: { token } };
+  },
+};
 
 module.exports = authService;
