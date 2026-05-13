@@ -1,0 +1,19 @@
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <include file="changelogs/001_create_role.xml"/>
+    <include file="changelogs/002_create_users.xml"/>
+    <include file= "changelogs/003_user_role.xml"/>
+    <include file= "changelogs/004_user_auth.xml"/>
+    <include file= "changelogs/005_translation.xml"/>
+    <include file= "changelogs/006_usage_event.xml"/>
+    <include file= "changelogs/007_user_session.xml"/>
+    <include file= "changelogs/008_password_reset_token.xml"/>
+    <include file= "changelogs/009_multimedia_resource.xml"/>
+    <include file= "changelogs/010_sign_lexicon.xml"/>
+
+</databaseChangeLog>
