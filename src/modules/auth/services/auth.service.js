@@ -1,7 +1,8 @@
 const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
+import jwt from 'jsonwebtoken';
+import { jwtConfig } from '../../config/jwt';
 const { createHash, randomBytes } = require('crypto');
-const transporter = require('../config/mailer'); 
+const transporter = require('../../../config/mailer'); 
 const authRepository = require('../repositories/auth.repository');
 
 const authService = {
@@ -53,7 +54,7 @@ const authService = {
         user_id: user.user_id,
         email: user.email,
       },
-      process.env.JWT_SECRET,
+      jwtConfig.secret,
       { expiresIn: '1d' }
     );
 
@@ -193,7 +194,7 @@ const authService = {
           user_id: existingUser.user_id,
           email: existingUser.email,
         },
-        process.env.JWT_SECRET,
+        jwtConfig.secret,
         { expiresIn: '1d' }
       );
       return { success: true, message: 'Inicio de sesión exitoso', data: { token } };
@@ -212,7 +213,7 @@ const authService = {
         user_id: newUser.user_id,
         email: newUser.email,
       },
-      process.env.JWT_SECRET,
+      jwtConfig.secret,
       { expiresIn: '1d' }
     );
 
