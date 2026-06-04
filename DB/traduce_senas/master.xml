@@ -15,5 +15,6 @@
     <include file= "changelogs/008_password_reset_token.xml"/>
     <include file= "changelogs/009_multimedia_resource.xml"/>
     <include file= "changelogs/010_sign_lexicon.xml"/>
+    <include file="changelogs/011_add_lexicon_fk_to_multimedia.xml"/>
 
 </databaseChangeLog>
