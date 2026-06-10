@@ -1,10 +1,9 @@
 const translationsService = require('../services/translations.service');
 
 /**
- * TODO: cuando Auth real este conectado en el frontend, agregar
- * `authMiddleware` en las rutas y leer `req.user.user_id` en vez del body.
- * Por ahora el frontend manda `user_id` opcional para que el flujo se pueda
- * probar end-to-end sin login real.
+ * El user_id sale del JWT verificado por authMiddleware (req.user).
+ * Se mantiene el fallback a body/query solo para pruebas manuales con
+ * herramientas tipo curl/Postman.
  */
 const resolveUserId = (req) => {
   if (req.user && req.user.user_id) return req.user.user_id;

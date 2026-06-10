@@ -2,7 +2,21 @@ const bcrypt = require('bcrypt');
 
 const jwt = require('jsonwebtoken');
 
+const crypto = require('crypto');
+
+const nodemailer = require('nodemailer');
+
 const authRepository = require('../repositories/auth.repository');
+
+// Transporte SMTP para el correo de recuperacion de contrasena.
+// Requiere EMAIL_USER y EMAIL_PASS en el .env (app password de Gmail).
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_USER,
+    pass: process.env.EMAIL_PASS,
+  },
+});
 
 const authService = {
   register: async ({ name, email, password }) => {
