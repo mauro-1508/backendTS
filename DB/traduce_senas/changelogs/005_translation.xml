@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+
+<changeSet id="005" author="juan">
+    <createTable tableName="translation">
+        <column name="translation_id" type="SERIAL">
+            <constraints primaryKey="true"/>
+        </column>
+        <column name="input_text" type="VARCHAR(255)"/>
+        <column name="translated_text" type="VARCHAR(255)"/>
+        <column name="translation_date" type="TIMESTAMP"/>
+        <column name="is_deleted" type="BOOLEAN"/>
+        <column name="user_id" type="INT"/>
+    </createTable>
+
+    <addForeignKeyConstraint
+        baseTableName="translation"
+        baseColumnNames="user_id"
+        referencedTableName="users"
+        referencedColumnNames="user_id"
+        constraintName="fk_translation_user"/>
+</changeSet>
+
+</databaseChangeLog>
