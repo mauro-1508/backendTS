@@ -1,7 +1,7 @@
 const express = require('express');
 const cors = require('cors');
-const authRoutes = require('./routes/auth.routes');
-const translationsRoutes = require('./routes/translations.routes');
+const authRoutes = require('./modules/auth/routes/auth.routes');
+const translationsRoutes = require('./modules/translations/routes/translations.routes');
 const app = express();
 
 // El frontend web (Expo) corre en un puerto distinto al backend; sin CORS el

@@ -1,4 +1,4 @@
-const pool = require('../config/db');
+const pool = require('../../../config/db');
 
 const translationsRepository = {
   create: async ({ userId, inputText, outputText, type, confidence, source }) => {

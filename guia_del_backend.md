@@ -820,4 +820,12 @@ el endpoint de perfil (`GET /api/profile`) después de tener `register` y `login
 - agregar
 la intalacion de nodemailer y la configuración del servicio de correo para enviar notificaciones, ya que eso puede ser un poco más complejo y es mejor abordarlo después de tener la base del backend funcionando correctamente.
 
+
+-agregr 
+npm install express passport passport-google-oauth20 express-session
+para instalar
+
+-agregar
+npm install -D @types/express @types/jsonwebtoken
+para que funcionen el jwt en ts 
 ---
