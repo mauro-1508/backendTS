@@ -10,7 +10,7 @@ Reciben el request HTTP, extraen los parámetros y delegan la lógica al service
 
 ## Archivos pendientes
 
-`alarms.controller.js`, `history.controller.js`, `lexicon.controller.js`, `notifications.controller.js`, `profile.controller.js`, `stats.controller.js`, `translations.controller.js`, `users.controller.js`
+`history.controller.js`, `lexicon.controller.js`, `notifications.controller.js`, `profile.controller.js`, `stats.controller.js`, `translations.controller.js`, `users.controller.js`
 
 ## Convención
 
