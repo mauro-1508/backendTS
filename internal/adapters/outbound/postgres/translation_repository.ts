@@ -8,7 +8,8 @@ interface TranslationRow {
   input_text: string;
   output_text: string;
   type: TranslationType;
-  confidence: number | null;
+  // node-pg entrega NUMERIC como string para no perder precision.
+  confidence: string | null;
   source: string | null;
   is_deleted: boolean;
   created_at: Date;
@@ -20,7 +21,7 @@ const toTranslation = (row: TranslationRow): Translation => ({
   inputText: row.input_text,
   outputText: row.output_text,
   type: row.type,
-  confidence: row.confidence,
+  confidence: row.confidence == null ? null : Number(row.confidence),
   source: row.source,
   isDeleted: row.is_deleted,
   createdAt: row.created_at,
