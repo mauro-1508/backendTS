@@ -93,7 +93,20 @@ del byte X al Y") para bajar **solo el `rep_0`** de cada grabación, y de cada f
 manos y pose. Va anotando por dónde va, así que **es reanudable**: si se corta, lo vuelves a
 lanzar y sigue.
 
-### Pasos
+### Paso 1 — Requisitos
+
+```bash
+node -v      # tiene que decir v20 o superior
+git --version
+```
+
+Si `node -v` dice menos de v20, instala Node desde https://nodejs.org (versión LTS).
+**No** necesitas base de datos, ni `.env`, ni levantar el backend. Solo Node y conexión.
+
+Espacio en disco: la descarga mueve unos **5 GB de tráfico**, pero en disco quedan solo
+**~110 MB**, porque de cada muestra se guardan únicamente manos y pose.
+
+### Paso 2 — Clonar el repo y ponerte en la rama
 
 ```bash
 git clone https://github.com/mauro-1508/backendTS.git
@@ -102,46 +115,103 @@ git switch feat/backend-dominios-ia
 npm install
 ```
 
-Necesitas **Node 20 o superior** (`node -v`). No necesitas base de datos ni `.env` para esto.
+Verifica que quedaste en la rama correcta:
 
-**Tu tramo es el 2 de 2** (el otro lo está bajando la otra máquina):
+```bash
+git branch --show-current     # debe decir: feat/backend-dominios-ia
+```
+
+### Paso 3 — Lanzar TU tramo
+
+Tu tramo es el **2 de 2**. El tramo 1 lo está bajando la otra máquina; si bajas el mismo,
+duplicamos trabajo y no ganamos nada.
 
 ```bash
 npm run ia:download-lsc54 -- --slice 2/2 --workers 4 --max-samples 800
 ```
 
-Déjalo corriendo. Tarda **varias horas**. Si lo cortas, se retoma con el mismo comando.
-Verás líneas así, una por muestra:
-
-```
-16:05:12 [w00] Signer_12/Colores/rojo/vid_3 96 frames, 9.4 MB | total 37
-```
-
-### Qué mirar mientras corre
-
-- **`total` sube** → todo bien.
-- **`ERROR HTTP 429`** → el servidor está limitando. El programa ya espera y reintenta solo.
-  Si sale muy seguido, baja a `--workers 2`.
-- **`salto largo ... retrocediendo`** → normal y esperado, es la red de seguridad que evita
-  saltarse videos.
-- Si un trabajador se queda mucho rato sin producir nada al principio, es normal: arranca a
-  mitad de una grabación y tiene que avanzar hasta la primera frontera.
-
-### Qué entregar
-
-Los datos quedan en `src/domains/ia/training/datasets/lsc54/rep0/`:
-`worker-00.jsonl`, `worker-01.jsonl`, … y `state.json`.
-
-**No los subas a git**: esa carpeta está en `.gitignore` a propósito (no versionamos datasets).
-Comprímela y pásala por Drive o WeTransfer:
+Deja esa terminal abierta. Si prefieres que quede corriendo aparte y con registro en archivo:
 
 ```bash
-cd src/domains/ia/training/datasets/lsc54
-tar -czf rep0-slice2.tar.gz rep0
+# Windows (PowerShell)
+npm run ia:download-lsc54 -- --slice 2/2 --workers 4 --max-samples 800 *> descarga.log
+
+# Linux / macOS
+npm run ia:download-lsc54 -- --slice 2/2 --workers 4 --max-samples 800 > descarga.log 2>&1 &
 ```
 
-Avisa cuando lleves un rato, aunque no hayas terminado: **los datos parciales ya sirven** para
-empezar a medir.
+**Cuánto tarda:** entre 8 y 16 horas para las 800 muestras. Puedes cortarlo cuando
+quieras con `Ctrl+C` y retomarlo después **con el mismo comando**: sigue donde iba.
+Apagar el computador tampoco pierde nada.
+
+### Paso 4 — Qué vas a ver, y qué significa
+
+Al arrancar:
+
+```
+LSC-54 rep_0: 4 trabajadores pendientes de 4
+```
+
+Luego, una línea por muestra bajada:
+
+```
+19:25:46 [w00] Signer_1/Colores/amarillo/vid_1 133 frames, 13.0 MB | total 2
+19:26:38 [w03] vid_1 34 frames, 2.6 MB | total 3
+```
+
+- `[w00]` es cuál de los 4 trabajadores fue.
+- Después va la ruta de la muestra. A veces sale corta (solo `vid_1`): significa que sigue en
+  la misma seña que la línea anterior de ese trabajador. **Es normal**, no es un error.
+- `total` es el acumulado. **Mientras `total` suba, todo va bien.**
+- Los primeros minutos pueden pasar **sin ninguna línea**: tres de los cuatro trabajadores
+  arrancan a mitad de una grabación y tienen que avanzar hasta el primer corte. Normal.
+
+Otros mensajes:
+
+| Mensaje | Qué significa | Qué hacer |
+|---|---|---|
+| `ERROR ... HTTP 429` suelto | El servidor te frenó un momento | Nada, el programa espera y reintenta solo |
+| `HTTP 429` muy seguido | El servidor te está limitando fuerte | `Ctrl+C` y relanzar con `--workers 2` |
+| `salto largo ... retrocediendo` | La red de seguridad evitó saltarse un video | Nada, es lo correcto |
+| `ERROR` repetido de un mismo trabajador | Ese trabajador se cayó | `Ctrl+C` y relanzar el mismo comando |
+
+### Paso 5 — Revisar el avance cuando quieras
+
+```bash
+node -e "const s=require('./src/domains/ia/training/datasets/lsc54/rep0/state.json'); console.log('muestras:', s.workers.reduce((a,w)=>a+w.samples,0))"
+```
+
+### Paso 6 — Entregar los datos
+
+Los datos quedan en `src/domains/ia/training/datasets/lsc54/rep0/`:
+`worker-00.jsonl`, `worker-01.jsonl`, `worker-02.jsonl`, `worker-03.jsonl` y `state.json`.
+
+**Mándalos todos, incluido `state.json`**: ahí está por dónde iba cada trabajador, y sin él
+no se puede retomar ni saber qué falta.
+
+```bash
+# Windows (PowerShell)
+Compress-Archive -Path src/domains/ia/training/datasets/lsc54/rep0 -DestinationPath rep0-slice2.zip
+
+# Linux / macOS
+cd src/domains/ia/training/datasets/lsc54 && tar -czf ~/rep0-slice2.tar.gz rep0
+```
+
+Pásalo por Drive o WeTransfer. **No lo subas a git**: esa carpeta está en `.gitignore` a
+propósito, no versionamos datasets.
+
+**Avisa apenas llegues a ~200 muestras, sin esperar a terminar.** Con eso ya se puede correr
+la primera medición y saber si vamos bien encaminados. Después mandas el resto.
+
+### Lo que NO hay que hacer
+
+- **No cambies `--slice 2/2`.** Ese es tu tramo; el 1/2 ya lo está bajando la otra máquina.
+- **No subas `--workers`.** Más conexiones no aceleran (el límite es por casa) y hacen que el
+  servidor nos bloquee.
+- **No borres la carpeta `rep0/`** ni `state.json`: ahí está todo lo bajado y el punto de
+  retomada.
+- **No subas archivos del dataset a git.**
+- No hace falta que toques ningún código. Si ves algo raro, avisa antes de cambiarlo.
 
 ---
 
@@ -176,22 +246,32 @@ las salidas son: menos palabras, o mejorar el motor para que tenga en cuenta el 
 
 ```
 Me sumo al proyecto Traduce Señas (app de Lengua de Señas Colombiana).
-Lee CONTEXTO_EQUIPO.md en la raíz de este repo: ahí está todo el contexto.
+Estoy en el repo backendTS, rama feat/backend-dominios-ia.
+Lee CONTEXTO_EQUIPO.md en la raíz del repo: ahí está todo el contexto y mi tarea
+está detallada en la sección 4 ("Tu tarea: bajar la mitad del dataset").
 
-Mi tarea concreta es bajar el tramo 2 de 2 del dataset LSC-54 con:
-  npm run ia:download-lsc54 -- --slice 2/2 --workers 4 --max-samples 800
+Mi tarea es bajar EL TRAMO 2 DE 2 del dataset LSC-54. El tramo 1 lo está
+bajando otra máquina, así que no lo toques.
 
 Quiero que:
-1. Verifiques que tengo Node 20+ y las dependencias instaladas.
-2. Lances esa descarga en segundo plano y me avises si aparecen errores
-   repetidos de HTTP 429 o si algún trabajador se cae.
-3. Cuando haya al menos 200 muestras, corras npm run ia:measure-lsc54
-   y me expliques el resultado en español sencillo.
+1. Verifiques Node 20+, que esté la rama correcta y las dependencias instaladas.
+2. Lances en segundo plano, con el log a un archivo:
+     npm run ia:download-lsc54 -- --slice 2/2 --workers 4 --max-samples 800
+   Tarda entre 8 y 16 horas y es reanudable.
+3. Me avises si aparecen HTTP 429 repetidos (ahí se relanza con --workers 2)
+   o si algún trabajador se cae. Un 429 suelto es normal, el programa lo maneja.
+4. Cuando el total llegue a ~200 muestras me avises, y corras
+     npm run ia:measure-lsc54
+   explicándome el resultado en español sencillo, sin jerga.
+5. Cuando termine, me armes el comprimido de
+   src/domains/ia/training/datasets/lsc54/rep0/ (incluyendo state.json)
+   para mandarlo por Drive.
 
-Reglas: trabajar en ramas, commits sin menciones a Claude ni Co-Authored-By,
-y nunca subir a git los archivos del dataset (están en .gitignore).
+Reglas: trabajar en ramas, nunca sobre main ni develop; commits pequeños sin
+Co-Authored-By ni menciones a Claude; nunca subir a git los archivos del
+dataset (están en .gitignore); no borrar la carpeta rep0/ ni state.json.
 
-Importante: el formato real del dataset no coincide con lo que dice su
-documentación. Antes de escribir cualquier script que lo procese, verifica
-el formato con los datos en la mano.
+Importante: el formato real del dataset NO coincide con lo que dice su
+documentación (lo verificamos y nos falló tres veces). Antes de escribir
+cualquier script que lo procese, comprueba el formato con los datos en la mano.
 ```
