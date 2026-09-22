@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+
+# Datos de entrenamiento: no se versionan
+src/domains/ia/training/datasets/
+src/domains/ia/training/output/
