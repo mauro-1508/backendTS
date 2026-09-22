@@ -149,13 +149,15 @@ const scanNextRep = async (pos: number): Promise<ScanResult> => {
       if (n !== 0) return { kind: 'rep', n, keyPos };
 
       // Contexto suficiente para leer la cadena de claves que abre este rep_0.
-      let before = text.slice(0, m.index);
-      if (before.length < CHAIN_CONTEXT && keyPos > CHAIN_CONTEXT) {
-        const prefix = await fetchRange(keyPos - CHAIN_CONTEXT, keyPos - 1);
-        before = prefix.toString('latin1');
+      let beforeBuf: Buffer<ArrayBufferLike> = buf.subarray(0, m.index);
+      if (beforeBuf.length < CHAIN_CONTEXT && keyPos > CHAIN_CONTEXT) {
+        beforeBuf = await fetchRange(keyPos - CHAIN_CONTEXT, keyPos - 1);
       }
-      const chainText = CHAIN_RE.exec(before)?.[1] ?? '';
-      const chain = [...chainText.matchAll(/"([^"]+)":/g)].map(k => k[1]);
+      // El rastreo va en latin1 (1 byte = 1 caracter) para no descuadrar las
+      // posiciones, pero los nombres llevan tildes y ñ: se releen en UTF-8.
+      const chainText = CHAIN_RE.exec(beforeBuf.toString('latin1'))?.[1] ?? '';
+      const chainUtf8 = beforeBuf.subarray(beforeBuf.length - chainText.length).toString('utf8');
+      const chain = [...chainUtf8.matchAll(/"([^"]+)":/g)].map(k => k[1]);
       return { kind: 'rep0', found: { keyPos, objStart: keyPos + m[0].length - 1, chain } };
     }
     // Se guarda la cola por si una clave quedo partida entre dos ventanas.

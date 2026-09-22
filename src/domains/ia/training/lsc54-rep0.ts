@@ -37,6 +37,17 @@ interface WorkerState {
 }
 
 /**
+ * Arregla los nombres que quedaron mal escritos ("NÃºmeros" en vez de
+ * "Números") en las muestras bajadas antes de que el descargador leyera las
+ * claves en UTF-8. Solo actua si detecta esa firma, para no danar los buenos.
+ */
+const repairMojibake = (s: string): string => {
+  if (!/[ÃÂ][\u0080-¿]/.test(s)) return s;
+  const repaired = Buffer.from(s, 'latin1').toString('utf8');
+  return repaired.includes('�') ? s : repaired;
+};
+
+/**
  * La cadena de claves de cada rep_0 solo trae los niveles que se abren ahi
  * (p. ej. solo `vid_3`), asi que la ruta completa sale de la muestra anterior.
  * Un tramo que arranca a mitad del archivo no conoce el firmante hasta el
@@ -68,6 +79,7 @@ export const loadRep0Samples = (dir = REP0_DIR): Rep0Sample[] => {
 
   const samples: Rep0Sample[] = [];
   let inherited: (string | null)[] | null = null;
+  const fix = (s: string | null) => (s == null ? s : repairMojibake(s));
   workers.forEach((w, i) => {
     // [firmante, categoria, sena, video]; lo que todavia no se sabe queda null.
     let parts: (string | null)[] = inherited ?? [null, null, null, null];
@@ -84,9 +96,9 @@ export const loadRep0Samples = (dir = REP0_DIR): Rep0Sample[] => {
         // Un tramo que arranca a mitad del archivo no ve el nombre del
         // firmante hasta el siguiente cambio de persona. Se le pone uno
         // sintetico: para la medicion basta con que sea alguien distinto.
-        signer: parts[0] ?? `tramo_${w.id}_inicio`,
-        category: parts[1] ?? 'desconocida',
-        sign,
+        signer: fix(parts[0]) ?? `tramo_${w.id}_inicio`,
+        category: fix(parts[1]) ?? 'desconocida',
+        sign: repairMojibake(sign),
         vid: parts[3] ?? 'vid_?',
         offset: rec.offset,
         frames: rec.frames,
