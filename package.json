@@ -3,7 +3,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/cmd/server/main.js",
-    "dev": "nodemon --watch cmd --watch internal --watch config --ext ts --exec ts-node cmd/server/main.ts"
+    "dev": "nodemon --watch cmd --watch src --ext ts --exec ts-node cmd/server/main.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
