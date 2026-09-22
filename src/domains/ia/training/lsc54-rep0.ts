@@ -39,8 +39,9 @@ interface WorkerState {
 /**
  * La cadena de claves de cada rep_0 solo trae los niveles que se abren ahi
  * (p. ej. solo `vid_3`), asi que la ruta completa sale de la muestra anterior.
- * Las primeras muestras de un tramo cuyo tramo previo aun no termino de bajar
- * no se pueden ubicar todavia y se omiten.
+ * Un tramo que arranca a mitad del archivo no conoce el firmante hasta el
+ * siguiente cambio de persona: se le asigna uno sintetico. Solo se omiten las
+ * muestras cuya sena todavia no se puede saber.
  */
 export const loadRep0Samples = (dir = REP0_DIR): Rep0Sample[] => {
   const statePath = path.join(dir, 'state.json');
@@ -66,18 +67,33 @@ export const loadRep0Samples = (dir = REP0_DIR): Rep0Sample[] => {
   });
 
   const samples: Rep0Sample[] = [];
-  let inherited: string[] | null = null;
+  let inherited: (string | null)[] | null = null;
   workers.forEach((w, i) => {
-    let current: string[] | null = inherited;
+    // [firmante, categoria, sena, video]; lo que todavia no se sabe queda null.
+    let parts: (string | null)[] = inherited ?? [null, null, null, null];
+
     for (const rec of perWorker[i]) {
-      if (rec.chain.length >= 4) current = rec.chain.slice(-4);
-      else if (current) current = [...current.slice(0, 4 - rec.chain.length), ...rec.chain];
-      if (!current) continue;
-      const [signer, category, sign, vid] = current;
-      samples.push({ signer, category, sign, vid, offset: rec.offset, frames: rec.frames });
+      const depth = rec.chain.length;
+      parts = depth >= 4 ? rec.chain.slice(-4) : [...parts.slice(0, 4 - depth), ...rec.chain];
+
+      const sign = parts[2];
+      // Sin nombre de sena la muestra no sirve para nada.
+      if (!sign) continue;
+
+      samples.push({
+        // Un tramo que arranca a mitad del archivo no ve el nombre del
+        // firmante hasta el siguiente cambio de persona. Se le pone uno
+        // sintetico: para la medicion basta con que sea alguien distinto.
+        signer: parts[0] ?? `tramo_${w.id}_inicio`,
+        category: parts[1] ?? 'desconocida',
+        sign,
+        vid: parts[3] ?? 'vid_?',
+        offset: rec.offset,
+        frames: rec.frames,
+      });
     }
     // El tramo siguiente solo hereda la ruta si este ya bajo completo.
-    inherited = w.done ? current : null;
+    inherited = w.done ? parts : null;
   });
   return samples;
 };
