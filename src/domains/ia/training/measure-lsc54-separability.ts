@@ -23,7 +23,7 @@
 import fs from 'fs';
 import path from 'path';
 import { dtwDistance, gestureConfidence, MAX_GESTURE_DISTANCE, MIN_WORD_CONFIDENCE } from '../domain/motion_template';
-import { loadRep0Samples, pickHandForSign, Rep0Sample, toTemplateFrames } from './lsc54-rep0';
+import { loadRep0Samples, pickHandForSign, Rep0Sample, toLiveQueryFrames, toTemplateFrames } from './lsc54-rep0';
 
 const args = process.argv.slice(2);
 const argNum = (name: string, def: number) => {
@@ -36,6 +36,8 @@ const TEMPLATES_PER_SIGN = argNum('--templates', 15);
 const dirIdx = args.indexOf('--dir');
 const DIR = dirIdx >= 0 ? args[dirIdx + 1] : undefined;
 const MIN_SIGNERS = argNum('--min-signers', 3);
+/** --live: la consulta usa solo los ultimos 2,2 s, como la ventana de la app. */
+const LIVE = args.includes('--live');
 
 const OUT_MD = path.join(__dirname, 'output', 'lsc54-separability.md');
 const OUT_JSON = path.join(__dirname, 'output', 'lsc54-separability.json');
@@ -44,7 +46,10 @@ interface Prepared {
   idx: number;
   label: string;
   signer: string;
+  /** Secuencia como plantilla guardada. */
   seq: number[][];
+  /** Secuencia como la veria la app en vivo (ventana de 2,2 s). */
+  query: number[][];
 }
 
 const labelOf = (sign: string) => sign.trim().toLowerCase();
@@ -67,11 +72,12 @@ const main = () => {
     const hand = pickHandForSign(list);
     for (const s of list) {
       const seq = toTemplateFrames(s.frames, hand);
-      if (!seq) {
+      const query = LIVE ? toLiveQueryFrames(s.frames, hand) : seq;
+      if (!seq || !query) {
         tooShort++;
         continue;
       }
-      prepared.push({ idx: prepared.length, label, signer: s.signer, seq });
+      prepared.push({ idx: prepared.length, label, signer: s.signer, seq, query });
     }
   }
 
@@ -108,7 +114,7 @@ const main = () => {
   const queries = prepared.filter(p => eligible.includes(p.label));
   console.log(`Calculando ${queries.length} x ${templates.length} distancias DTW...`);
   const dist = queries.map(q =>
-    Float32Array.from(templates, t => (t.signer === q.signer ? Infinity : dtwDistance(q.seq, t.seq))),
+    Float32Array.from(templates, t => (t.signer === q.signer ? Infinity : dtwDistance(q.query, t.seq))),
   );
   console.log(`Distancias listas en ${((Date.now() - t0) / 1000).toFixed(0)} s`);
 
@@ -214,6 +220,9 @@ const main = () => {
     `- Muestras rep_0 leidas: ${raw.length}; con mano suficiente: ${prepared.length}`,
     `- Senas con datos: ${bySign.size}; elegibles (>= ${MIN_SAMPLES} muestras y >= ${MIN_SIGNERS} firmantes): ${eligible.length}`,
     `- Plantillas: hasta ${TEMPLATES_PER_SIGN} por sena; consultas contra plantillas de OTROS firmantes`,
+    LIVE
+      ? '- Consulta en modo **vivo**: solo los ultimos 2,2 s muestreados cada 120 ms, como la ventana de la app'
+      : '- Consulta con el tramo activo completo (la app en vivo solo ve 2,2 s: probar tambien con --live)',
     `- Acierto = sena correcta y aceptada por la app (confianza >= ${MIN_WORD_CONFIDENCE}, DTW <= ${MAX_GESTURE_DISTANCE})`,
     '',
     `## Las ${active.size} mas distinguibles`,

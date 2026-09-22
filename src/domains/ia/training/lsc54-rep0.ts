@@ -154,3 +154,27 @@ export const toTemplateFrames = (frames: RawFrame[], hand: HandKey, minFrames = 
   if (features.length < minFrames) return null;
   return resampleSequence(features);
 };
+
+/** El dataset se grabo a 30 FPS (33,3 ms por frame). */
+const DATASET_FPS = 30;
+/** La app muestrea la camara cada 120 ms y guarda 2,2 s (motionClassifier.ts). */
+const LIVE_SAMPLE_MS = 120;
+const LIVE_WINDOW_MS = 2200;
+
+/**
+ * Lo que la app veria de esta muestra en vivo: solo los ultimos 2,2 s del
+ * tramo activo, muestreados cada 120 ms. Las senas largas (muchas pasan de
+ * 3 s) no le caben enteras en la ventana.
+ */
+export const toLiveQueryFrames = (frames: RawFrame[], hand: HandKey, minSamples = 8): number[][] | null => {
+  const active = frames.filter(f => isRealHand(f[hand]));
+  const windowFrames = Math.round((LIVE_WINDOW_MS / 1000) * DATASET_FPS);
+  const step = (LIVE_SAMPLE_MS / 1000) * DATASET_FPS;
+
+  const tail = active.slice(Math.max(0, active.length - windowFrames));
+  const picked: RawFrame[] = [];
+  for (let i = 0; Math.round(i * step) < tail.length; i++) picked.push(tail[Math.round(i * step)]);
+  if (picked.length < minSamples) return null;
+
+  return resampleSequence(picked.map(f => normalizeLandmarks(toLandmarks(f[hand]!))));
+};
