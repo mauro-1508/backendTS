@@ -121,6 +121,12 @@ Verifica que quedaste en la rama correcta:
 git branch --show-current     # debe decir: feat/backend-dominios-ia
 ```
 
+**Actualiza antes de empezar y de vez en cuando**, que la rama se mueve:
+
+```bash
+git pull
+```
+
 ### Paso 3 — Lanzar TU tramo
 
 Tu tramo es el **2 de 2**. El tramo 1 lo está bajando la otra máquina; si bajas el mismo,
