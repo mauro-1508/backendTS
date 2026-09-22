@@ -245,7 +245,7 @@ const saveState = () => {
 };
 
 const log = (w: WorkerState, msg: string) =>
-  console.log(`${new Date().toISOString().slice(11, 19)} [w${String(w.id).padStart(2, '0')}] ${msg}`);
+  console.log(`${new Date().toTimeString().slice(0, 8)} [w${String(w.id).padStart(2, '0')}] ${msg}`);
 
 /** Se enciende cuando se alcanza el tope: los demas trabajadores paran tambien. */
 let stopping = false;
