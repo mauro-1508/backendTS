@@ -14,7 +14,15 @@
  * bytes y el motor no la usa). Es reanudable: el estado queda en
  * datasets/lsc54/rep0/state.json y cada muestra en worker-XX.jsonl.
  *
- * Uso: npm run ia:download-lsc54 [-- --workers 16]
+ * Uso:
+ *   npm run ia:download-lsc54                          # todo el archivo
+ *   npm run ia:download-lsc54 -- --slice 1/2           # primera mitad (maquina A)
+ *   npm run ia:download-lsc54 -- --slice 2/2           # segunda mitad (maquina B)
+ *   npm run ia:download-lsc54 -- --slice 1/2 --max-samples 800
+ *
+ * Opciones: --workers (4 por defecto), --slice i/N, --max-samples N.
+ * El servidor limita por conexion a internet, asi que repartir los tramos
+ * entre maquinas distintas si acelera; subir --workers en una sola, no.
  */
 import fs from 'fs';
 import path from 'path';
@@ -25,17 +33,35 @@ const FILE_SIZE = 55_178_894_680;
 const OUT_DIR = path.join(__dirname, 'datasets', 'lsc54', 'rep0');
 const STATE_PATH = path.join(OUT_DIR, 'state.json');
 
-const SCAN_WINDOW = 64 * 1024;
-const READ_CHUNK = 1024 * 1024;
+/** Lecturas grandes: el servidor corta (HTTP 429) si se le piden muchas seguidas. */
+const SCAN_WINDOW = 256 * 1024;
+const READ_CHUNK = 4 * 1024 * 1024;
 /** Bytes que se leen antes de un rep_0 para capturar las claves que lo abren. */
 const CHAIN_CONTEXT = 2048;
 /** Fraccion de una rep que se salta antes de buscar la siguiente clave. */
 const STEP_FRACTION = 0.985;
+/** Espera minima cuando el servidor responde 429 y no dice cuanto esperar. */
+const RATE_LIMIT_WAIT_MS = 60_000;
 const KEPT_PARTS = ['r_hand', 'l_hand', 'pose'] as const;
 
 const args = process.argv.slice(2);
-const workersArg = args.indexOf('--workers');
-const WORKERS = workersArg >= 0 ? Number(args[workersArg + 1]) : 16;
+const argNum = (name: string, def: number) => {
+  const i = args.indexOf(name);
+  return i >= 0 ? Number(args[i + 1]) : def;
+};
+const WORKERS = argNum('--workers', 4);
+const MAX_SAMPLES = argNum('--max-samples', Infinity);
+
+/**
+ * `--slice i/N` reparte el archivo entre varias maquinas: cada una baja su
+ * parte (i de N) y despues se juntan los .jsonl. El limite del servidor es por
+ * conexion a internet, asi que dos maquinas distintas suman velocidad.
+ */
+const sliceArg = args.indexOf('--slice');
+const [SLICE_I, SLICE_N] = sliceArg >= 0 ? args[sliceArg + 1].split('/').map(Number) : [1, 1];
+if (!(SLICE_I >= 1 && SLICE_I <= SLICE_N)) throw new Error('--slice i/N invalido');
+const SLICE_START = Math.floor((FILE_SIZE * (SLICE_I - 1)) / SLICE_N);
+const SLICE_END = Math.floor((FILE_SIZE * SLICE_I) / SLICE_N);
 
 interface WorkerState {
   id: number;
@@ -50,6 +76,7 @@ interface WorkerState {
 
 interface State {
   url: string;
+  slice: string;
   workers: WorkerState[];
 }
 
@@ -57,21 +84,35 @@ interface State {
 
 const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
 
-/** Rango inclusivo [from, to], con reintentos. */
+/**
+ * Rango inclusivo [from, to], con reintentos.
+ *
+ * Un 429 ("vas muy rapido") no gasta intentos: se espera lo que pida el
+ * servidor en `Retry-After` y se vuelve a intentar. Asi una limitacion
+ * temporal no mata al trabajador.
+ */
 const fetchRange = async (from: number, to: number): Promise<Buffer> => {
   const last = Math.min(to, FILE_SIZE - 1);
-  for (let attempt = 1; ; attempt++) {
+  let attempt = 0;
+  let waits = 0;
+  for (;;) {
     try {
       const res = await fetch(FILE_URL, {
         headers: { Range: `bytes=${from}-${last}`, 'User-Agent': 'Mozilla/5.0' },
-        signal: AbortSignal.timeout(120_000),
+        signal: AbortSignal.timeout(180_000),
       });
+      if (res.status === 429 || res.status === 503) {
+        if (++waits > 30) throw new Error(`HTTP ${res.status} persistente`);
+        const retryAfter = Number(res.headers.get('retry-after'));
+        await sleep(Math.max(RATE_LIMIT_WAIT_MS, (retryAfter || 0) * 1000));
+        continue;
+      }
       if (res.status !== 206) throw new Error(`HTTP ${res.status}`);
       const buf = Buffer.from(await res.arrayBuffer());
       if (buf.length !== last - from + 1) throw new Error(`short read ${buf.length}/${last - from + 1}`);
       return buf;
     } catch (err) {
-      if (attempt >= 8) throw err;
+      if (++attempt >= 10) throw err;
       await sleep(Math.min(60_000, 2_000 * 2 ** attempt));
     }
   }
@@ -168,15 +209,26 @@ const compactFrames = (rep: Record<string, Record<string, Coords>>) =>
 // ---------------------------------------------------------------- trabajador
 
 const loadState = (): State => {
-  if (fs.existsSync(STATE_PATH)) return JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) as State;
-  const size = Math.ceil(FILE_SIZE / WORKERS);
+  const slice = `${SLICE_I}/${SLICE_N}`;
+  if (fs.existsSync(STATE_PATH)) {
+    const saved = JSON.parse(fs.readFileSync(STATE_PATH, 'utf8')) as State;
+    if (saved.slice !== slice) {
+      throw new Error(
+        `El estado guardado es del tramo ${saved.slice} y ahora se pidio ${slice}. ` +
+          `Usa el mismo tramo para continuar, o mueve ${OUT_DIR} a otro lado para empezar de cero.`,
+      );
+    }
+    return saved;
+  }
+  const size = Math.ceil((SLICE_END - SLICE_START) / WORKERS);
   return {
     url: FILE_URL,
+    slice,
     workers: Array.from({ length: WORKERS }, (_, id) => ({
       id,
-      start: id * size,
-      end: Math.min(FILE_SIZE, (id + 1) * size),
-      pos: id * size,
+      start: SLICE_START + id * size,
+      end: Math.min(SLICE_END, SLICE_START + (id + 1) * size),
+      pos: SLICE_START + id * size,
       done: false,
       samples: 0,
       bytes: 0,
@@ -193,6 +245,9 @@ const saveState = () => {
 const log = (w: WorkerState, msg: string) =>
   console.log(`${new Date().toISOString().slice(11, 19)} [w${String(w.id).padStart(2, '0')}] ${msg}`);
 
+/** Se enciende cuando se alcanza el tope: los demas trabajadores paran tambien. */
+let stopping = false;
+
 const runWorker = async (w: WorkerState) => {
   const outPath = path.join(OUT_DIR, `worker-${String(w.id).padStart(2, '0')}.jsonl`);
   /**
@@ -205,7 +260,7 @@ const runWorker = async (w: WorkerState) => {
   let repSize: number | null = null;
   let lastN: number | null = null;
 
-  while (!w.done) {
+  while (!w.done && !stopping) {
     const res = await scanNextRep(w.pos);
 
     if (res.kind === 'eof') {
@@ -247,7 +302,17 @@ const runWorker = async (w: WorkerState) => {
     // La clave siguiente empieza justo donde termina este objeto.
     w.pos = end;
     saveState();
-    log(w, `${found.chain.join('/') || '(sigue)'} ${frames.length} frames, ${((end - found.objStart) / 1e6).toFixed(1)} MB`);
+    const total = state.workers.reduce((s, x) => s + x.samples, 0);
+    log(
+      w,
+      `${found.chain.join('/') || '(sigue)'} ${frames.length} frames, ${((end - found.objStart) / 1e6).toFixed(1)} MB` +
+        ` | total ${total}`,
+    );
+    if (total >= MAX_SAMPLES) {
+      log(w, `tope de ${MAX_SAMPLES} muestras alcanzado`);
+      stopping = true;
+      break;
+    }
   }
   saveState();
   log(w, `terminado: ${w.samples} muestras`);
