@@ -6,7 +6,8 @@
     "dev": "nodemon --watch cmd --watch src --ext ts --exec ts-node cmd/server/main.ts",
     "ia:inspect-lsc54": "ts-node src/domains/ia/training/inspect-lsc54.ts",
     "ia:download-lsc54": "ts-node src/domains/ia/training/download-lsc54-rep0.ts",
-    "ia:measure-lsc54": "ts-node src/domains/ia/training/measure-lsc54-separability.ts"
+    "ia:measure-lsc54": "ts-node src/domains/ia/training/measure-lsc54-separability.ts",
+    "ia:convert-lsc54": "ts-node src/domains/ia/training/convert-lsc54-to-templates.ts"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",

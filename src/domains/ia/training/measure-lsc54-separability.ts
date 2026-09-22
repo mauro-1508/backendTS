@@ -23,7 +23,7 @@
 import fs from 'fs';
 import path from 'path';
 import { dtwDistance, gestureConfidence, MAX_GESTURE_DISTANCE, MIN_WORD_CONFIDENCE } from '../domain/motion_template';
-import { loadRep0Samples, pickHand, toTemplateFrames } from './lsc54-rep0';
+import { loadRep0Samples, pickHandForSign, Rep0Sample, toTemplateFrames } from './lsc54-rep0';
 
 const args = process.argv.slice(2);
 const argNum = (name: string, def: number) => {
@@ -33,6 +33,9 @@ const argNum = (name: string, def: number) => {
 const MIN_SAMPLES = argNum('--min-samples', 10);
 const TARGET = argNum('--target', 20);
 const TEMPLATES_PER_SIGN = argNum('--templates', 15);
+const dirIdx = args.indexOf('--dir');
+const DIR = dirIdx >= 0 ? args[dirIdx + 1] : undefined;
+const MIN_SIGNERS = argNum('--min-signers', 3);
 
 const OUT_MD = path.join(__dirname, 'output', 'lsc54-separability.md');
 const OUT_JSON = path.join(__dirname, 'output', 'lsc54-separability.json');
@@ -48,23 +51,35 @@ const labelOf = (sign: string) => sign.trim().toLowerCase();
 
 const main = () => {
   const t0 = Date.now();
-  const raw = loadRep0Samples();
+  const raw = loadRep0Samples(DIR);
+
+  // La mano se elige por clase: mezclar izquierda y derecha deja secuencias
+  // espejadas que el DTW ve como senas distintas.
+  const byClass = new Map<string, Rep0Sample[]>();
+  for (const s of raw) {
+    const label = labelOf(s.sign);
+    byClass.set(label, [...(byClass.get(label) ?? []), s]);
+  }
+
   const prepared: Prepared[] = [];
   let tooShort = 0;
-  for (const s of raw) {
-    const seq = toTemplateFrames(s.frames, pickHand(s.frames));
-    if (!seq) {
-      tooShort++;
-      continue;
+  for (const [label, list] of byClass) {
+    const hand = pickHandForSign(list);
+    for (const s of list) {
+      const seq = toTemplateFrames(s.frames, hand);
+      if (!seq) {
+        tooShort++;
+        continue;
+      }
+      prepared.push({ idx: prepared.length, label, signer: s.signer, seq });
     }
-    prepared.push({ idx: prepared.length, label: labelOf(s.sign), signer: s.signer, seq });
   }
 
   // Senas con suficientes muestras y al menos 3 firmantes.
   const bySign = new Map<string, Prepared[]>();
   for (const p of prepared) bySign.set(p.label, [...(bySign.get(p.label) ?? []), p]);
   const eligible = [...bySign.entries()]
-    .filter(([, ps]) => ps.length >= MIN_SAMPLES && new Set(ps.map(p => p.signer)).size >= 3)
+    .filter(([, ps]) => ps.length >= MIN_SAMPLES && new Set(ps.map(p => p.signer)).size >= MIN_SIGNERS)
     .map(([label]) => label)
     .sort();
   const skipped = [...bySign.keys()].filter(l => !eligible.includes(l)).sort();
@@ -168,7 +183,7 @@ const main = () => {
     `Generado ${new Date().toISOString()} por \`measure-lsc54-separability.ts\`.`,
     '',
     `- Muestras rep_0 leidas: ${raw.length}; con mano suficiente: ${prepared.length}`,
-    `- Senas con datos: ${bySign.size}; elegibles (>= ${MIN_SAMPLES} muestras y >= 3 firmantes): ${eligible.length}`,
+    `- Senas con datos: ${bySign.size}; elegibles (>= ${MIN_SAMPLES} muestras y >= ${MIN_SIGNERS} firmantes): ${eligible.length}`,
     `- Plantillas: hasta ${TEMPLATES_PER_SIGN} por sena; consultas contra plantillas de OTROS firmantes`,
     `- Acierto = sena correcta y aceptada por la app (confianza >= ${MIN_WORD_CONFIDENCE}, DTW <= ${MAX_GESTURE_DISTANCE})`,
     '',

@@ -103,6 +103,20 @@ export const pickHand = (frames: RawFrame[]): HandKey => {
 };
 
 /**
+ * Mano de una clase entera, por mayoria entre sus muestras.
+ *
+ * Hay que elegirla por clase y no por muestra: si una muestra usa la izquierda
+ * y otra la derecha, las plantillas quedan espejadas entre si y el DTW las ve
+ * como senas distintas (medido: elegir por muestra empeora la distancia media
+ * entre muestras de la misma sena de 3,6 a 4,7).
+ */
+export const pickHandForSign = (samples: { frames: RawFrame[] }[]): HandKey => {
+  let right = 0;
+  for (const s of samples) if (pickHand(s.frames) === 'r_hand') right++;
+  return right * 2 > samples.length ? 'r_hand' : 'l_hand';
+};
+
+/**
  * Secuencia de plantilla: frames con mano real de la mano elegida, recortados
  * al tramo activo, normalizados con normalize.ts y remuestreados a 16 como en
  * la app. Devuelve null si hay menos de `minFrames` frames reales.
