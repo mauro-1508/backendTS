@@ -20,8 +20,12 @@ export interface Landmark {
 export const SEQ_LEN = 16;
 export const FRAME_DIM = 63;
 
-/** Distancia DTW maxima para aceptar una palabra (motionClassifier.ts). */
-export const MAX_GESTURE_DISTANCE = 1.1;
+/**
+ * Distancia DTW maxima para aceptar una palabra (motionClassifier.ts).
+ * Subida de 1.1 a 2.5 al medir el dataset: con plantillas de otras personas
+ * las distancias de una misma sena van de 1.8 a 4.7.
+ */
+export const MAX_GESTURE_DISTANCE = 2.5;
 /** La app solo emite la palabra si la confianza es >= 0.7 (motionClassifier.ts). */
 export const MIN_WORD_CONFIDENCE = 0.7;
 
@@ -95,6 +99,9 @@ export const dtwDistance = (a: number[][], b: number[][]): number => {
   return cost[n][m] / ((n + m) / 2);
 };
 
-/** Confianza que la app asigna a una distancia DTW (matchWordGesture). */
+/**
+ * Confianza que la app asigna a una distancia DTW (matchWordGesture): se mide
+ * contra el umbral, de modo que una distancia igual al umbral da 0.7 justo.
+ */
 export const gestureConfidence = (distance: number): number =>
-  Math.min(0.95, Math.max(0.5, 1 - distance * 0.35));
+  Math.min(0.95, Math.max(0.5, 1 - 0.3 * (distance / MAX_GESTURE_DISTANCE)));
