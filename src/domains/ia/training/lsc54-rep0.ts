@@ -4,7 +4,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { Landmark, normalizeLandmarks, resampleSequence } from '../domain/motion_template';
+import { Landmark, normalizeTwoHands, resampleSequence } from '../domain/motion_template';
 
 export const REP0_DIR = path.join(__dirname, 'datasets', 'lsc54', 'rep0');
 
@@ -150,9 +150,15 @@ export const pickHandForSign = (samples: { frames: RawFrame[] }[]): HandKey => {
  * la app. Devuelve null si hay menos de `minFrames` frames reales.
  */
 export const toTemplateFrames = (frames: RawFrame[], hand: HandKey, minFrames = 8): number[][] | null => {
-  const features = frames.filter(f => isRealHand(f[hand])).map(f => normalizeLandmarks(toLandmarks(f[hand]!)));
+  const features = frames.filter(f => isRealHand(f[hand])).map(f => framesToFeatures(f, hand));
   if (features.length < minFrames) return null;
   return resampleSequence(features);
+};
+
+/** Mano principal + la otra si se ve: los 126 valores que compara el motor. */
+const framesToFeatures = (f: RawFrame, hand: HandKey): Float32Array => {
+  const other: HandKey = hand === 'l_hand' ? 'r_hand' : 'l_hand';
+  return normalizeTwoHands(toLandmarks(f[hand]!), isRealHand(f[other]) ? toLandmarks(f[other]!) : null);
 };
 
 /** El dataset se grabo a 30 FPS (33,3 ms por frame). */
@@ -176,5 +182,5 @@ export const toLiveQueryFrames = (frames: RawFrame[], hand: HandKey, minSamples 
   for (let i = 0; Math.round(i * step) < tail.length; i++) picked.push(tail[Math.round(i * step)]);
   if (picked.length < minSamples) return null;
 
-  return resampleSequence(picked.map(f => normalizeLandmarks(toLandmarks(f[hand]!))));
+  return resampleSequence(picked.map(f => framesToFeatures(f, hand)));
 };

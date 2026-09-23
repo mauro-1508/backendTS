@@ -18,14 +18,17 @@ export interface Landmark {
 }
 
 export const SEQ_LEN = 16;
-export const FRAME_DIM = 63;
+/** 63 valores por mano. */
+export const HAND_DIM = 63;
+/** 126 = 2 manos x 21 puntos x (x, y, z). */
+export const FRAME_DIM = 126;
 
 /**
  * Distancia DTW maxima para aceptar una palabra (motionClassifier.ts).
- * Subida de 1.1 a 2.5 al medir el dataset: con plantillas de otras personas
- * las distancias de una misma sena van de 1.8 a 4.7.
+ * Subida de 1.1 a 2.5 al medir el dataset, y de 2.5 a 4.0 al pasar a dos
+ * manos: con 126 rasgos en vez de 63 las distancias crecen ~1,5x.
  */
-export const MAX_GESTURE_DISTANCE = 2.5;
+export const MAX_GESTURE_DISTANCE = 4.0;
 /** La app solo emite la palabra si la confianza es >= 0.7 (motionClassifier.ts). */
 export const MIN_WORD_CONFIDENCE = 0.7;
 
@@ -36,7 +39,7 @@ export interface GestureTemplate {
 }
 
 export const normalizeLandmarks = (landmarks: Landmark[]): Float32Array => {
-  const out = new Float32Array(FRAME_DIM);
+  const out = new Float32Array(HAND_DIM);
   if (!landmarks || landmarks.length < 21) return out;
 
   const wrist = landmarks[0];
@@ -55,6 +58,19 @@ export const normalizeLandmarks = (landmarks: Landmark[]): Float32Array => {
     out[idx + 2] = (lm.z - wrist.z) / scale;
   }
 
+  return out;
+};
+
+const EMPTY_HAND = new Float32Array(HAND_DIM);
+
+/**
+ * Rasgos de las dos manos: 126 valores (dominante + la otra, ceros si falta).
+ * Copia de normalizeTwoHands del frontend.
+ */
+export const normalizeTwoHands = (dominant: Landmark[], other: Landmark[] | null): Float32Array => {
+  const out = new Float32Array(FRAME_DIM);
+  out.set(normalizeLandmarks(dominant), 0);
+  out.set(other ? normalizeLandmarks(other) : EMPTY_HAND, HAND_DIM);
   return out;
 };
 
