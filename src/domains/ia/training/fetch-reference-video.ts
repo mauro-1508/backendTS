@@ -118,6 +118,26 @@ const main = async () => {
   const videos = entries.filter(e => !e.name.endsWith('/'));
   console.log(`${videos.length} archivos dentro.`);
 
+  if (args.includes('--resumen')) {
+    // Cuantos videos hay por sena y de cuantas personas distintas.
+    const porSena = new Map<string, { videos: number; firmantes: Set<string> }>();
+    for (const v of videos) {
+      const parts = v.name.split('/');
+      const sena = parts[parts.length - 2];
+      const firmante = parts[1];
+      const e = porSena.get(sena) ?? { videos: 0, firmantes: new Set<string>() };
+      e.videos++;
+      e.firmantes.add(firmante);
+      porSena.set(sena, e);
+    }
+    console.log('\nsena | videos | personas');
+    for (const [sena, e] of [...porSena.entries()].sort((a, b) => b[1].videos - a[1].videos)) {
+      console.log(`${sena} | ${e.videos} | ${e.firmantes.size}`);
+    }
+    console.log(`\nTotal: ${porSena.size} senas, ${new Set(videos.map(v => v.name.split('/')[1])).size} personas`);
+    return;
+  }
+
   const hits = QUERY ? videos.filter(e => e.name.toLowerCase().includes(QUERY)) : videos;
   if (hits.length === 0) {
     console.log(`Ninguno coincide con "${QUERY}".`);
