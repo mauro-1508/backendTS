@@ -20,7 +20,10 @@
  *   npm run ia:download-lsc54 -- --slice 2/2           # segunda mitad (maquina B)
  *   npm run ia:download-lsc54 -- --slice 1/2 --max-samples 800
  *
- * Opciones: --workers (4 por defecto), --slice i/N, --max-samples N.
+ *   npm run ia:download-lsc54 -- --solo bienvenido --out bienvenido
+ *
+ * Opciones: --workers (4 por defecto), --slice i/N, --max-samples N,
+ * --solo <senas separadas por coma>, --out <carpeta>.
  * El servidor limita por conexion a internet, asi que repartir los tramos
  * entre maquinas distintas si acelera; subir --workers en una sola, no.
  */
@@ -30,8 +33,7 @@ import path from 'path';
 const FILE_URL = 'https://china.scidb.cn/download?fileId=bef1a180dba2259b3bcd7de6bc62e3df';
 const FILE_SIZE = 55_178_894_680;
 
-const OUT_DIR = path.join(__dirname, 'datasets', 'lsc54', 'rep0');
-const STATE_PATH = path.join(OUT_DIR, 'state.json');
+
 
 /** Lecturas grandes: el servidor corta (HTTP 429) si se le piden muchas seguidas. */
 const SCAN_WINDOW = 256 * 1024;
@@ -52,6 +54,24 @@ const argNum = (name: string, def: number) => {
 const WORKERS = argNum('--workers', 4);
 const MAX_SAMPLES = argNum('--max-samples', Infinity);
 
+const argStr = (name: string): string | undefined => {
+  const i = args.indexOf(name);
+  return i >= 0 ? args[i + 1] : undefined;
+};
+
+/**
+ * `--solo hola,bienvenido` baja unicamente esas senas y salta el resto.
+ * Recorrer un rep sin bajarlo cuesta ~2 % de sus bytes, asi que sirve para
+ * juntar todas las muestras de una palabra sin bajar el archivo entero.
+ */
+const ONLY = (argStr('--solo') ?? '')
+  .split(',')
+  .map(x => x.trim().toLowerCase())
+  .filter(Boolean);
+
+/** Carpeta de salida propia, para no mezclar con la descarga general. */
+const OUT_NAME = argStr('--out');
+
 /**
  * `--slice i/N` reparte el archivo entre varias maquinas: cada una baja su
  * parte (i de N) y despues se juntan los .jsonl. El limite del servidor es por
@@ -62,6 +82,9 @@ const [SLICE_I, SLICE_N] = sliceArg >= 0 ? args[sliceArg + 1].split('/').map(Num
 if (!(SLICE_I >= 1 && SLICE_I <= SLICE_N)) throw new Error('--slice i/N invalido');
 const SLICE_START = Math.floor((FILE_SIZE * (SLICE_I - 1)) / SLICE_N);
 const SLICE_END = Math.floor((FILE_SIZE * SLICE_I) / SLICE_N);
+
+const OUT_DIR = path.join(__dirname, 'datasets', 'lsc54', OUT_NAME ?? 'rep0');
+const STATE_PATH = path.join(OUT_DIR, 'state.json');
 
 interface WorkerState {
   id: number;
@@ -261,6 +284,14 @@ const runWorker = async (w: WorkerState) => {
   let lastKey: number | null = null;
   let repSize: number | null = null;
   let lastN: number | null = null;
+  /** [firmante, categoria, sena, video]: la cadena solo trae lo que se abre. */
+  let parts: (string | null)[] = [null, null, null, null];
+  /** Con --solo: true mientras se esta atravesando una sena que no interesa. */
+  let skipping = false;
+  let lastSave = Date.now();
+  /** Cuantas reps trae cada video (3, 5...): permite saltarlos de una. */
+  let repsPerVid = 1;
+  let vidStart: number | null = null;
 
   while (!w.done && !stopping) {
     const res = await scanNextRep(w.pos);
@@ -271,6 +302,33 @@ const runWorker = async (w: WorkerState) => {
     }
 
     if (res.kind === 'rep') {
+      // Saltandose una sena que no interesa: pasarse de largo da igual, lo
+      // unico que no se puede es saltarse el rep_0 del proximo video. Se
+      // reestima el tamano con el promedio y se sigue, sin retroceder.
+      if (skipping && lastKey != null && res.keyPos > lastKey) {
+        repSize = Math.floor((res.keyPos - lastKey) / Math.max(1, res.n - (lastN ?? 0)));
+        lastKey = res.keyPos;
+
+        if (vidStart != null && res.n < lastN!) {
+          // Caimos en otro video sin ver su rep_0: hay que volver por el, no
+          // sea que sea una de las senas buscadas.
+          w.pos = Math.max(vidStart + 1, res.keyPos - Math.floor(res.n * repSize * 1.02));
+          vidStart = null;
+          lastN = null;
+          continue;
+        }
+        lastN = res.n;
+
+        // Saltar lo que falta del video de una sola vez.
+        const restantes = Math.max(1, repsPerVid - res.n);
+        w.pos = res.keyPos + Math.floor(repSize * (restantes - 0.03));
+        if (Date.now() - lastSave > 30_000) {
+          saveState();
+          lastSave = Date.now();
+        }
+        continue;
+      }
+
       if (lastN != null && res.n !== lastN + 1 && lastKey != null && w.pos > lastKey + 1) {
         // El salto paso por encima de una frontera: volver y avanzar leyendo.
         log(w, `salto largo (rep_${lastN} -> rep_${res.n}), retrocediendo`);
@@ -292,6 +350,34 @@ const runWorker = async (w: WorkerState) => {
       break;
     }
 
+    const depth = found.chain.length;
+    parts = depth >= 4 ? found.chain.slice(-4) : [...parts.slice(0, 4 - depth), ...found.chain];
+    const sign = (parts[2] ?? '').toLowerCase();
+
+    // Con --solo, las demas senas se saltan sin bajarlas: se avanza por la
+    // frontera como con las rep_1..N.
+    if (ONLY.length > 0 && !ONLY.includes(sign)) {
+      // Cuantas reps tuvo el video anterior: se salta de a videos enteros.
+      if (vidStart != null && repSize) {
+        const observadas = Math.round((found.keyPos - vidStart) / repSize);
+        if (observadas >= 1 && observadas <= 60) repsPerVid = observadas;
+      }
+      vidStart = found.keyPos;
+      skipping = true;
+      lastKey = found.keyPos;
+      lastN = 0;
+      w.pos = repSize ? found.keyPos + Math.floor(repSize * (repsPerVid - 0.03)) : found.keyPos + 1;
+      // El avance tambien se guarda: sin esto, horas de recorrido se pierden
+      // si el proceso se corta.
+      if (Date.now() - lastSave > 30_000) {
+        saveState();
+        lastSave = Date.now();
+      }
+      continue;
+    }
+
+    skipping = false;
+
     const { text, end } = await readObject(found.objStart);
     const frames = compactFrames(JSON.parse(text));
     fs.appendFileSync(outPath, JSON.stringify({ offset: found.keyPos, chain: found.chain, frames }) + '\n');
@@ -307,8 +393,8 @@ const runWorker = async (w: WorkerState) => {
     const total = state.workers.reduce((s, x) => s + x.samples, 0);
     log(
       w,
-      `${found.chain.join('/') || '(sigue)'} ${frames.length} frames, ${((end - found.objStart) / 1e6).toFixed(1)} MB` +
-        ` | total ${total}`,
+      `${parts.filter(Boolean).join('/') || '(sigue)'} ${frames.length} frames, ` +
+        `${((end - found.objStart) / 1e6).toFixed(1)} MB | total ${total}`,
     );
     if (total >= MAX_SAMPLES) {
       log(w, `tope de ${MAX_SAMPLES} muestras alcanzado`);
