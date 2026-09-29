@@ -11,15 +11,17 @@ import { makeResetPassword } from './application/reset_password';
 import { makeGoogleLogin } from './application/google_login';
 import { makeAuthRoutes } from './adapters/inbound/http/routes';
 import { AuthService } from './ports/inbound/auth_service';
+import { RoleAssigner } from './ports/outbound/role_assigner';
 
 // Composicion de dependencias del dominio auth (puertos -> adaptadores concretos).
-export const makeAuthModule = () => {
+export const makeAuthModule = (moduleDeps: { roleAssigner: RoleAssigner }) => {
   const deps = {
     userRepository: postgresUserRepository,
     authRepository: postgresAuthRepository,
     passwordHasher: bcryptPasswordHasher,
     tokenProvider: jwtTokenProvider,
     mailer: nodemailerMailer,
+    roleAssigner: moduleDeps.roleAssigner,
   };
 
   const authService: AuthService = {

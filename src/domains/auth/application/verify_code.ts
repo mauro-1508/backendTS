@@ -1,17 +1,17 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { AuthRepository } from '../ports/outbound/auth_repository';
-import { authDomainService } from '../domain/service';
+import { authDomainService, AuthError } from '../domain/service';
 import { AuthResult } from '../ports/inbound/auth_service';
 
 export const makeVerifyCode = (deps: { userRepository: UserRepository; authRepository: AuthRepository }) =>
   async ({ email, code }: { email: string; code: string }): Promise<AuthResult> => {
     if (!email || !code) {
-      throw new Error('Email y código son obligatorios');
+      throw new AuthError('Email y código son obligatorios');
     }
 
     const user = await deps.userRepository.findByEmail(email);
     if (!user) {
-      throw new Error('Código inválido');
+      throw new AuthError('Código inválido');
     }
 
     const tokenHash = authDomainService.hashResetCode(code);

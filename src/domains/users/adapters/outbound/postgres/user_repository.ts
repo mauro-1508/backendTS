@@ -55,6 +55,10 @@ export const postgresUserRepository: UserRepository = {
     return toUser(rows[0]);
   },
 
+  deleteById: async (userId: number) => {
+    await pool.query('DELETE FROM public.users WHERE user_id = $1', [userId]);
+  },
+
   updatePassword: async (userId: number, hashedPassword: string) => {
     await pool.query(`UPDATE public.users SET password = $1 WHERE user_id = $2`, [hashedPassword, userId]);
   },
