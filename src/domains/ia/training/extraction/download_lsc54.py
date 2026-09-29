@@ -177,23 +177,28 @@ def compact(rep: dict) -> list[dict]:
 
 
 class Descarga:
-    def __init__(self, out_dir: str, workers: int, only: list[str], max_samples: int):
+    def __init__(self, out_dir: str, workers: int, only: list[str], max_samples: int,
+                 max_por_sena: int = 0):
         self.out_dir = out_dir
         self.only = [s.lower() for s in only]
         self.max_samples = max_samples
+        # Tope por sena: 30 grabaciones alcanzan para entrenar y evita bajar
+        # 53 de unas y 20 de otras, que desbalancea las clases.
+        self.max_por_sena = max_por_sena
         self.state_path = os.path.join(out_dir, "state.json")
         os.makedirs(out_dir, exist_ok=True)
 
         if os.path.exists(self.state_path):
             self.state = json.load(open(self.state_path, encoding="utf-8"))
             print(f"retomando: {sum(w['samples'] for w in self.state['workers'])} muestras ya bajadas")
+            self.state.setdefault("por_sena", {})
         else:
             tamano = FILE_SIZE // workers
             self.state = {"url": FILE_URL, "workers": [
                 {"id": i, "start": i * tamano, "end": min(FILE_SIZE, (i + 1) * tamano),
                  "pos": i * tamano, "done": False, "samples": 0, "bytes": 0}
                 for i in range(workers)
-            ]}
+            ], "por_sena": {}}
         self.stopping = False
         self.last_save = 0.0
 
@@ -253,7 +258,11 @@ class Descarga:
             partes = chain[-4:] if len(chain) >= 4 else partes[: 4 - len(chain)] + chain
             sena = (partes[2] or "").lower()
 
-            if self.only and sena not in self.only:
+            # Ya hay suficientes de esta sena: se salta como las no pedidas.
+            completa = (self.max_por_sena > 0
+                        and self.state["por_sena"].get(sena, 0) >= self.max_por_sena)
+
+            if (self.only and sena not in self.only) or completa:
                 last_key, last_n, skipping = res["key_pos"], 0, True
                 w["pos"] = res["key_pos"] + int(rep_size * STEP_FRACTION) if rep_size else res["key_pos"] + 1
                 self.save()
@@ -268,6 +277,8 @@ class Descarga:
 
             last_key, last_n = res["key_pos"], 0
             rep_size = fin - res["key_pos"]
+            with _state_lock:
+                self.state["por_sena"][sena] = self.state["por_sena"].get(sena, 0) + 1
             w["samples"] += 1
             w["bytes"] += fin - res["obj_start"]
             w["pos"] = fin
@@ -307,12 +318,16 @@ def main() -> None:
     ap.add_argument("--workers", type=int, default=8)
     ap.add_argument("--solo", default="", help="senas separadas por coma; vacio = todas")
     ap.add_argument("--max-samples", type=int, default=10**9)
+    ap.add_argument("--max-por-sena", type=int, default=0,
+                    help="deja de bajar una sena al llegar a N grabaciones (0 = sin tope)")
     args = ap.parse_args()
 
     only = [s.strip() for s in args.solo.split(",") if s.strip()]
     if only:
         print(f"bajando unicamente: {', '.join(only)}")
-    Descarga(args.out, args.workers, only, args.max_samples).run()
+    if args.max_por_sena:
+        print(f"tope de {args.max_por_sena} grabaciones por sena")
+    Descarga(args.out, args.workers, only, args.max_samples, args.max_por_sena).run()
 
 
 if __name__ == "__main__":

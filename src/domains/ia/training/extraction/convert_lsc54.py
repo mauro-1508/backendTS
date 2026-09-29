@@ -20,15 +20,17 @@ import os
 
 import numpy as np
 
-from extract_landmarks import (
+# Se importa de features_common y no de extract_landmarks: LSC-54 ya trae los
+# landmarks, asi que convertirlo no debe exigir MediaPipe ni OpenCV.
+from features_common import (
     FEATURE_DIM,
     POSE_LEFT_SHOULDER,
     POSE_LEFT_WRIST,
     POSE_RIGHT_SHOULDER,
     POSE_RIGHT_WRIST,
-    _active_span,
-    _normalise,
-    _resample,
+    active_span as _active_span,
+    normalise_hand as _normalise,
+    resample as _resample,
 )
 
 # ---------------------------------------------------------------- lectura
