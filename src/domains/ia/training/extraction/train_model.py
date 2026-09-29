@@ -36,8 +36,22 @@ FEATURE_DIM = 128
 # ---------------------------------------------------------------- modelo
 
 
-def build_model(n_clases: int, seq_len: int = SEQ_LEN, feature_dim: int = FEATURE_DIM) -> keras.Model:
-    """Conv1D para el movimiento corto, GRU para la secuencia entera."""
+def build_model(
+    n_clases: int,
+    seq_len: int = SEQ_LEN,
+    feature_dim: int = FEATURE_DIM,
+    unroll: bool = False,
+) -> keras.Model:
+    """
+    Conv1D para el movimiento corto, GRU para la secuencia entera.
+
+    `unroll` escribe los pasos de la GRU uno por uno en vez de dejarlos en un
+    bucle. Hace falta para exportar: con bucle, Keras usa el kernel cuDNN de
+    NVIDIA y el grafo queda con operaciones (CudnnRNNV3, ReverseSequence) que
+    ni TensorFlow.js ni TFLite saben leer. Desenrollar cuesta poco porque
+    despues de los dos MaxPool la secuencia mide 7 pasos, y no cambia los
+    pesos: el modelo entrenado se puede pasar tal cual a uno desenrollado.
+    """
     entrada = keras.Input(shape=(seq_len, feature_dim), name="landmarks")
 
     # Normalizacion por canal: las coordenadas ya vienen en anchos de hombro,
@@ -50,7 +64,7 @@ def build_model(n_clases: int, seq_len: int = SEQ_LEN, feature_dim: int = FEATUR
         x = layers.MaxPooling1D(pool_size=2)(x)
         x = layers.Dropout(0.3)(x)
 
-    x = layers.Bidirectional(layers.GRU(96, return_sequences=False))(x)
+    x = layers.Bidirectional(layers.GRU(96, return_sequences=False, unroll=unroll))(x)
     x = layers.Dropout(0.4)(x)
     x = layers.Dense(128, activation="relu")(x)
     x = layers.Dropout(0.3)(x)
