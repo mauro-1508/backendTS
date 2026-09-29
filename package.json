@@ -9,7 +9,8 @@
     "ia:measure-lsc54": "ts-node src/domains/ia/training/measure-lsc54-separability.ts",
     "ia:convert-lsc54": "ts-node src/domains/ia/training/convert-lsc54-to-templates.ts",
     "ia:upload-templates": "ts-node src/domains/ia/training/upload-templates.ts",
-    "ia:video": "ts-node src/domains/ia/training/fetch-reference-video.ts"
+    "ia:video": "ts-node src/domains/ia/training/fetch-reference-video.ts",
+    "test": "vitest run"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
@@ -38,6 +39,7 @@
     "nodemon": "^3.1.14",
     "stream-json": "^1.9.1",
     "ts-node": "^10.9.2",
-    "typescript": "^5.6.3"
+    "typescript": "^5.6.3",
+    "vitest": "5.0.2"
   }
 }
