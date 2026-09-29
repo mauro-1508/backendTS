@@ -1,5 +1,6 @@
 import { UserRepository } from '../../../ports/outbound/user_repository';
 import { NewUser, User } from '../../../domain/entity';
+import { normalizeEmail } from '../../../domain/service';
 import { pool } from '../../../../../shared/database/postgres';
 
 interface UserRow {
@@ -29,7 +30,7 @@ export const postgresUserRepository: UserRepository = {
        FROM public.users
        WHERE email = $1
        LIMIT 1`,
-      [email]
+      [normalizeEmail(email)]
     );
     return rows[0] ? toUser(rows[0]) : null;
   },
@@ -50,7 +51,7 @@ export const postgresUserRepository: UserRepository = {
       `INSERT INTO public.users (name, email, password, terms_accepted, terms_accepted_at)
        VALUES ($1, $2, $3, true, NOW())
        RETURNING user_id, name, email, password, terms_accepted, terms_accepted_at, created_at`,
-      [name, email, password]
+      [name, normalizeEmail(email), password]
     );
     return toUser(rows[0]);
   },

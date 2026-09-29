@@ -1,13 +1,46 @@
-import { createHash } from 'crypto';
-import { PasswordResetToken } from './entity';
+import { randomInt } from 'crypto';
 
-const RESET_CODE_TTL_MS = 15 * 60 * 1000;
+export type IssueDecision = 'ok' | 'cooldown' | 'hourly_limit';
 
-/** Error de negocio conocido de auth: su mensaje es seguro de mostrar al cliente (400). */
-export class AuthError extends Error {}
-export class InvalidResetCodeError extends AuthError {}
-export class ExpiredResetCodeError extends AuthError {}
-export class UsedResetCodeError extends AuthError {}
+export const CODE_TTL_MS = 15 * 60 * 1000;
+export const MAX_ATTEMPTS = 5;
+export const RESEND_COOLDOWN_MS = 60_000;
+export const MAX_SENDS_PER_HOUR = 5;
+export const ONE_HOUR_MS = 60 * 60 * 1000;
+
+/** Hash bcrypt (coste 10) de una clave inexistente: se compara cuando no hay usuario para igualar tiempos. */
+export const DUMMY_HASH = '$2b$10$rkfeSplziI2zx6pmV8wlneYDuvOlPiBTNOL.fRa6lMtI0i1YFVO52';
+
+/** Error de negocio conocido de auth: mensaje seguro de mostrar, con codigo estable para el cliente. */
+export class AuthError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string = 'AUTH_ERROR',
+    public readonly httpStatus: number = 400
+  ) {
+    super(message);
+  }
+}
+export class ValidationError extends AuthError {
+  constructor(message: string) {
+    super(message, 'VALIDATION_ERROR');
+  }
+}
+export class InvalidCredentialsError extends AuthError {
+  constructor() {
+    super('Credenciales inválidas', 'INVALID_CREDENTIALS');
+  }
+}
+export class EmailAlreadyExistsError extends AuthError {
+  constructor() {
+    super('Este correo ya tiene una cuenta', 'EMAIL_ALREADY_EXISTS', 409);
+  }
+}
+export class InvalidCodeError extends AuthError {
+  constructor() {
+    super('Código inválido', 'INVALID_CODE');
+  }
+}
 /** Fallo interno al crear la cuenta (p. ej. asignar rol): sin detalle al cliente, termina en 500. */
 export class RegistrationFailedError extends Error {
   constructor() {
@@ -16,30 +49,23 @@ export class RegistrationFailedError extends Error {
 }
 
 export const authDomainService = {
-  generateResetCode(): string {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+  /** Codigo de 6 digitos con ceros a la izquierda; `random` es inyectable para tests. */
+  generateCode(random: (min: number, max: number) => number = randomInt): string {
+    return random(0, 1_000_000).toString().padStart(6, '0');
   },
 
-  hashResetCode(code: string): string {
-    return createHash('sha256').update(code).digest('hex');
+  codeExpiryDate(now: Date = new Date()): Date {
+    return new Date(now.getTime() + CODE_TTL_MS);
   },
 
-  resetCodeExpiryDate(): Date {
-    return new Date(Date.now() + RESET_CODE_TTL_MS);
+  /** Reenvio: 60 s desde el ultimo envio y maximo 5 en la ultima hora. Devuelve el motivo si se rechaza. */
+  issueDecision(lastCreatedAt: Date | null, sentLastHour: number, now: Date = new Date()): IssueDecision {
+    if (sentLastHour >= MAX_SENDS_PER_HOUR) return 'hourly_limit';
+    if (lastCreatedAt && now.getTime() - lastCreatedAt.getTime() < RESEND_COOLDOWN_MS) return 'cooldown';
+    return 'ok';
   },
 
-  ensureResetTokenIsUsable(token: PasswordResetToken | null, userId: number): void {
-    if (!token) {
-      throw new InvalidResetCodeError('Código inválido');
-    }
-    if (token.usedAt) {
-      throw new UsedResetCodeError('Este código ya fue utilizado');
-    }
-    if (new Date() > new Date(token.expiresAt)) {
-      throw new ExpiredResetCodeError('El código ha expirado');
-    }
-    if (token.userId !== userId) {
-      throw new InvalidResetCodeError('Código inválido');
-    }
+  canIssueToken(lastCreatedAt: Date | null, sentLastHour: number, now: Date = new Date()): boolean {
+    return authDomainService.issueDecision(lastCreatedAt, sentLastHour, now) === 'ok';
   },
 };

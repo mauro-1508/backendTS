@@ -1,6 +1,7 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
+import { normalizeEmail } from '../../users/domain/service';
 import { PasswordHasher, TokenProvider } from '../ports/outbound/auth_provider';
-import { AuthError } from '../domain/service';
+import { DUMMY_HASH, InvalidCredentialsError, ValidationError } from '../domain/service';
 import { AuthResult, LoginInput } from '../ports/inbound/auth_service';
 
 export const makeLogin = (deps: {
@@ -10,17 +11,14 @@ export const makeLogin = (deps: {
 }) =>
   async ({ email, password }: LoginInput): Promise<AuthResult> => {
     if (!email || !password) {
-      throw new AuthError('Email y contraseña son obligatorios');
+      throw new ValidationError('Email y contraseña son obligatorios');
     }
 
-    const user = await deps.userRepository.findByEmail(email);
-    if (!user || !user.password) {
-      throw new AuthError('Credenciales inválidas');
-    }
-
-    const isPasswordValid = await deps.passwordHasher.compare(password, user.password);
-    if (!isPasswordValid) {
-      throw new AuthError('Credenciales inválidas');
+    const user = await deps.userRepository.findByEmail(normalizeEmail(email));
+    // Siempre se ejecuta un bcrypt.compare (contra un hash falso si no hay cuenta o clave) para no filtrar por tiempo.
+    const isPasswordValid = await deps.passwordHasher.compare(password, user?.password ?? DUMMY_HASH);
+    if (!user || !user.password || !isPasswordValid) {
+      throw new InvalidCredentialsError();
     }
 
     const token = deps.tokenProvider.sign({ userId: user.userId, email: user.email });
