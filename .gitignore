@@ -7,3 +7,5 @@ dist/
 # Datos de entrenamiento: no se versionan
 src/domains/ia/training/datasets/
 src/domains/ia/training/output/
+__pycache__/
+*.pyc

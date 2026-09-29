@@ -32,10 +32,12 @@ const argStr = (name: string): string | undefined => {
 };
 
 const ZIP = (argStr('--zip') ?? 'cortesia').toLowerCase();
+/** Permite apuntar a cualquier ZIP por URL (p. ej. LSC50 en Figshare). */
+const ZIP_URL = argStr('--url');
 const QUERY = (argStr('--buscar') ?? '').toLowerCase();
 const GET = argStr('--bajar');
 
-const urlOf = (fileId: string) => `https://china.scidb.cn/download?fileId=${fileId}`;
+const urlOf = (fileId: string) => ZIP_URL ?? `https://china.scidb.cn/download?fileId=${fileId}`;
 
 const range = async (fileId: string, from: number, to?: number): Promise<Buffer> => {
   const res = await fetch(urlOf(fileId), {
@@ -71,10 +73,20 @@ const readCentralDirectory = async (fileId: string, total: number): Promise<Entr
   const tail = await range(fileId, total - tailLen, total - 1);
 
   const eocd = tail.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
-  if (eocd < 0) throw new Error('No se encontro el final del indice (ZIP64 no soportado)');
-  const cdSize = tail.readUInt32LE(eocd + 12);
-  const cdOffset = tail.readUInt32LE(eocd + 16);
-  if (cdOffset === 0xffffffff) throw new Error('ZIP64: indice fuera de rango');
+  if (eocd < 0) throw new Error('No se encontro el final del indice');
+  let cdSize = tail.readUInt32LE(eocd + 12);
+  let cdOffset = tail.readUInt32LE(eocd + 16);
+
+  // ZIP64: los ZIP de mas de 4 GB (como VIDEOS.zip de LSC50) guardan tamano y
+  // posicion reales en un registro aparte, y dejan 0xffffffff en el clasico.
+  const locator = tail.lastIndexOf(Buffer.from([0x50, 0x4b, 0x06, 0x07]));
+  if (locator >= 0 && (cdOffset === 0xffffffff || cdSize === 0xffffffff)) {
+    const zip64Start = Number(tail.readBigUInt64LE(locator + 8));
+    const z = await range(fileId, zip64Start, zip64Start + 55);
+    if (z.readUInt32LE(0) !== 0x06064b50) throw new Error('Registro ZIP64 invalido');
+    cdSize = Number(z.readBigUInt64LE(40));
+    cdOffset = Number(z.readBigUInt64LE(48));
+  }
 
   const cd = await range(fileId, cdOffset, cdOffset + cdSize - 1);
   const entries: Entry[] = [];
@@ -83,13 +95,31 @@ const readCentralDirectory = async (fileId: string, total: number): Promise<Entr
     const nameLen = cd.readUInt16LE(p + 28);
     const extraLen = cd.readUInt16LE(p + 30);
     const commentLen = cd.readUInt16LE(p + 32);
-    entries.push({
+    const entry: Entry = {
       method: cd.readUInt16LE(p + 10),
       compressedSize: cd.readUInt32LE(p + 20),
       size: cd.readUInt32LE(p + 24),
       localHeaderOffset: cd.readUInt32LE(p + 42),
       name: cd.subarray(p + 46, p + 46 + nameLen).toString('utf8'),
-    });
+    };
+
+    // Los campos que no caben en 32 bits vienen en el extra 0x0001, en el
+    // mismo orden en que aparecen marcados con 0xffffffff.
+    const extra = cd.subarray(p + 46 + nameLen, p + 46 + nameLen + extraLen);
+    for (let e = 0; e + 4 <= extra.length; ) {
+      const tag = extra.readUInt16LE(e);
+      const len = extra.readUInt16LE(e + 2);
+      if (tag === 0x0001) {
+        let q = e + 4;
+        if (entry.size === 0xffffffff) (entry.size = Number(extra.readBigUInt64LE(q))), (q += 8);
+        if (entry.compressedSize === 0xffffffff) (entry.compressedSize = Number(extra.readBigUInt64LE(q))), (q += 8);
+        if (entry.localHeaderOffset === 0xffffffff) entry.localHeaderOffset = Number(extra.readBigUInt64LE(q));
+        break;
+      }
+      e += 4 + len;
+    }
+
+    entries.push(entry);
     p += 46 + nameLen + extraLen + commentLen;
   }
   return entries;
@@ -109,7 +139,7 @@ const download = async (fileId: string, entry: Entry): Promise<Buffer> => {
 };
 
 const main = async () => {
-  const fileId = ZIPS[ZIP];
+  const fileId = ZIP_URL ?? ZIPS[ZIP];
   if (!fileId) throw new Error(`--zip debe ser uno de: ${Object.keys(ZIPS).join(', ')}`);
 
   const total = await sizeOf(fileId);
