@@ -10,4 +10,6 @@ export const registerBodySchema = z.object({ name: z.string().trim().min(1).max(
 export const loginBodySchema = z.object({ email, password: str });
 export const forgotPasswordBodySchema = z.object({ email });
 export const verifyCodeBodySchema = z.object({ email, code });
+export const verifyEmailBodySchema = z.object({ email, code, password: str });
+export const resendVerificationBodySchema = z.object({ email });
 export const resetPasswordBodySchema = z.object({ email, code, newPassword: str });

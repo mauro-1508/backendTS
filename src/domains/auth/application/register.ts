@@ -3,9 +3,19 @@ import { PasswordHasher } from '../ports/outbound/auth_provider';
 import { normalizeEmail, userDomainService } from '../../users/domain/service';
 import { AuthResult, RegisterInput } from '../ports/inbound/auth_service';
 import { EmailAlreadyExistsError, RegistrationFailedError } from '../domain/service';
+import { AuthRepository } from '../ports/outbound/auth_repository';
+import { Mailer } from '../ports/outbound/mailer';
 import { RoleAssigner } from '../ports/outbound/role_assigner';
+import { issueAndSendVerification } from './issue_verification';
 
-export const makeRegister = (deps: { userRepository: UserRepository; passwordHasher: PasswordHasher; roleAssigner: RoleAssigner }) =>
+export const makeRegister = (deps: {
+  userRepository: UserRepository;
+  passwordHasher: PasswordHasher;
+  roleAssigner: RoleAssigner;
+  authRepository: AuthRepository;
+  mailer: Mailer;
+  now?: () => Date;
+}) =>
   async ({ name, email: rawEmail, password }: RegisterInput): Promise<AuthResult> => {
     userDomainService.ensureRegistrationIsValid({ name, email: rawEmail, password });
     const email = normalizeEmail(rawEmail);
@@ -16,7 +26,8 @@ export const makeRegister = (deps: { userRepository: UserRepository; passwordHas
     }
 
     const hashedPassword = await deps.passwordHasher.hash(password);
-    const newUser = await deps.userRepository.create({ name, email, password: hashedPassword });
+    // La cuenta nace INACTIVE (pendiente de verificar el correo).
+    const newUser = await deps.userRepository.create({ name, email, password: hashedPassword, status: 'INACTIVE' });
     // Toda cuenta debe tener al menos un rol (USER), o queda sin permisos.
     try {
       await deps.roleAssigner.assignDefaultRole(newUser.userId);
@@ -26,9 +37,25 @@ export const makeRegister = (deps: { userRepository: UserRepository; passwordHas
       throw new RegistrationFailedError();
     }
 
+    // Si el envio falla la cuenta se conserva: el usuario puede pedir otro codigo (resend-verification).
+    let verificationEmailSent = false;
+    try {
+      verificationEmailSent = await issueAndSendVerification(deps, newUser, (deps.now ?? (() => new Date()))());
+    } catch (error) {
+      // Solo nombre y codigo: error.message puede traer el correo o datos del SMTP.
+      const e = error as { name?: string; code?: string } | null;
+      console.error('[auth] register: no se pudo emitir o enviar el código de verificación', e?.name ?? 'error', e?.code ?? '');
+    }
+
     return {
       success: true,
       message: 'Usuario registrado correctamente',
-      data: { user_id: newUser.userId, name: newUser.name, email: newUser.email },
+      data: {
+        user_id: newUser.userId,
+        name: newUser.name,
+        email: newUser.email,
+        status: 'INACTIVE',
+        verification_email_sent: verificationEmailSent,
+      },
     };
   };

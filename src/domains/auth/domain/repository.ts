@@ -22,6 +22,11 @@ export interface AuthRepository {
   reserveAttempt(userId: number, type: UserTokenType, now: Date, maxAttempts: number): Promise<UserToken | null>;
   /** Devuelve el intento reservado cuando el codigo era correcto (verify-code no consume el token). */
   releaseAttempt(tokenId: number): Promise<void>;
-  /** Consume el token vivo y cambia la contrasena en una transaccion; false si ya no estaba vivo. */
+  /**
+   * Consume el token vivo y cambia la contrasena en una transaccion; false si ya no estaba vivo. Si la cuenta
+   * era INACTIVE la activa (email_verified_at) y revoca sus EMAIL_VERIFICATION vivos en la misma transaccion.
+   */
   consumeAndResetPassword(tokenId: number, userId: number, passwordHash: string): Promise<boolean>;
+  /** Consume el token vivo y activa la cuenta (INACTIVE -> ACTIVE, email_verified_at) en una transaccion; false si no. */
+  consumeAndActivate(tokenId: number, userId: number): Promise<boolean>;
 }

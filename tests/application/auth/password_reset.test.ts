@@ -10,7 +10,7 @@ import { AuthRepository } from '../../../src/domains/auth/domain/repository';
 
 // Hasher rapido (sin bcrypt) para no alargar los tests.
 const hasher = { hash: vi.fn(async (p: string) => `h:${p}`), compare: vi.fn(async (p: string, h: string) => h === `h:${p}`) };
-const user = { userId: 7, name: 'Ana', email: 'ana@x.com', password: 'h:old' };
+const user = { userId: 7, name: 'Ana', email: 'ana@x.com', password: 'h:old', status: 'ACTIVE' as const };
 
 const setup = (start = new Date('2026-01-01T12:00:00Z')) => {
   let clock = start;
@@ -47,6 +47,7 @@ const setup = (start = new Date('2026-01-01T12:00:00Z')) => {
       const t = tokens.find((x) => x.tokenId === id)!;
       t.attempts = Math.max(0, t.attempts - 1);
     },
+    consumeAndActivate: async () => true,
     consumeAndResetPassword: async (id, userId, hash) => {
       const t = tokens.find((x) => x.tokenId === id)!;
       if (t.usedAt || t.revokedAt) return false;
@@ -274,7 +275,7 @@ describe('login sin filtrar por tiempo', () => {
   });
 
   it('password null (cuenta Google): compara una vez y falla', async () => {
-    const { login, compare } = build({ userId: 1, email: 'a@x.com', password: null });
+    const { login, compare } = build({ userId: 1, email: 'a@x.com', password: null, status: 'ACTIVE' });
     await expect(login({ email: 'a@x.com', password: 'clave' })).rejects.toMatchObject({ code: 'INVALID_CREDENTIALS' });
     expect(compare).toHaveBeenCalledTimes(1);
   });

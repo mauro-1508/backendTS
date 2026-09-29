@@ -3,6 +3,12 @@ import { makeRegister } from '../../../src/domains/auth/application/register';
 import { makeGoogleLogin } from '../../../src/domains/auth/application/google_login';
 import { RegistrationFailedError } from '../../../src/domains/auth/domain/service';
 
+// Emision y envio del codigo de verificacion: aqui solo hay que dejarlos pasar.
+const verificationDeps = {
+  authRepository: { issueTokenIfAllowed: async () => 'issued' } as never,
+  mailer: { sendVerificationCode: async () => undefined, sendPasswordResetCode: async () => undefined },
+};
+
 describe('register asigna rol por defecto', () => {
   it('llama a roleAssigner con el id del usuario creado', async () => {
     const assignDefaultRole = vi.fn().mockResolvedValue(undefined);
@@ -13,6 +19,7 @@ describe('register asigna rol por defecto', () => {
       } as never,
       passwordHasher: { hash: async () => 'hashed', compare: async () => true } as never,
       roleAssigner: { assignDefaultRole },
+      ...verificationDeps,
     });
 
     const result = await register({ name: 'Ana Perez', email: 'ana@example.com', password: 'Abcdef1!x' });
@@ -33,6 +40,7 @@ describe('registro atomico por compensacion', () => {
       } as never,
       passwordHasher: { hash: async () => 'hashed', compare: async () => true } as never,
       roleAssigner: { assignDefaultRole },
+      ...verificationDeps,
     });
     return { register, deleteById };
   };
@@ -53,7 +61,7 @@ describe('google_login asigna rol a cuentas nuevas', () => {
     const deleteById = vi.fn().mockResolvedValue(undefined);
     const googleLogin = makeGoogleLogin({
       userRepository: {
-        findByEmail: async () => (existing ? { userId: 5, email: 'a@b.com' } : null),
+        findByEmail: async () => (existing ? { userId: 5, email: 'a@b.com', status: 'ACTIVE' } : null),
         create: async (u: { name: string; email: string }) => ({ userId: 42, name: u.name, email: u.email }),
         deleteById,
       } as never,

@@ -1,7 +1,7 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { normalizeEmail } from '../../users/domain/service';
 import { PasswordHasher, TokenProvider } from '../ports/outbound/auth_provider';
-import { DUMMY_HASH, InvalidCredentialsError, ValidationError } from '../domain/service';
+import { AccountBlockedError, DUMMY_HASH, EmailNotVerifiedError, InvalidCredentialsError, ValidationError } from '../domain/service';
 import { AuthResult, LoginInput } from '../ports/inbound/auth_service';
 
 export const makeLogin = (deps: {
@@ -20,6 +20,10 @@ export const makeLogin = (deps: {
     if (!user || !user.password || !isPasswordValid) {
       throw new InvalidCredentialsError();
     }
+
+    // Solo tras acreditar la contrasena se revela el estado (antes seria enumeracion de cuentas).
+    if (user.status === 'BLOCKED') throw new AccountBlockedError();
+    if (user.status !== 'ACTIVE') throw new EmailNotVerifiedError();
 
     const token = deps.tokenProvider.sign({ userId: user.userId, email: user.email });
 

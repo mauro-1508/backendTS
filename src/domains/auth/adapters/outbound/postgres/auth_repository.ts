@@ -100,7 +100,39 @@ export const postgresAuthRepository: AuthRepository = {
         [tokenId]
       );
       if (consumed.rowCount === 0) return false;
-      await client.query(`UPDATE public.users SET password = $1 WHERE user_id = $2`, [passwordHash, userId]);
+      // Un codigo de recuperacion valido prueba la propiedad del correo: una cuenta INACTIVE queda ACTIVE y
+      // verificada (los SET usan los valores previos de la fila, asi que los CASE ven el status original).
+      await client.query(
+        `UPDATE public.users SET password = $1,
+           status = CASE WHEN status = 'INACTIVE' THEN 'ACTIVE' ELSE status END,
+           email_verified_at = CASE WHEN status = 'INACTIVE' THEN NOW() ELSE email_verified_at END
+         WHERE user_id = $2`,
+        [passwordHash, userId]
+      );
+      // Los codigos de verificacion vivos ya no sirven.
+      await client.query(
+        `UPDATE public.user_tokens SET revoked_at = NOW()
+         WHERE user_id = $1 AND token_type = 'EMAIL_VERIFICATION' AND used_at IS NULL AND revoked_at IS NULL`,
+        [userId]
+      );
       return true;
+    }),
+
+  consumeAndActivate: (tokenId, userId) =>
+    inTransaction(async (client) => {
+      // Mismo orden de bloqueo: users -> user_tokens.
+      await client.query(`SELECT 1 FROM public.users WHERE user_id = $1 FOR UPDATE`, [userId]);
+      const consumed = await client.query(
+        `UPDATE public.user_tokens SET used_at = NOW()
+         WHERE token_id = $1 AND used_at IS NULL AND revoked_at IS NULL RETURNING token_id`,
+        [tokenId]
+      );
+      if (consumed.rowCount === 0) return false;
+      // Solo INACTIVE -> ACTIVE: una cuenta BLOCKED no se reactiva verificando el correo.
+      const activated = await client.query(
+        `UPDATE public.users SET status = 'ACTIVE', email_verified_at = NOW() WHERE user_id = $1 AND status = 'INACTIVE'`,
+        [userId]
+      );
+      return activated.rowCount === 1;
     }),
 };
