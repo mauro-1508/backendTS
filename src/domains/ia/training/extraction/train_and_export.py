@@ -74,6 +74,13 @@ ALIAS_NUMPY = {
 }
 
 
+# Los archivos _pb2.py de tensorflow_hub se generaron con un protoc viejo y el
+# protobuf actual se niega a cargarlos. El propio mensaje de error propone esta
+# salida: usar el analizador de protobuf escrito en Python en vez del de C++.
+# Es mas lento, pero solo lo paga el conversor, que corre una vez.
+os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
+
+
 def import_falla() -> str | None:
     """stderr si `import tensorflowjs` falla en un proceso limpio; None si va."""
     prueba = subprocess.run(
