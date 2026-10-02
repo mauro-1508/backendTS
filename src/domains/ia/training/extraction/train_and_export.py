@@ -66,6 +66,44 @@ def patch_tensorflowjs() -> None:
         print(f"  parchado {ruta.name}")
 
 
+def find_dataset(preferida: str) -> str:
+    """
+    Localiza el dataset.npz, y si no esta explica por que en vez de reventar.
+
+    Drive se monta en /content/drive o en /content/gdrive segun como se haya
+    hecho, y el montaje puede quedarse a medias sin avisar: la celda termina,
+    no monta nada, y el primer sintoma aparece aqui como un FileNotFoundError
+    que no dice nada util. Ya costo una tarde.
+    """
+    candidatos = [preferida]
+    for punto in ("/content/drive", "/content/gdrive"):
+        candidatos.append(f"{punto}/MyDrive/traduce_senas/datasets/dataset.npz")
+    for ruta in candidatos:
+        if os.path.exists(ruta):
+            return ruta
+
+    montado = [p for p in ("/content/drive", "/content/gdrive") if os.path.isdir(f"{p}/MyDrive")]
+    aviso = ["", "No se encontro dataset.npz.", ""]
+    if montado:
+        aviso += [
+            f"Drive esta montado en {montado[0]}, pero ahi no hay",
+            "MyDrive/traduce_senas/datasets/dataset.npz.",
+            "Revisa que sea la cuenta de Google correcta.",
+        ]
+    else:
+        aviso += [
+            "Drive NO esta montado. Corre en una celda aparte:",
+            "",
+            "    from google.colab import drive",
+            "    drive.mount('/content/drive', force_remount=True)",
+            "",
+            "Esa celda pide permiso: hay que abrir el enlace, elegir la",
+            "cuenta y aceptar. Si se deja a medias, termina sin montar y",
+            "no avisa, y el fallo aparece mucho despues y en otro sitio.",
+        ]
+    raise SystemExit("\n".join(aviso))
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Entrena con todas las glosas y exporta para la app")
     ap.add_argument("--dataset", default="/content/drive/MyDrive/traduce_senas/datasets/dataset.npz")
@@ -78,7 +116,13 @@ def main() -> None:
     args = ap.parse_args()
 
     # ------------------------------------------------------------ datos
-    d = np.load(args.dataset, allow_pickle=True)
+    dataset = find_dataset(args.dataset)
+    if dataset != args.dataset:
+        print(f"dataset encontrado en {dataset}")
+    # Los modelos van junto al dataset, no donde diga el valor por defecto.
+    if args.modelos.startswith("/content/drive") and not dataset.startswith("/content/drive"):
+        args.modelos = os.path.join(os.path.dirname(os.path.dirname(dataset)), "modelos")
+    d = np.load(dataset, allow_pickle=True)
     glosas = [str(g) for g in d["glosses"]]
     X_tr, y_tr = d["X_train"], d["y_train"]
     X_va, y_va = d["X_val"], d["y_val"]
