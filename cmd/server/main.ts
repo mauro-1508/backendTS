@@ -9,6 +9,7 @@ import { makeIamModule } from '../../src/domains/iam/iam.module';
 import { makeAuthModule } from '../../src/domains/auth/auth.module';
 import { makeUsersModule } from '../../src/domains/users/users.module';
 import { makeTranslationsModule } from '../../src/domains/translations/translations.module';
+import { makeAnalyticsModule } from '../../src/domains/analytics/analytics.module';
 import { makeIaModule } from '../../src/domains/ia/ia.module';
 
 const authMiddleware = makeAuthMiddleware(jwtTokenProvider);
@@ -26,11 +27,15 @@ const iam = makeIamModule({ authMiddleware });
 // auth no conoce iam: recibe un adaptador que cumple su puerto RoleAssigner.
 const roleAssigner = { assignDefaultRole: iam.iamService.assignDefaultRole };
 
+// analytics no conoce iam: recibe un adaptador que cumple su puerto PermissionChecker.
+const permissionChecker = { hasPermission: iam.iamService.hasPermission };
+
 app.use('/api/iam', iam.router);
 app.use('/api/auth', makeAuthModule({ roleAssigner }).router);
 app.use('/api/translations', makeTranslationsModule({ authMiddleware }).router);
 app.use('/api/users', makeUsersModule({ authMiddleware }).router);
 app.use('/api/sign-templates', makeIaModule({ authMiddleware }).router);
+app.use('/api/analytics', makeAnalyticsModule({ authMiddleware, permissionChecker }).router);
 
 app.use(errorHandler);
 
