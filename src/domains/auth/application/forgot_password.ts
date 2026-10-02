@@ -18,8 +18,8 @@ export const makeForgotPassword = (deps: {
   const issueAndSend = async (email: string) => {
     const now = (deps.now ?? (() => new Date()))();
     const user = await deps.userRepository.findByEmail(email);
-    // TODO(Parte B): enviar solo si la cuenta esta ACTIVE cuando exista users.status.
-    if (!user) return;
+    // ACTIVE e INACTIVE (el reset prueba la propiedad del correo); BLOCKED recibe la misma respuesta, sin correo.
+    if (!user || user.status === 'BLOCKED') return;
 
     const code = authDomainService.generateCode();
     const result = await deps.authRepository.issueTokenIfAllowed({

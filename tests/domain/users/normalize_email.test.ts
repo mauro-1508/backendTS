@@ -23,6 +23,6 @@ describe('postgresUserRepository con correo normalizado', () => {
 
   it('create guarda el correo normalizado', async () => {
     await postgresUserRepository.create({ name: 'Bea', email: 'Bea@X.com', password: 'h' });
-    expect(query.mock.calls.at(-1)![1]).toEqual(['Bea', 'bea@x.com', 'h']);
+    expect(query.mock.calls.at(-1)![1]).toEqual(['Bea', 'bea@x.com', 'h', 'INACTIVE', null]);
   });
 });

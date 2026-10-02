@@ -2,7 +2,7 @@ import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { normalizeEmail } from '../../users/domain/service';
 import { TokenProvider } from '../ports/outbound/auth_provider';
 import { AuthResult, GoogleLoginInput } from '../ports/inbound/auth_service';
-import { RegistrationFailedError, ValidationError } from '../domain/service';
+import { AccountBlockedError, EmailNotVerifiedError, RegistrationFailedError, ValidationError } from '../domain/service';
 import { RoleAssigner } from '../ports/outbound/role_assigner';
 
 export const makeGoogleLogin = (deps: { userRepository: UserRepository; tokenProvider: TokenProvider; roleAssigner: RoleAssigner }) =>
@@ -14,11 +14,14 @@ export const makeGoogleLogin = (deps: { userRepository: UserRepository; tokenPro
     const email = normalizeEmail(rawEmail);
     const existingUser = await deps.userRepository.findByEmail(email);
     if (existingUser) {
+      // Sin correo verificado (o bloqueada) tampoco hay sesion por Google: evita el secuestro previo de cuentas.
+      if (existingUser.status === 'BLOCKED') throw new AccountBlockedError();
+      if (existingUser.status !== 'ACTIVE') throw new EmailNotVerifiedError();
       const token = deps.tokenProvider.sign({ userId: existingUser.userId, email: existingUser.email });
       return { success: true, message: 'Inicio de sesión exitoso', data: { token } };
     }
 
-    const newUser = await deps.userRepository.create({ email, name, password: null });
+    const newUser = await deps.userRepository.create({ email, name, password: null, status: 'ACTIVE', emailVerifiedAt: new Date() });
     // Cuenta nueva: mismo rol por defecto que en el registro.
     try {
       await deps.roleAssigner.assignDefaultRole(newUser.userId);

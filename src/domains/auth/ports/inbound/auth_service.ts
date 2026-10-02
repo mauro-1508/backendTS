@@ -24,6 +24,8 @@ export interface AuthService {
   register(input: RegisterInput): Promise<AuthResult>;
   login(input: LoginInput): Promise<AuthResult>;
   forgotPassword(input: { email: string }): Promise<AuthResult>;
+  verifyEmail(input: { email: string; code: string; password: string }): Promise<AuthResult>;
+  resendVerification(input: { email: string }): Promise<AuthResult>;
   verifyCode(input: { email: string; code: string }): Promise<AuthResult>;
   resetPassword(input: { email: string; code: string; newPassword: string }): Promise<AuthResult>;
   googleLogin(input: GoogleLoginInput): Promise<AuthResult>;

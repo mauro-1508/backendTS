@@ -8,6 +8,8 @@ import {
   loginBodySchema,
   registerBodySchema,
   resetPasswordBodySchema,
+  resendVerificationBodySchema,
+  verifyEmailBodySchema,
   verifyCodeBodySchema,
 } from './dto/auth_request';
 
@@ -80,6 +82,26 @@ export const makeAuthController = (authService: AuthService) => {
       try {
         const result = await authService.verifyCode(body);
         return res.status(200).json(result);
+      } catch (error) {
+        return handleError(error, res, next);
+      }
+    },
+
+    verifyEmail: async (req: Request, res: Response, next: NextFunction) => {
+      const body = parse(verifyEmailBodySchema, req, res);
+      if (!body) return;
+      try {
+        return res.status(200).json(await authService.verifyEmail(body));
+      } catch (error) {
+        return handleError(error, res, next);
+      }
+    },
+
+    resendVerification: async (req: Request, res: Response, next: NextFunction) => {
+      const body = parse(resendVerificationBodySchema, req, res);
+      if (!body) return;
+      try {
+        return res.status(200).json(await authService.resendVerification(body));
       } catch (error) {
         return handleError(error, res, next);
       }

@@ -41,6 +41,16 @@ export class InvalidCodeError extends AuthError {
     super('Código inválido', 'INVALID_CODE');
   }
 }
+export class EmailNotVerifiedError extends AuthError {
+  constructor() {
+    super('Debes verificar tu correo antes de iniciar sesión', 'EMAIL_NOT_VERIFIED', 403);
+  }
+}
+export class AccountBlockedError extends AuthError {
+  constructor() {
+    super('Cuenta bloqueada', 'ACCOUNT_BLOCKED', 403);
+  }
+}
 /** Fallo interno al crear la cuenta (p. ej. asignar rol): sin detalle al cliente, termina en 500. */
 export class RegistrationFailedError extends Error {
   constructor() {

@@ -7,6 +7,8 @@ import { makeRegister } from './application/register';
 import { makeLogin } from './application/login';
 import { makeForgotPassword } from './application/forgot_password';
 import { makeVerifyCode } from './application/verify_code';
+import { makeVerifyEmail } from './application/verify_email';
+import { makeResendVerification } from './application/resend_verification';
 import { makeResetPassword } from './application/reset_password';
 import { makeGoogleLogin } from './application/google_login';
 import { makeAuthRoutes } from './adapters/inbound/http/routes';
@@ -29,6 +31,8 @@ export const makeAuthModule = (moduleDeps: { roleAssigner: RoleAssigner }) => {
     login: makeLogin(deps),
     forgotPassword: makeForgotPassword(deps),
     verifyCode: makeVerifyCode(deps),
+    verifyEmail: makeVerifyEmail(deps),
+    resendVerification: makeResendVerification(deps),
     resetPassword: makeResetPassword(deps),
     googleLogin: makeGoogleLogin(deps),
   };

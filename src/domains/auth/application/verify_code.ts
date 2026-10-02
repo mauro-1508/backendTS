@@ -17,7 +17,8 @@ export const makeCheckResetCode = (deps: Deps) =>
   async (rawEmail: string, code: string) => {
     if (!rawEmail || !code) throw new ValidationError('Email y código son obligatorios');
 
-    const user = await deps.userRepository.findByEmail(normalizeEmail(rawEmail));
+    const found = await deps.userRepository.findByEmail(normalizeEmail(rawEmail));
+    const user = found && found.status !== 'BLOCKED' ? found : null;
     const token = user
       ? await deps.authRepository.reserveAttempt(user.userId, 'PASSWORD_RESET', (deps.now ?? (() => new Date()))(), MAX_ATTEMPTS)
       : null;

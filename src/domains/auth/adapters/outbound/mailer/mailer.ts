@@ -5,6 +5,10 @@ import { passwordResetEmail, verificationEmail } from './templates';
 
 const transporter = nodemailer.createTransport({
   service: config.mailer.service,
+  // Sin esto un SMTP caido cuelga register durante minutos.
+  connectionTimeout: 10_000,
+  greetingTimeout: 10_000,
+  socketTimeout: 10_000,
   auth: {
     user: config.mailer.user,
     pass: config.mailer.pass,
