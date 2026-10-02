@@ -1,6 +1,7 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { AuthRepository } from '../ports/outbound/auth_repository';
 import { PasswordHasher } from '../ports/outbound/auth_provider';
+import { AuthError } from '../domain/service';
 import { AuthResult } from '../ports/inbound/auth_service';
 import { makeVerifyCode } from './verify_code';
 
@@ -21,10 +22,10 @@ export const makeResetPassword = (deps: {
     newPassword: string;
   }): Promise<AuthResult> => {
     if (!email || !code || !newPassword) {
-      throw new Error('Email, código y nueva contraseña son obligatorios');
+      throw new AuthError('Email, código y nueva contraseña son obligatorios');
     }
     if (newPassword.length < 8) {
-      throw new Error('La contraseña debe tener al menos 8 caracteres');
+      throw new AuthError('La contraseña debe tener al menos 8 caracteres');
     }
 
     const verification = await verifyCode({ email, code });

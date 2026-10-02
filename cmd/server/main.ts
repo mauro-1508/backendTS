@@ -5,6 +5,7 @@ import { pool } from '../../src/shared/database/postgres';
 import { jwtTokenProvider } from '../../src/shared/security/jwt';
 import { makeAuthMiddleware } from '../../src/shared/http/auth_middleware';
 import { errorHandler } from '../../src/shared/http/error_handler';
+import { makeIamModule } from '../../src/domains/iam/iam.module';
 import { makeAuthModule } from '../../src/domains/auth/auth.module';
 import { makeUsersModule } from '../../src/domains/users/users.module';
 import { makeTranslationsModule } from '../../src/domains/translations/translations.module';
@@ -20,7 +21,13 @@ app.use(cors());
 app.use(express.json({ limit: '2mb' }));
 
 // Cada dominio expone su router; aqui solo se montan.
-app.use('/api/auth', makeAuthModule().router);
+const iam = makeIamModule({ authMiddleware });
+
+// auth no conoce iam: recibe un adaptador que cumple su puerto RoleAssigner.
+const roleAssigner = { assignDefaultRole: iam.iamService.assignDefaultRole };
+
+app.use('/api/iam', iam.router);
+app.use('/api/auth', makeAuthModule({ roleAssigner }).router);
 app.use('/api/translations', makeTranslationsModule({ authMiddleware }).router);
 app.use('/api/users', makeUsersModule({ authMiddleware }).router);
 app.use('/api/sign-templates', makeIaModule({ authMiddleware }).router);

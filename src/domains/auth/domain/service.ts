@@ -3,9 +3,17 @@ import { PasswordResetToken } from './entity';
 
 const RESET_CODE_TTL_MS = 15 * 60 * 1000;
 
-export class InvalidResetCodeError extends Error {}
-export class ExpiredResetCodeError extends Error {}
-export class UsedResetCodeError extends Error {}
+/** Error de negocio conocido de auth: su mensaje es seguro de mostrar al cliente (400). */
+export class AuthError extends Error {}
+export class InvalidResetCodeError extends AuthError {}
+export class ExpiredResetCodeError extends AuthError {}
+export class UsedResetCodeError extends AuthError {}
+/** Fallo interno al crear la cuenta (p. ej. asignar rol): sin detalle al cliente, termina en 500. */
+export class RegistrationFailedError extends Error {
+  constructor() {
+    super('No se pudo completar el registro');
+  }
+}
 
 export const authDomainService = {
   generateResetCode(): string {
