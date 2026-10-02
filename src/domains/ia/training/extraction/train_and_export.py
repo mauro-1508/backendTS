@@ -81,6 +81,50 @@ ALIAS_NUMPY = {
 os.environ.setdefault("PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION", "python")
 
 
+STUB_HUB = '''"""
+Reemplazo de tensorflow_hub, que no es compatible con TensorFlow 2.20.
+
+tensorflowjs lo importa en tf_saved_model_conversion_v2 para poder convertir
+modelos descargados de TF Hub. Convertir un SavedModel propio no lo necesita
+para nada, pero el import se hace igual al cargar el conversor, y el
+tensorflow_hub publicado se rompe en cadena contra el entorno actual: la API
+Estimator retirada, archivos _pb2 generados con un protoc viejo, y modulos de
+TensorFlow que cambiaron de sitio. Son fallos del paquete, no del modelo.
+
+Cualquier atributo devuelve una clase que revienta si alguien la usa de
+verdad. Si algun dia esta excepcion aparece, significa que la conversion si
+necesitaba TF Hub y habra que mirarlo; hasta entonces, no estorba.
+"""
+
+__version__ = "0.0.0-stub"
+
+
+class _NoDisponible:
+    def __init__(self, *a, **k):
+        raise NotImplementedError("tensorflow_hub fue reemplazado por un stub")
+
+    def __call__(self, *a, **k):
+        raise NotImplementedError("tensorflow_hub fue reemplazado por un stub")
+
+
+def __getattr__(nombre):
+    return _NoDisponible
+'''
+
+
+def stub_tensorflow_hub() -> None:
+    """Sustituye tensorflow_hub entero; ver el porque dentro de STUB_HUB."""
+    hub = package_dir("tensorflow_hub")
+    if hub is None:
+        return
+    init = hub / "__init__.py"
+    if init.read_text(encoding="utf-8") == STUB_HUB:
+        print("  tensorflow_hub ya estaba reemplazado")
+        return
+    init.write_text(STUB_HUB, encoding="utf-8")
+    print("  tensorflow_hub reemplazado por un stub (no hace falta para convertir)")
+
+
 def import_falla() -> str | None:
     """stderr si `import tensorflowjs` falla en un proceso limpio; None si va."""
     prueba = subprocess.run(
@@ -112,42 +156,12 @@ def patch_tensorflowjs() -> None:
             tocados += 1
     print(f"  {tocados} archivos parchados")
 
-    # tensorflowjs importa tensorflow_hub, cuyo __init__ carga siempre
-    # estimator.py, y ahi hay una clase que hereda de
-    # tf.compat.v1.estimator.Exporter, retirado en TF 2.20. Se cambia de quien
-    # hereda: esa clase no interviene en ninguna conversion, solo tiene que
-    # existir para que el import no falle.
-    hub = package_dir("tensorflow_hub")
-    if hub is not None:
-        ruta = hub / "estimator.py"
-        if ruta.exists():
-            texto = ruta.read_text(encoding="utf-8")
-            if "tf.compat.v1.estimator.Exporter" in texto:
-                ruta.write_text(texto.replace("tf.compat.v1.estimator.Exporter", "object"), encoding="utf-8")
-                print("  parchado tensorflow_hub/estimator.py")
+    stub_tensorflow_hub()
 
     # Se comprueba en un proceso aparte, que es como lo va a importar el
     # conversor. Si falla aqui, falla alla, y es mejor saberlo antes de
     # exportar el SavedModel.
     error = import_falla()
-    if error and hub is not None and "tensorflow_hub" in error:
-        # Plan B: si estimator.py sigue estorbando, se reemplaza entero por un
-        # muñeco con los nombres que su __init__ espera. El modulo entero solo
-        # sirve para exportar modelos con la API Estimator, que no se usa aqui.
-        print("  estimator.py sigue fallando; se reemplaza por un muñeco")
-        esperados = re.findall(r"from tensorflow_hub\.estimator import (.+)", (hub / "__init__.py").read_text(encoding="utf-8"))
-        nombres = [n.strip() for linea in esperados for n in linea.split(",")]
-        muñeco = ["# Reemplazado: la API Estimator no existe en TF 2.20 y aqui no se usa.", ""]
-        for nombre in nombres:
-            muñeco += [
-                f"class {nombre}(object):" if nombre[:1].isupper() else f"def {nombre}(*a, **k):",
-                "    def __init__(self, *a, **k):" if nombre[:1].isupper() else "    raise NotImplementedError('API Estimator no disponible')",
-                "        raise NotImplementedError('API Estimator no disponible')" if nombre[:1].isupper() else "",
-                "",
-            ]
-        (hub / "estimator.py").write_text("\n".join(muñeco), encoding="utf-8")
-        error = import_falla()
-
     if error:
         print(error[-1500:])
         raise SystemExit(
