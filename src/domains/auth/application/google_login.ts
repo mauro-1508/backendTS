@@ -1,15 +1,17 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
+import { normalizeEmail } from '../../users/domain/service';
 import { TokenProvider } from '../ports/outbound/auth_provider';
 import { AuthResult, GoogleLoginInput } from '../ports/inbound/auth_service';
-import { AuthError, RegistrationFailedError } from '../domain/service';
+import { RegistrationFailedError, ValidationError } from '../domain/service';
 import { RoleAssigner } from '../ports/outbound/role_assigner';
 
 export const makeGoogleLogin = (deps: { userRepository: UserRepository; tokenProvider: TokenProvider; roleAssigner: RoleAssigner }) =>
-  async ({ email, name }: GoogleLoginInput): Promise<AuthResult> => {
-    if (!email || !name) {
-      throw new AuthError('Email y nombre son obligatorios');
+  async ({ email: rawEmail, name }: GoogleLoginInput): Promise<AuthResult> => {
+    if (!rawEmail || !name) {
+      throw new ValidationError('Email y nombre son obligatorios');
     }
 
+    const email = normalizeEmail(rawEmail);
     const existingUser = await deps.userRepository.findByEmail(email);
     if (existingUser) {
       const token = deps.tokenProvider.sign({ userId: existingUser.userId, email: existingUser.email });
