@@ -1,0 +1,39 @@
+{
+  "lsc50": {
+    "0000": null,
+    "0010": null,
+    "0020": null,
+    "0030": null,
+    "0040": null
+  },
+  "lsc54": {
+    "Perfecto": "perfecto",
+    "Permiso": "permiso",
+    "Por favor": "por favor",
+    "Presentar": "presentar",
+    "Sentarse": "sentarse",
+    "Si": "si",
+    "Tranquilo": "tranquilo",
+    "amarillo": "amarillo",
+    "azul": "azul",
+    "blanco": "blanco",
+    "cafe": "cafe",
+    "cinco": "cinco",
+    "cuatro": "cuatro",
+    "dies": "dies",
+    "dos": "dos",
+    "gris": "gris",
+    "morado": "morado",
+    "naranja": "naranja",
+    "negro": "negro",
+    "nueve": "nueve",
+    "ocho": "ocho",
+    "rojo": "rojo",
+    "rosado": "rosado",
+    "seis": "seis",
+    "siete": "siete",
+    "tres": "tres",
+    "uno": "uno",
+    "verde": "verde"
+  }
+}
