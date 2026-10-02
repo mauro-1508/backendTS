@@ -30,8 +30,10 @@ import importlib.util
 import json
 import os
 import pathlib
+import re
 import shutil
 import subprocess
+import sys
 
 import numpy as np
 from tensorflow import keras
@@ -56,32 +58,67 @@ def package_dir(nombre: str) -> pathlib.Path | None:
     return pathlib.Path(list(spec.submodule_search_locations)[0])
 
 
+# Alias que NumPy 2 retiro y que tensorflowjs todavia usa. Van todos juntos
+# porque estan en la misma linea de read_weights.py:
+#
+#     np.uint8, np.uint16, np.object, np.bool]
+#
+# Arreglar solo np.object deja np.bool esperando dos lineas mas abajo.
+ALIAS_NUMPY = {
+    "np.object": "object",
+    "np.bool": "bool",
+    "np.int": "int",
+    "np.float": "float",
+    "np.str": "str",
+    "np.complex": "complex",
+}
+
+
 # El tensorflowjs publicado no se ha actualizado al Python 3.13 / NumPy 2 de
-# Colab. Son dos incompatibilidades conocidas y cada una se arregla con una
-# linea; sin esto el conversor ni siquiera importa.
+# Colab; sin esto el conversor ni siquiera importa.
 def patch_tensorflowjs() -> None:
     raiz = package_dir("tensorflowjs")
     if raiz is None:
         print("  tensorflowjs no esta instalado")
         return
+    print(f"  parcheando {raiz}")
 
+    # \\b al final evita tocar np.object_ o np.int64, que si existen.
+    patron = re.compile(r"\b(" + "|".join(a.replace(".", r"\.") for a in ALIAS_NUMPY) + r")\b(?!_)")
+    tocados = 0
     for ruta in raiz.rglob("*.py"):
         texto = ruta.read_text(encoding="utf-8")
-        if "np.object" in texto:  # retirado en NumPy 2
-            ruta.write_text(
-                texto.replace("np.object,", "object,").replace("np.object)", "object)"),
-                encoding="utf-8",
-            )
-            print(f"  parchado {ruta.name}")
+        nuevo = patron.sub(lambda m: ALIAS_NUMPY[m.group(1)], texto)
+        if nuevo != texto:
+            ruta.write_text(nuevo, encoding="utf-8")
+            print(f"    {ruta.relative_to(raiz)}")
+            tocados += 1
+    print(f"  {tocados} archivos parchados")
 
     hub = package_dir("tensorflow_hub")
-    if hub is None:
-        return
-    ruta = hub / "estimator_export.py"
-    # tf.compat.v1.estimator ya no existe en TF 2.20
-    if ruta.exists() and "tf.compat.v1.estimator" in ruta.read_text(encoding="utf-8"):
-        ruta.write_text("def estimator_export(*a, **k):\n    return lambda f: f\n", encoding="utf-8")
-        print(f"  parchado {ruta.name}")
+    if hub is not None:
+        ruta = hub / "estimator_export.py"
+        # tf.compat.v1.estimator ya no existe en TF 2.20
+        if ruta.exists() and "tf.compat.v1.estimator" in ruta.read_text(encoding="utf-8"):
+            ruta.write_text("def estimator_export(*a, **k):\n    return lambda f: f\n", encoding="utf-8")
+            print("  parchado tensorflow_hub/estimator_export.py")
+
+    # Se comprueba en un proceso aparte, que es como lo va a importar el
+    # conversor. Si falla aqui, falla alla, y es mejor saberlo antes de
+    # exportar el SavedModel.
+    prueba = subprocess.run(
+        [sys.executable, "-c", "import tensorflowjs; print('import ok')"],
+        capture_output=True,
+        text=True,
+    )
+    if prueba.returncode != 0:
+        print(prueba.stderr.strip()[-1500:])
+        raise SystemExit(
+            "tensorflowjs sigue sin importarse despues de parchear. "
+            "El modelo entrenado esta guardado: se puede reintentar solo la "
+            "exportacion con --solo-exportar."
+        )
+    print("  tensorflowjs importa correctamente")
 
 
 def find_dataset(preferida: str) -> str:
