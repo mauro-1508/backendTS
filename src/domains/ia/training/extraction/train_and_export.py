@@ -74,6 +74,16 @@ ALIAS_NUMPY = {
 }
 
 
+def import_falla() -> str | None:
+    """stderr si `import tensorflowjs` falla en un proceso limpio; None si va."""
+    prueba = subprocess.run(
+        [sys.executable, "-c", "import tensorflowjs"],
+        capture_output=True,
+        text=True,
+    )
+    return None if prueba.returncode == 0 else prueba.stderr.strip()
+
+
 # El tensorflowjs publicado no se ha actualizado al Python 3.13 / NumPy 2 de
 # Colab; sin esto el conversor ni siquiera importa.
 def patch_tensorflowjs() -> None:
@@ -95,24 +105,44 @@ def patch_tensorflowjs() -> None:
             tocados += 1
     print(f"  {tocados} archivos parchados")
 
+    # tensorflowjs importa tensorflow_hub, cuyo __init__ carga siempre
+    # estimator.py, y ahi hay una clase que hereda de
+    # tf.compat.v1.estimator.Exporter, retirado en TF 2.20. Se cambia de quien
+    # hereda: esa clase no interviene en ninguna conversion, solo tiene que
+    # existir para que el import no falle.
     hub = package_dir("tensorflow_hub")
     if hub is not None:
-        ruta = hub / "estimator_export.py"
-        # tf.compat.v1.estimator ya no existe en TF 2.20
-        if ruta.exists() and "tf.compat.v1.estimator" in ruta.read_text(encoding="utf-8"):
-            ruta.write_text("def estimator_export(*a, **k):\n    return lambda f: f\n", encoding="utf-8")
-            print("  parchado tensorflow_hub/estimator_export.py")
+        ruta = hub / "estimator.py"
+        if ruta.exists():
+            texto = ruta.read_text(encoding="utf-8")
+            if "tf.compat.v1.estimator.Exporter" in texto:
+                ruta.write_text(texto.replace("tf.compat.v1.estimator.Exporter", "object"), encoding="utf-8")
+                print("  parchado tensorflow_hub/estimator.py")
 
     # Se comprueba en un proceso aparte, que es como lo va a importar el
     # conversor. Si falla aqui, falla alla, y es mejor saberlo antes de
     # exportar el SavedModel.
-    prueba = subprocess.run(
-        [sys.executable, "-c", "import tensorflowjs; print('import ok')"],
-        capture_output=True,
-        text=True,
-    )
-    if prueba.returncode != 0:
-        print(prueba.stderr.strip()[-1500:])
+    error = import_falla()
+    if error and hub is not None and "tensorflow_hub" in error:
+        # Plan B: si estimator.py sigue estorbando, se reemplaza entero por un
+        # muñeco con los nombres que su __init__ espera. El modulo entero solo
+        # sirve para exportar modelos con la API Estimator, que no se usa aqui.
+        print("  estimator.py sigue fallando; se reemplaza por un muñeco")
+        esperados = re.findall(r"from tensorflow_hub\.estimator import (.+)", (hub / "__init__.py").read_text(encoding="utf-8"))
+        nombres = [n.strip() for linea in esperados for n in linea.split(",")]
+        muñeco = ["# Reemplazado: la API Estimator no existe en TF 2.20 y aqui no se usa.", ""]
+        for nombre in nombres:
+            muñeco += [
+                f"class {nombre}(object):" if nombre[:1].isupper() else f"def {nombre}(*a, **k):",
+                "    def __init__(self, *a, **k):" if nombre[:1].isupper() else "    raise NotImplementedError('API Estimator no disponible')",
+                "        raise NotImplementedError('API Estimator no disponible')" if nombre[:1].isupper() else "",
+                "",
+            ]
+        (hub / "estimator.py").write_text("\n".join(muñeco), encoding="utf-8")
+        error = import_falla()
+
+    if error:
+        print(error[-1500:])
         raise SystemExit(
             "tensorflowjs sigue sin importarse despues de parchear. "
             "El modelo entrenado esta guardado: se puede reintentar solo la "
