@@ -7,9 +7,10 @@ export const makeLexiconRoutes = (deps: {
   authMiddleware: RequestHandler;
   requireAdmin: RequestHandler;
   mediaDir: string;
+  mediaBaseUrl?: string;
 }) => {
   const router = Router();
-  const controller = makeLexiconController(deps.lexiconService);
+  const controller = makeLexiconController(deps.lexiconService, { mediaBaseUrl: deps.mediaBaseUrl });
 
   // Modelos 3D y miniaturas del alfabeto. Un archivo no cambia sin cambiar de
   // nombre en la base, asi que se cachean una semana.

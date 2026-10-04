@@ -1,4 +1,3 @@
-import path from 'path';
 import { RequestHandler } from 'express';
 import { Pool } from 'pg';
 import { makePostgresLexiconRepository } from './adapters/outbound/postgres/lexicon_repository';
@@ -17,18 +16,19 @@ import {
 } from './application/manage_categories';
 import { makeLexiconRoutes } from './adapters/inbound/http/routes';
 import { LexiconService } from './ports/inbound/lexicon_service';
+import { LexiconConfig } from './config';
 
 export const makeLexiconModule = (deps: {
   pool: Pool;
   authMiddleware: RequestHandler;
   /** Exige rol ADMIN; va despues de authMiddleware. */
   requireAdmin: RequestHandler;
-  mediaDir?: string;
+  config: LexiconConfig;
 }) => {
   const lexiconRepository = makePostgresLexiconRepository(deps.pool);
   const resourceDeps = {
     lexiconRepository,
-    mediaBaseUrl: process.env.LEXICON_MEDIA_BASE_URL,
+    mediaBaseUrl: deps.config.mediaBaseUrl,
   };
   const repoDeps = {
     lexiconRepository,
@@ -51,17 +51,14 @@ export const makeLexiconModule = (deps: {
     deleteCategory: makeDeleteCategory(repoDeps),
   };
 
-  const mediaDir = deps.mediaDir
-    || process.env.LEXICON_MEDIA_DIR
-    || path.resolve(process.cwd(), 'public', 'lexicon');
-
   return {
     lexiconService,
     router: makeLexiconRoutes({
       lexiconService,
       authMiddleware: deps.authMiddleware,
       requireAdmin: deps.requireAdmin,
-      mediaDir,
+      mediaDir: deps.config.mediaDir,
+      mediaBaseUrl: deps.config.mediaBaseUrl,
     }),
   };
 };

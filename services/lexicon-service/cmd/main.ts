@@ -3,6 +3,7 @@ import {
   loadConfig, makeAuthMiddleware, makeJwtTokenProvider, makePgPool, requireRole,
 } from '@traduce/shared';
 import { makeLexiconApp } from '../src/app';
+import { loadLexiconConfig } from '../src/config';
 
 const LEXICON_DEFAULT_PORT = 3003;
 const ADMIN_ROLE = 'ADMIN';
@@ -15,6 +16,7 @@ const app = makeLexiconApp({
   pool,
   authMiddleware: makeAuthMiddleware(tokenProvider),
   requireAdmin: requireRole(ADMIN_ROLE),
+  config: loadLexiconConfig(),
 });
 
 const server = app.listen(config.port, () => {

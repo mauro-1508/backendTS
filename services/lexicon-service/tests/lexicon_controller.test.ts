@@ -35,8 +35,8 @@ const makeRes = () => {
 };
 
 let silenced: typeof console.error;
-beforeEach(() => { silenced = console.error; console.error = () => {}; delete process.env.LEXICON_MEDIA_BASE_URL; });
-afterEach(() => { console.error = silenced; delete process.env.LEXICON_MEDIA_BASE_URL; });
+beforeEach(() => { silenced = console.error; console.error = () => {}; });
+afterEach(() => { console.error = silenced; });
 
 describe('mapeo de errores de dominio a status + code', () => {
   const cases: [string, Error, number, string][] = [
@@ -138,12 +138,11 @@ describe('conversión de URLs relativas a absolutas', () => {
     assert.equal(res.body.data.url, 'http://localhost:3000/api/lexicon/media/x/y.png');
   });
 
-  test('LEXICON_MEDIA_BASE_URL (CDN) tiene prioridad y se recorta la barra final', async () => {
-    process.env.LEXICON_MEDIA_BASE_URL = 'https://cdn.example.com/lex/';
+  test('mediaBaseUrl (CDN) tiene prioridad y se recorta la barra final', async () => {
     const { service, setNext } = makeService();
     setNext({ success: true, data: sign(['alfabeto/glb/A.glb']) });
     const res = makeRes();
-    await makeLexiconController(service).get(makeReq({ params: { code: 'A' } }), res);
+    await makeLexiconController(service, { mediaBaseUrl: 'https://cdn.example.com/lex/' }).get(makeReq({ params: { code: 'A' } }), res);
     assert.equal(res.body.data.resources[0].url, 'https://cdn.example.com/lex/alfabeto/glb/A.glb');
   });
 

@@ -16,15 +16,15 @@ const str = (value: unknown): string | undefined =>
 /**
  * En la base los recursos guardan rutas relativas al directorio de medios
  * (`alfabeto/glb/A.glb`). Aqui se vuelven URL absolutas para que el cliente
- * no tenga que saber donde estan servidos. `LEXICON_MEDIA_BASE_URL` permite
- * apuntarlas a un CDN.
+ * no tenga que saber donde estan servidos. `mediaBaseUrl` (LEXICON_MEDIA_BASE_URL, ya leida
+ * en la config) permite apuntarlas a un CDN.
  */
-const mediaBase = (req: Request): string =>
-  process.env.LEXICON_MEDIA_BASE_URL?.replace(/\/$/, '')
+const mediaBase = (req: Request, configuredBaseUrl?: string): string =>
+  configuredBaseUrl?.replace(/\/$/, '')
   || `${req.protocol}://${req.get('host')}${req.baseUrl}/media`;
 
-const withAbsoluteUrls = (req: Request, data: unknown): unknown => {
-  const base = mediaBase(req);
+const withAbsoluteUrls = (req: Request, data: unknown, mediaBaseUrl?: string): unknown => {
+  const base = mediaBase(req, mediaBaseUrl);
   const fix = (r: MultimediaResource): MultimediaResource =>
     /^https:\/\//i.test(r.url) ? r : { ...r, url: `${base}/${r.url.replace(/^\//, '')}` };
   const fixSign = (s: Sign): Sign => ({ ...s, resources: s.resources.map(fix) });
@@ -37,8 +37,9 @@ const withAbsoluteUrls = (req: Request, data: unknown): unknown => {
   return data;
 };
 
-const send = (req: Request, res: Response, status: number, result: LexiconResult) =>
-  res.status(status).json({ ...result, data: withAbsoluteUrls(req, result.data) });
+const makeSend = (mediaBaseUrl?: string) =>
+  (req: Request, res: Response, status: number, result: LexiconResult) =>
+    res.status(status).json({ ...result, data: withAbsoluteUrls(req, result.data, mediaBaseUrl) });
 
 const fail = (res: Response, error: unknown) => {
   if (error instanceof LexiconError) {
@@ -64,116 +65,125 @@ const handle = (fn: (req: Request, res: Response) => Promise<unknown>) =>
     }
   };
 
-export const makeLexiconController = (service: LexiconService) => ({
-  list: handle(async (req, res) => {
-    send(req, res, 200, await service.list({
-      type: str(req.query.type),
-      language: str(req.query.language),
-      category: str(req.query.category),
-      q: str(req.query.q),
-      lang: str(req.query.lang),
-      limit: str(req.query.limit),
-      offset: str(req.query.offset),
-    }));
-  }),
+export interface LexiconControllerOptions {
+  /** Origen publico de los medios (CDN); sin el se usan las URL del propio servicio. */
+  mediaBaseUrl?: string;
+}
 
-  // Vista admin: incluye DRAFT e INACTIVE y permite filtrar por status.
-  adminList: handle(async (req, res) => {
-    send(req, res, 200, await service.list({
-      type: str(req.query.type),
-      category: str(req.query.category),
-      status: str(req.query.status),
-      q: str(req.query.q),
-      lang: str(req.query.lang),
-      limit: str(req.query.limit),
-      offset: str(req.query.offset),
-      includeInactive: true,
-    }));
-  }),
+export const makeLexiconController = (service: LexiconService, options: LexiconControllerOptions = {}) => {
+  const send = makeSend(options.mediaBaseUrl);
 
-  adminGet: handle(async (req, res) => {
-    send(req, res, 200, await service.get({
-      code: String(req.params.code), lang: str(req.query.lang), includeInactive: true,
-    }));
-  }),
+  return {
+    list: handle(async (req, res) => {
+      send(req, res, 200, await service.list({
+        type: str(req.query.type),
+        language: str(req.query.language),
+        category: str(req.query.category),
+        q: str(req.query.q),
+        lang: str(req.query.lang),
+        limit: str(req.query.limit),
+        offset: str(req.query.offset),
+      }));
+    }),
 
-  search: handle(async (req, res) => {
-    const q = str(req.query.q);
-    if (!q) {
-      res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Falta el parámetro q' });
-      return;
-    }
-    send(req, res, 200, await service.list({
-      q, type: str(req.query.type), language: str(req.query.language), lang: str(req.query.lang),
-      limit: str(req.query.limit), offset: str(req.query.offset),
-    }));
-  }),
+    // Vista admin: incluye DRAFT e INACTIVE y permite filtrar por status.
+    adminList: handle(async (req, res) => {
+      send(req, res, 200, await service.list({
+        type: str(req.query.type),
+        category: str(req.query.category),
+        status: str(req.query.status),
+        q: str(req.query.q),
+        lang: str(req.query.lang),
+        limit: str(req.query.limit),
+        offset: str(req.query.offset),
+        includeInactive: true,
+      }));
+    }),
 
-  alphabet: handle(async (req, res) => {
-    send(req, res, 200, await service.alphabet({ language: str(req.query.language), lang: str(req.query.lang) }));
-  }),
+    adminGet: handle(async (req, res) => {
+      send(req, res, 200, await service.get({
+        code: String(req.params.code), lang: str(req.query.lang), includeInactive: true,
+      }));
+    }),
 
-  get: handle(async (req, res) => {
-    send(req, res, 200, await service.get({ code: String(req.params.code), lang: str(req.query.lang) }));
-  }),
+    search: handle(async (req, res) => {
+      const q = str(req.query.q);
+      if (!q) {
+        res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Falta el parámetro q' });
+        return;
+      }
+      send(req, res, 200, await service.list({
+        q, type: str(req.query.type), language: str(req.query.language), lang: str(req.query.lang),
+        limit: str(req.query.limit), offset: str(req.query.offset),
+      }));
+    }),
 
-  create: handle(async (req, res) => {
-    // `status` se ignora: toda seña nace en DRAFT.
-    const { status: _status, ...sign } = (req.body ?? {}) as CreateSignRequestDto & { status?: unknown };
-    send(req, res, 201, await service.create({ sign, userId: userIdOf(req) }));
-  }),
+    alphabet: handle(async (req, res) => {
+      send(req, res, 200, await service.alphabet({ language: str(req.query.language), lang: str(req.query.lang) }));
+    }),
 
-  update: handle(async (req, res) => {
-    // `code` y `status` no se cambian por aqui (INV-018): si vienen se ignoran.
-    const { code: _code, status: _status, ...changes } =
-      (req.body ?? {}) as UpdateSignRequestDto & { code?: string; status?: unknown };
-    send(req, res, 200, await service.update({ code: String(req.params.code), changes, userId: userIdOf(req) }));
-  }),
+    get: handle(async (req, res) => {
+      send(req, res, 200, await service.get({ code: String(req.params.code), lang: str(req.query.lang) }));
+    }),
 
-  publish: handle(async (req, res) => {
-    send(req, res, 200, await service.publish({ code: String(req.params.code), userId: userIdOf(req) }));
-  }),
+    create: handle(async (req, res) => {
+      // `status` se ignora: toda seña nace en DRAFT.
+      const { status: _status, ...sign } = (req.body ?? {}) as CreateSignRequestDto & { status?: unknown };
+      send(req, res, 201, await service.create({ sign, userId: userIdOf(req) }));
+    }),
 
-  deactivate: handle(async (req, res) => {
-    send(req, res, 200, await service.deactivate({ code: String(req.params.code), userId: userIdOf(req) }));
-  }),
+    update: handle(async (req, res) => {
+      // `code` y `status` no se cambian por aqui (INV-018): si vienen se ignoran.
+      const { code: _code, status: _status, ...changes } =
+        (req.body ?? {}) as UpdateSignRequestDto & { code?: string; status?: unknown };
+      send(req, res, 200, await service.update({ code: String(req.params.code), changes, userId: userIdOf(req) }));
+    }),
 
-  upsertLocalization: handle(async (req, res) => {
-    send(req, res, 200, await service.upsertLocalization({
-      code: String(req.params.code),
-      uiLanguage: String(req.params.lang),
-      localization: (req.body ?? {}) as LocalizationRequestDto,
-    }));
-  }),
+    publish: handle(async (req, res) => {
+      send(req, res, 200, await service.publish({ code: String(req.params.code), userId: userIdOf(req) }));
+    }),
 
-  addResource: handle(async (req, res) => {
-    const resource = (req.body ?? {}) as AddResourceRequestDto;
-    send(req, res, 201, await service.addResource({ code: String(req.params.code), resource }));
-  }),
+    deactivate: handle(async (req, res) => {
+      send(req, res, 200, await service.deactivate({ code: String(req.params.code), userId: userIdOf(req) }));
+    }),
 
-  removeResource: handle(async (req, res) => {
-    send(req, res, 200, await service.removeResource({
-      code: String(req.params.code),
-      resourceId: Number(req.params.resourceId),
-    }));
-  }),
+    upsertLocalization: handle(async (req, res) => {
+      send(req, res, 200, await service.upsertLocalization({
+        code: String(req.params.code),
+        uiLanguage: String(req.params.lang),
+        localization: (req.body ?? {}) as LocalizationRequestDto,
+      }));
+    }),
 
-  listCategories: handle(async (req, res) => {
-    send(req, res, 200, await service.listCategories());
-  }),
+    addResource: handle(async (req, res) => {
+      const resource = (req.body ?? {}) as AddResourceRequestDto;
+      send(req, res, 201, await service.addResource({ code: String(req.params.code), resource }));
+    }),
 
-  createCategory: handle(async (req, res) => {
-    send(req, res, 201, await service.createCategory((req.body ?? {}) as CategoryRequestDto));
-  }),
+    removeResource: handle(async (req, res) => {
+      send(req, res, 200, await service.removeResource({
+        code: String(req.params.code),
+        resourceId: Number(req.params.resourceId),
+      }));
+    }),
 
-  updateCategory: handle(async (req, res) => {
-    send(req, res, 200, await service.updateCategory({
-      categoryId: req.params.id,
-      changes: (req.body ?? {}) as CategoryRequestDto,
-    }));
-  }),
+    listCategories: handle(async (req, res) => {
+      send(req, res, 200, await service.listCategories());
+    }),
 
-  deleteCategory: handle(async (req, res) => {
-    send(req, res, 200, await service.deleteCategory({ categoryId: req.params.id }));
-  }),
-});
+    createCategory: handle(async (req, res) => {
+      send(req, res, 201, await service.createCategory((req.body ?? {}) as CategoryRequestDto));
+    }),
+
+    updateCategory: handle(async (req, res) => {
+      send(req, res, 200, await service.updateCategory({
+        categoryId: req.params.id,
+        changes: (req.body ?? {}) as CategoryRequestDto,
+      }));
+    }),
+
+    deleteCategory: handle(async (req, res) => {
+      send(req, res, 200, await service.deleteCategory({ categoryId: req.params.id }));
+    }),
+  };
+};
