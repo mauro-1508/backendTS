@@ -25,6 +25,7 @@ export const makeForgotPassword = (deps: {
     const tokenHash = authDomainService.hashResetCode(code);
     const expiresAt = authDomainService.resetCodeExpiryDate();
 
+    await deps.authRepository.invalidateResetTokens(user.userId);
     await deps.authRepository.createResetToken({ userId: user.userId, tokenHash, expiresAt });
 
     await deps.mailer.sendMail({

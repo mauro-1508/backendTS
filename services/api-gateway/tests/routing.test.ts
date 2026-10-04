@@ -39,12 +39,15 @@ describe('api-gateway', () => {
   let gateway: Server;
   let base: string;
 
-  const buildGateway = (rateLimitMax = 1000, serviceUrls?: Record<ServiceName, string>) => {
+  const buildGateway = (rateLimitMax = 1000, serviceUrls?: Record<ServiceName, string>, authRateLimitMax = 1000) => {
     const urls = serviceUrls ?? Object.fromEntries(
       SERVICE_NAMES.map(name => [name, urlOf(upstreams[name])]),
     ) as Record<ServiceName, string>;
     return makeGatewayApp({
-      config: { serviceUrls: urls, rateLimit: { windowMs: 60_000, maxRequests: rateLimitMax }, healthTimeoutMs: 500 },
+      config: { serviceUrls: urls, rateLimit: { windowMs: 60_000, maxRequests: rateLimitMax },
+        authRateLimit: { windowMs: 60_000, maxRequests: authRateLimitMax },
+        healthTimeoutMs: 500,
+      },
       tokenProvider,
     });
   };
@@ -190,6 +193,33 @@ describe('api-gateway', () => {
         const statuses: number[] = [];
         for (let i = 0; i < 3; i++) statuses.push((await fetch(`${urlOf(app)}/api/lexicon`)).status);
         assert.deepEqual(statuses, [200, 200, 429]);
+      } finally {
+        await close(app);
+      }
+    });
+
+    test('los endpoints sensibles de /api/auth tienen un límite más estricto', async () => {
+      const app = http.createServer(buildGateway(1000, undefined, 2));
+      await listen(app);
+      try {
+        const statuses: number[] = [];
+        for (let i = 0; i < 3; i++) {
+          statuses.push((await fetch(`${urlOf(app)}/api/auth/login`, { method: 'POST' })).status);
+        }
+        assert.deepEqual(statuses, [200, 200, 429]);
+        assert.equal((await fetch(`${urlOf(app)}/api/auth/forgot-password`, { method: 'POST' })).status, 429);
+      } finally {
+        await close(app);
+      }
+    });
+
+    test('el resto de rutas no usa el límite de auth', async () => {
+      const app = http.createServer(buildGateway(1000, undefined, 1));
+      await listen(app);
+      try {
+        for (let i = 0; i < 3; i++) {
+          assert.equal((await fetch(`${urlOf(app)}/api/lexicon`)).status, 200);
+        }
       } finally {
         await close(app);
       }

@@ -50,3 +50,7 @@ CREATE TABLE IF NOT EXISTS public.password_reset_token (
 
 CREATE INDEX IF NOT EXISTS idx_password_reset_token_hash
   ON public.password_reset_token(token_hash);
+
+-- Intentos fallidos por codigo (maximo 5 en la aplicacion); idempotente para volumenes ya creados.
+ALTER TABLE public.password_reset_token
+  ADD COLUMN IF NOT EXISTS attempts INT NOT NULL DEFAULT 0;

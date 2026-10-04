@@ -12,5 +12,6 @@
     <include file="changelogs/007_user_session.xml"/>
     <include file="changelogs/008_password_reset_token.xml"/>
     <include file="changelogs/013_seed_roles.xml"/>
+    <include file="changelogs/014_reset_token_attempts.xml"/>
 
 </databaseChangeLog>
