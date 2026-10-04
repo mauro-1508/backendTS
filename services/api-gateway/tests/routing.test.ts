@@ -198,15 +198,22 @@ describe('api-gateway', () => {
 });
 
 describe('loadGatewayConfig', () => {
+  const JWT_SECRET = 'g'.repeat(32);
+
+  test('aborta si JWT_SECRET falta o es corto', () => {
+    assert.throws(() => loadGatewayConfig({}), /JWT_SECRET/);
+    assert.throws(() => loadGatewayConfig({ JWT_SECRET: 'corto' }), /JWT_SECRET/);
+  });
+
   test('URLs por defecto en los puertos 3001-3005', () => {
-    const config = loadGatewayConfig({});
+    const config = loadGatewayConfig({ JWT_SECRET });
     assert.equal(config.port, 8080);
     assert.equal(config.serviceUrls.iam, 'http://localhost:3001');
     assert.equal(config.serviceUrls.profile, 'http://localhost:3005');
   });
 
   test('las URLs se sobreescriben por env', () => {
-    const config = loadGatewayConfig({ LEXICON_SERVICE_URL: 'http://lexicon-service:3003', PORT: '9000' });
+    const config = loadGatewayConfig({ JWT_SECRET, LEXICON_SERVICE_URL: 'http://lexicon-service:3003', PORT: '9000' });
     assert.equal(config.serviceUrls.lexicon, 'http://lexicon-service:3003');
     assert.equal(config.port, 9000);
   });

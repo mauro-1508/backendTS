@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import jwt from 'jsonwebtoken';
-import { makeJwtTokenProvider } from '../src/security/jwt_token_provider';
+import { JWT_AUDIENCE, JWT_ISSUER, makeJwtTokenProvider } from '../src/security/jwt_token_provider';
 import { makeAuthMiddleware } from '../src/http/auth_middleware';
 import { requireRole } from '../src/http/require_role';
 import { errorHandler } from '../src/http/error_handler';
@@ -25,18 +25,32 @@ describe('jwt token provider', () => {
     assert.deepEqual(provider.verify(token), { userId: 7, email: 'a@b.c', roles: ['ADMIN'] });
   });
 
-  test('acepta el payload viejo { user_id, email } sin roles', () => {
-    const legacy = jwt.sign({ user_id: 3, email: 'v@b.c' }, SECRET);
-    assert.deepEqual(provider.verify(legacy), { userId: 3, email: 'v@b.c', roles: [] });
+  test('rechaza el payload viejo { user_id, email }', () => {
+    const legacy = jwt.sign({ user_id: 3, email: 'v@b.c' }, SECRET, { issuer: JWT_ISSUER, audience: JWT_AUDIENCE });
+    assert.throws(() => provider.verify(legacy), /no identifica a un usuario/);
+  });
+
+  test('rechaza un token sin issuer o audience esperados', () => {
+    assert.throws(() => provider.verify(jwt.sign({ sub: '1', email: 'a@b.c' }, SECRET)));
+    const otherIssuer = jwt.sign({ sub: '1', email: 'a@b.c' }, SECRET, { issuer: 'otro', audience: JWT_AUDIENCE });
+    assert.throws(() => provider.verify(otherIssuer));
+  });
+
+  test('rechaza un algoritmo distinto de HS256', () => {
+    const hs512 = jwt.sign({ sub: '1', email: 'a@b.c' }, SECRET, {
+      algorithm: 'HS512', issuer: JWT_ISSUER, audience: JWT_AUDIENCE,
+    });
+    assert.throws(() => provider.verify(hs512));
   });
 
   test('rechaza un token firmado con otro secreto', () => {
-    const forged = jwt.sign({ sub: '1', email: 'a@b.c' }, 'otro');
+    const forged = jwt.sign({ sub: '1', email: 'a@b.c' }, 'otro', { issuer: JWT_ISSUER, audience: JWT_AUDIENCE });
     assert.throws(() => provider.verify(forged));
   });
 
   test('rechaza un token sin identificador de usuario', () => {
-    assert.throws(() => provider.verify(jwt.sign({ email: 'a@b.c' }, SECRET)));
+    const noSubject = jwt.sign({ email: 'a@b.c' }, SECRET, { issuer: JWT_ISSUER, audience: JWT_AUDIENCE });
+    assert.throws(() => provider.verify(noSubject));
   });
 });
 
