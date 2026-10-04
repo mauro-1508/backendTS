@@ -7,7 +7,7 @@ import { makeDeleteSignTemplate } from './application/delete_sign_template';
 import { makeSignTemplateRoutes } from './adapters/inbound/http/routes';
 import { SignTemplateService } from './ports/inbound/sign_template_service';
 
-export const makeIaModule = (deps: { pool: Pool; authMiddleware: RequestHandler }) => {
+export const makeIaModule = (deps: { pool: Pool; authMiddleware: RequestHandler; requireAdmin: RequestHandler }) => {
   const repoDeps = { signTemplateRepository: makePostgresSignTemplateRepository(deps.pool) };
   const signTemplateService: SignTemplateService = {
     importMany: makeImportSignTemplates(repoDeps),
@@ -17,6 +17,10 @@ export const makeIaModule = (deps: { pool: Pool; authMiddleware: RequestHandler 
 
   return {
     signTemplateService,
-    router: makeSignTemplateRoutes({ signTemplateService, authMiddleware: deps.authMiddleware }),
+    router: makeSignTemplateRoutes({
+      signTemplateService,
+      authMiddleware: deps.authMiddleware,
+      requireAdmin: deps.requireAdmin,
+    }),
   };
 };
