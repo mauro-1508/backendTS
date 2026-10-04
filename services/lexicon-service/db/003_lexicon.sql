@@ -20,7 +20,7 @@
 --      se copian (category -> categories.category_id; word/description ->
 --      sign_localizations 'ES') y SOLO DESPUES se eliminan.
 --
--- Ejecutar manualmente contra la base de datos `traduce_senas` :
+-- Ejecutar manualmente contra la base de datos `lexicon`:
 --   psql -h localhost -p 5435 -U postgres -d lexicon -f services/lexicon-service/db/003_lexicon.sql
 -- Se puede volver a ejecutar: actualiza las letras sin duplicar nada.
 
