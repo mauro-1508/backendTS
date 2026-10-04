@@ -9,4 +9,5 @@ export interface UserRepository {
 
 export interface RoleRepository {
   findRoleNamesByUserId(userId: number): Promise<string[]>;
+  assignRole(userId: number, roleName: string): Promise<void>;
 }

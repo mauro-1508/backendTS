@@ -1,4 +1,6 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
+import { RoleRepository } from '../../users/ports/outbound/role_repository';
+import { DEFAULT_ROLE } from '../../users/domain/roles';
 import { EventPublisher } from '@traduce/shared';
 import { IssueToken } from './issue_token';
 import { publishUserRegistered } from './publish_user_registered';
@@ -6,6 +8,7 @@ import { AuthResult, GoogleLoginInput } from '../ports/inbound/auth_service';
 
 export const makeGoogleLogin = (deps: {
   userRepository: UserRepository;
+  roleRepository: RoleRepository;
   issueToken: IssueToken;
   eventPublisher: EventPublisher;
 }) =>
@@ -21,6 +24,7 @@ export const makeGoogleLogin = (deps: {
     }
 
     const newUser = await deps.userRepository.create({ email, name, password: null });
+    await deps.roleRepository.assignRole(newUser.userId, DEFAULT_ROLE);
     await publishUserRegistered(deps.eventPublisher, {
       userId: newUser.userId,
       email: newUser.email,

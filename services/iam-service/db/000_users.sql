@@ -29,6 +29,15 @@ CREATE TABLE IF NOT EXISTS public.user_role (
   PRIMARY KEY (user_id, role_id)
 );
 
+-- Roles base: USER se asigna a toda cuenta nueva; ADMIN se otorga a mano.
+INSERT INTO public.role (name, description)
+SELECT seed.name, seed.description
+FROM (VALUES
+  ('USER', 'Usuario estandar'),
+  ('ADMIN', 'Administrador')
+) AS seed(name, description)
+WHERE NOT EXISTS (SELECT 1 FROM public.role r WHERE r.name = seed.name);
+
 -- Tokens de recuperacion de contrasena (flujo forgot/reset password).
 CREATE TABLE IF NOT EXISTS public.password_reset_token (
   token_id   SERIAL PRIMARY KEY,

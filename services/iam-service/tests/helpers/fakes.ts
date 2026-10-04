@@ -27,6 +27,9 @@ export class FakeUserRepository implements UserRepository {
 export class FakeRoleRepository implements RoleRepository {
   rolesByUser = new Map<number, string[]>();
   async findRoleNamesByUserId(userId: number) { return this.rolesByUser.get(userId) ?? []; }
+  async assignRole(userId: number, roleName: string) {
+    this.rolesByUser.set(userId, [...(this.rolesByUser.get(userId) ?? []), roleName]);
+  }
 }
 
 export const fakePasswordHasher: PasswordHasher = {
