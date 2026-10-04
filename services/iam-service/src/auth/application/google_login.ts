@@ -10,12 +10,12 @@ export const makeGoogleLogin = (deps: { userRepository: UserRepository; tokenPro
 
     const existingUser = await deps.userRepository.findByEmail(email);
     if (existingUser) {
-      const token = deps.tokenProvider.sign({ userId: existingUser.userId, email: existingUser.email });
+      const token = deps.tokenProvider.sign({ userId: existingUser.userId, email: existingUser.email, roles: [] });
       return { success: true, message: 'Inicio de sesión exitoso', data: { token } };
     }
 
     const newUser = await deps.userRepository.create({ email, name, password: null });
-    const token = deps.tokenProvider.sign({ userId: newUser.userId, email: newUser.email });
+    const token = deps.tokenProvider.sign({ userId: newUser.userId, email: newUser.email, roles: [] });
 
     return { success: true, message: 'Cuenta creada y sesión iniciada', data: { token } };
   };

@@ -1,6 +1,6 @@
 import { AuthRepository } from '../../../ports/outbound/auth_repository';
 import { PasswordResetToken } from '../../../domain/entity';
-import { pool } from '../../../../../shared/database/postgres';
+import { Pool } from 'pg';
 
 interface ResetTokenRow {
   token_id: number;
@@ -18,7 +18,7 @@ const toResetToken = (row: ResetTokenRow): PasswordResetToken => ({
   usedAt: row.used_at,
 });
 
-export const postgresAuthRepository: AuthRepository = {
+export const makePostgresAuthRepository = (pool: Pool): AuthRepository => ({
   createResetToken: async ({ userId, tokenHash, expiresAt }) => {
     const { rows } = await pool.query<{ token_id: number }>(
       `INSERT INTO public.password_reset_token (user_id, token_hash, expires_at)
@@ -43,4 +43,4 @@ export const postgresAuthRepository: AuthRepository = {
   markTokenAsUsed: async (tokenId: number) => {
     await pool.query(`UPDATE public.password_reset_token SET used_at = NOW() WHERE token_id = $1`, [tokenId]);
   },
-};
+});
