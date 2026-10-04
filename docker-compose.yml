@@ -90,21 +90,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # TODO fase 2: crear services/analytics-service (consume eventos y expone estadisticas) y descomentar.
-  # analytics-service:
-  #   build:
-  #     context: .
-  #     dockerfile: services/analytics-service/Dockerfile
-  #   environment:
-  #     <<: *service-env
-  #     PORT: "3004"
-  #     DB_HOST: postgres-analytics
-  #     DB_NAME: analytics
-  #   depends_on:
-  #     postgres-analytics:
-  #       condition: service_healthy
-  #     rabbitmq:
-  #       condition: service_healthy
+  analytics-service:
+    build:
+      context: .
+      dockerfile: services/analytics-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3004"
+      DB_HOST: postgres-analytics
+      DB_NAME: analytics
+    depends_on:
+      postgres-analytics:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
 
   # TODO fase 2: crear services/profile-service (perfil, notificaciones, logros) y descomentar.
   # profile-service:
@@ -175,6 +175,8 @@ services:
       - "5436:5432"
     volumes:
       - pg-analytics-data:/var/lib/postgresql/data
+      # Esquema: se aplica al crear el volumen por primera vez.
+      - ./services/analytics-service/db/001_usage_event.sql:/docker-entrypoint-initdb.d/001_usage_event.sql:ro
     healthcheck: *pg-healthcheck
 
   postgres-profile:
