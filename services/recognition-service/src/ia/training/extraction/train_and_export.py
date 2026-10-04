@@ -10,7 +10,7 @@ Uso en Colab:
 
     !pip install -q tensorflowjs
     !git clone -q -b feat/backend-dominios-ia https://github.com/mauro-1508/backendTS.git /content/repo
-    !python /content/repo/src/domains/ia/training/extraction/train_and_export.py
+    !python /content/repo/services/recognition-service/src/ia/training/extraction/train_and_export.py
 
     from google.colab import files
     files.download('/content/modelo_lsc.zip')

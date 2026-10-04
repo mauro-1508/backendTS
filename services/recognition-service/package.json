@@ -1,0 +1,33 @@
+{
+  "name": "@traduce/recognition-service",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/cmd/main.js",
+    "dev": "nodemon --watch cmd --watch src --ext ts --exec ts-node cmd/main.ts",
+    "ia:inspect-lsc54": "ts-node src/ia/training/inspect-lsc54.ts",
+    "ia:download-lsc54": "ts-node src/ia/training/download-lsc54-rep0.ts",
+    "ia:measure-lsc54": "ts-node src/ia/training/measure-lsc54-separability.ts",
+    "ia:convert-lsc54": "ts-node src/ia/training/convert-lsc54-to-templates.ts",
+    "ia:upload-templates": "ts-node src/ia/training/upload-templates.ts",
+    "ia:video": "ts-node src/ia/training/fetch-reference-video.ts"
+  },
+  "dependencies": {
+    "@traduce/shared": "*",
+    "dotenv": "^17.4.1",
+    "express": "^5.2.1",
+    "mongodb": "^6.10.0",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10",
+    "@types/stream-json": "^1.7.8",
+    "nodemon": "^3.1.14",
+    "stream-json": "^1.9.1",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  }
+}

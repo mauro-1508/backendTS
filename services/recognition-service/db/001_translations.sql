@@ -1,7 +1,7 @@
 -- Migration 001: translations
 -- Crea la tabla translations para persistir las traducciones del usuario.
--- Ejecutar manualmente contra la base de datos `traduce_senas`:
---   psql -h localhost -p 5433 -U postgres -d traduce_senas -f backend/sql/001_translations.sql
+-- Ejecutar manualmente contra la base de datos `recognition`:
+--   psql -h localhost -p 5434 -U postgres -d recognition -f services/recognition-service/db/001_translations.sql
 --
 -- Tipos validos para `type`:
 --   - 'texto_sena'  (escritura → seña)
@@ -13,7 +13,7 @@
 
 CREATE TABLE IF NOT EXISTS public.translations (
   translation_id SERIAL PRIMARY KEY,
-  user_id        INT REFERENCES public.users(user_id) ON DELETE CASCADE,
+  user_id        INT, -- id logico de iam-service, sin FK
   input_text     TEXT NOT NULL,
   output_text    TEXT NOT NULL,
   type           VARCHAR(20) NOT NULL

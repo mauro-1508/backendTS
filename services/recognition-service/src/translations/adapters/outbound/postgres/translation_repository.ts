@@ -1,6 +1,7 @@
+import { Pool } from 'pg';
 import { TranslationRepository } from '../../../ports/outbound/translation_repository';
 import { NewTranslation, Translation, TranslationType } from '../../../domain/entity';
-import { pool } from '../../../../../shared/database/postgres';
+
 
 interface TranslationRow {
   translation_id: number;
@@ -27,7 +28,7 @@ const toTranslation = (row: TranslationRow): Translation => ({
   createdAt: row.created_at,
 });
 
-export const postgresTranslationRepository: TranslationRepository = {
+export const makePostgresTranslationRepository = (pool: Pool): TranslationRepository => ({
   create: async ({ userId, inputText, outputText, type, confidence, source }: NewTranslation) => {
     const { rows } = await pool.query<TranslationRow>(
       `INSERT INTO public.translations
@@ -63,4 +64,4 @@ export const postgresTranslationRepository: TranslationRepository = {
     );
     return rows[0] ? { translationId: rows[0].translation_id } : null;
   },
-};
+});
