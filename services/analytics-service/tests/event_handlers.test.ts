@@ -64,4 +64,11 @@ describe('handlers de eventos', () => {
     await bus.publish('lexicon.SignPublished', {});
     assert.deepEqual(repository.events.map(e => e.eventType), ['USER_REGISTERED', 'TRANSLATION_COMPLETED']);
   });
+
+  test('cada evento usa su propia cola (una cola compartida mezclaria los handlers)', async () => {
+    const queues: string[] = [];
+    const subscriber = { subscribe: async ({ queue }: { queue: string }) => { queues.push(queue); } };
+    await subscribeToDomainEvents({ subscriber, repository: makeInMemoryUsageRepository() });
+    assert.equal(new Set(queues).size, 2);
+  });
 });
