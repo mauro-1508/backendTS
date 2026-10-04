@@ -2,13 +2,14 @@ import cors from 'cors';
 import express, { Express } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { TokenProvider } from '@traduce/shared';
+import { makeCorsOptions } from './cors_options';
 import { GatewayConfig, RateLimitConfig } from './config';
 import { FetchLike, makeHealthHandler } from './health';
 import { makeOptionalAuth } from './optional_auth';
 import { makeServiceProxies } from './proxies';
 
 export interface GatewayDeps {
-  config: Pick<GatewayConfig, 'serviceUrls' | 'rateLimit' | 'authRateLimit' | 'healthTimeoutMs'>;
+  config: Pick<GatewayConfig, 'serviceUrls' | 'rateLimit' | 'authRateLimit' | 'healthTimeoutMs' | 'corsOrigins'>;
   tokenProvider: TokenProvider;
   fetchFn?: FetchLike;
 }
@@ -34,7 +35,7 @@ const makeLimiter = ({ windowMs, maxRequests }: RateLimitConfig) => rateLimit({
 export const makeGatewayApp = ({ config, tokenProvider, fetchFn = fetch }: GatewayDeps): Express => {
   const app = express();
 
-  app.use(cors());
+  app.use(cors(makeCorsOptions(config.corsOrigins)));
   app.get(HEALTH_PATH, makeHealthHandler({
     serviceUrls: config.serviceUrls, timeoutMs: config.healthTimeoutMs, fetchFn,
   }));

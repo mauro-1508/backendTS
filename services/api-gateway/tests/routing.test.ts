@@ -5,6 +5,7 @@ import { AddressInfo } from 'node:net';
 import { makeJwtTokenProvider } from '@traduce/shared';
 import { makeGatewayApp } from '../src/app';
 import { loadGatewayConfig } from '../src/config';
+import { DEV_CORS_ORIGINS, resolveCorsOrigins } from '../src/cors_options';
 import { ROUTE_PREFIXES, SERVICE_NAMES, ServiceName } from '../src/route_table';
 
 const tokenProvider = makeJwtTokenProvider({ secret: 'secreto-gateway', expiresIn: '1h' });
@@ -47,6 +48,7 @@ describe('api-gateway', () => {
       config: { serviceUrls: urls, rateLimit: { windowMs: 60_000, maxRequests: rateLimitMax },
         authRateLimit: { windowMs: 60_000, maxRequests: authRateLimitMax },
         healthTimeoutMs: 500,
+        corsOrigins: ['http://localhost:8081'],
       },
       tokenProvider,
     });
@@ -224,6 +226,48 @@ describe('api-gateway', () => {
         await close(app);
       }
     });
+  });
+});
+
+describe('CORS', () => {
+  const allowed = 'http://localhost:8081';
+  const preflight = async (origin: string) => {
+    const app = makeGatewayApp({
+      config: {
+        serviceUrls: Object.fromEntries(SERVICE_NAMES.map(name => [name, 'http://127.0.0.1:1'])) as Record<ServiceName, string>,
+        rateLimit: { windowMs: 60_000, maxRequests: 100 },
+        authRateLimit: { windowMs: 60_000, maxRequests: 100 },
+        healthTimeoutMs: 100,
+        corsOrigins: [allowed],
+      },
+      tokenProvider,
+    });
+    const server = http.createServer(app);
+    await listen(server);
+    try {
+      return (await fetch(`${urlOf(server)}/health`, { headers: { origin } })).headers.get('access-control-allow-origin');
+    } finally {
+      await close(server);
+    }
+  };
+
+  test('un origen de la lista blanca recibe cabecera CORS', async () => {
+    assert.equal(await preflight(allowed), allowed);
+  });
+
+  test('un origen fuera de la lista no recibe cabecera CORS', async () => {
+    assert.equal(await preflight('https://malo.example.com'), null);
+  });
+});
+
+describe('resolveCorsOrigins', () => {
+  test('usa CORS_ORIGINS separado por comas', () => {
+    assert.deepEqual(resolveCorsOrigins(' https://a.com , https://b.com ', true), ['https://a.com', 'https://b.com']);
+  });
+
+  test('sin variable: Expo web en desarrollo y ninguno en producción', () => {
+    assert.deepEqual(resolveCorsOrigins(undefined, false), DEV_CORS_ORIGINS);
+    assert.deepEqual(resolveCorsOrigins('', true), []);
   });
 });
 

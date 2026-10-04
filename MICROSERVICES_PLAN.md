@@ -29,8 +29,8 @@ Cada servicio: `src/` hexagonal (domain, application, ports, adapters) copiado t
 ## Rutas públicas (gateway)
 | Prefijo | Servicio | Nota |
 |---|---|---|
-| `/api/auth`, `/api/users`, `/api/roles`, `/api/consents` | iam | |
-| `/api/translations`, `/api/recognition`, `/api/sign-templates`, `/api/models`, `/api/samples` | recognition | `/api/sign-templates` se mantiene por compatibilidad con el frontend actual |
+| `/api/auth`, `/api/users` | iam | |
+| `/api/translations`, `/api/recognition`, `/api/sign-templates`, `/api/samples` | recognition | `/api/sign-templates` se mantiene por compatibilidad con el frontend actual |
 | `/api/lexicon` | lexicon | incluye `/api/lexicon/media` |
 | `/api/analytics` | analytics | |
 | `/api/profile`, `/api/notifications`, `/api/achievements` | profile | |
