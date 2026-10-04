@@ -51,6 +51,12 @@ INSERT INTO public.categories (name, description) VALUES
   ('General',  'Senas sin categoria especifica')
 ON CONFLICT (name) DO NOTHING;
 
+-- Unicidad de nombres sin distinguir mayusculas ('Saludos' = 'saludos'): la
+-- aplica la base, no solo la capa de aplicacion. Si ya hay categorias que solo
+-- difieren en mayusculas, hay que fusionarlas antes de ejecutar este archivo.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_categories_name_lower
+  ON public.categories (lower(name));
+
 -- ── sign_lexicon ────────────────────────────────────────────────────────
 -- Si la tabla ya existe (Liquibase 010 o version anterior) solo se completa.
 CREATE TABLE IF NOT EXISTS public.sign_lexicon (

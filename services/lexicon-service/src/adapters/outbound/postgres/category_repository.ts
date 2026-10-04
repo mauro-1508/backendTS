@@ -10,9 +10,12 @@ interface CategoryRow {
   sign_count?: number;
 }
 
+/** Restricciones que garantizan nombre unico (exacto y sin distinguir mayusculas). */
+const NAME_UNIQUE_CONSTRAINTS = ['uq_categories_name', 'uq_categories_name_lower'];
+
 const isNameTaken = (error: unknown) => {
   const e = error as { code?: string; constraint?: string };
-  return e.code === '23505' && e.constraint === 'uq_categories_name';
+  return e.code === '23505' && NAME_UNIQUE_CONSTRAINTS.includes(e.constraint ?? '');
 };
 
 const toCategory = (row: CategoryRow): Category => ({
