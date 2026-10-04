@@ -1,0 +1,18 @@
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!-- Roles base: USER se asigna a toda cuenta nueva; ADMIN se otorga a mano. -->
+    <changeSet id="013" author="integracion">
+        <sql>
+            INSERT INTO role (name, description)
+            SELECT seed.name, seed.description
+            FROM (VALUES ('USER', 'Usuario estandar'), ('ADMIN', 'Administrador')) AS seed(name, description)
+            WHERE NOT EXISTS (SELECT 1 FROM role r WHERE r.name = seed.name);
+        </sql>
+    </changeSet>
+
+</databaseChangeLog>

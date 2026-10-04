@@ -26,7 +26,7 @@ describe('casos de uso de auth', () => {
     issueToken = makeIssueToken({ tokenProvider, roleRepository });
   });
 
-  const register = () => makeRegister({ userRepository, passwordHasher: fakePasswordHasher, eventPublisher });
+  const register = () => makeRegister({ userRepository, roleRepository, passwordHasher: fakePasswordHasher, eventPublisher });
   const login = () => makeLogin({ userRepository, passwordHasher: fakePasswordHasher, issueToken });
 
   describe('register', () => {
@@ -38,6 +38,12 @@ describe('casos de uso de auth', () => {
       assert.deepEqual(eventPublisher.published, [
         { type: 'iam.UserRegistered', payload: { userId: 1, email: ADA.email, name: ADA.name } },
       ]);
+    });
+
+    test('asigna el rol USER por defecto', async () => {
+      await register()(ADA);
+
+      assert.deepEqual(roleRepository.rolesByUser.get(1), ['USER']);
     });
 
     test('rechaza un correo ya registrado y no publica evento', async () => {
@@ -54,7 +60,7 @@ describe('casos de uso de auth', () => {
 
     test('si el broker falla, el registro igualmente termina bien', async () => {
       const result = await makeRegister({
-        userRepository, passwordHasher: fakePasswordHasher, eventPublisher: failingEventPublisher,
+        userRepository, roleRepository, passwordHasher: fakePasswordHasher, eventPublisher: failingEventPublisher,
       })(ADA);
 
       assert.equal(result.success, true);
@@ -76,6 +82,7 @@ describe('casos de uso de auth', () => {
 
     test('un usuario sin roles recibe un token con roles vacíos', async () => {
       await register()(ADA);
+      roleRepository.rolesByUser.clear();
 
       assert.deepEqual(tokenProvider.verify(tokenOf(await loginAda())).roles, []);
     });
@@ -101,13 +108,19 @@ describe('casos de uso de auth', () => {
   });
 
   describe('googleLogin', () => {
-    const googleLogin = () => makeGoogleLogin({ userRepository, issueToken, eventPublisher });
+    const googleLogin = () => makeGoogleLogin({ userRepository, roleRepository, issueToken, eventPublisher });
 
     test('cuenta nueva: la crea, publica iam.UserRegistered y firma el token', async () => {
       const result = await googleLogin()({ email: 'g@example.com', name: 'Gina' });
 
       assert.equal(tokenProvider.verify(tokenOf(result)).email, 'g@example.com');
       assert.equal(eventPublisher.published[0].type, 'iam.UserRegistered');
+    });
+
+    test('cuenta nueva: recibe el rol USER y el token lo lleva', async () => {
+      const result = await googleLogin()({ email: 'g@example.com', name: 'Gina' });
+
+      assert.deepEqual(tokenProvider.verify(tokenOf(result)).roles, ['USER']);
     });
 
     test('cuenta existente: no publica evento y el token lleva sus roles', async () => {
