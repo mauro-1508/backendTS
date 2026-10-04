@@ -22,7 +22,7 @@ export const makeLogin = (deps: {
       throw new Error('Credenciales inválidas');
     }
 
-    const token = deps.tokenProvider.sign({ userId: user.userId, email: user.email });
+    const token = deps.tokenProvider.sign({ userId: user.userId, email: user.email, roles: [] });
 
     return {
       success: true,

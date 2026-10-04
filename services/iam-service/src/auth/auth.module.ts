@@ -1,8 +1,8 @@
-import { jwtTokenProvider } from '../../shared/security/jwt';
-import { postgresUserRepository } from '../users/adapters/outbound/postgres/user_repository';
-import { postgresAuthRepository } from './adapters/outbound/postgres/auth_repository';
-import { bcryptPasswordHasher } from './adapters/outbound/security/password';
-import { nodemailerMailer } from './adapters/outbound/mailer/mailer';
+import { TokenProvider } from '@traduce/shared';
+import { UserRepository } from '../users/ports/outbound/user_repository';
+import { AuthRepository } from './ports/outbound/auth_repository';
+import { Mailer } from './ports/outbound/mailer';
+import { PasswordHasher } from './ports/outbound/auth_provider';
 import { makeRegister } from './application/register';
 import { makeLogin } from './application/login';
 import { makeForgotPassword } from './application/forgot_password';
@@ -12,16 +12,16 @@ import { makeGoogleLogin } from './application/google_login';
 import { makeAuthRoutes } from './adapters/inbound/http/routes';
 import { AuthService } from './ports/inbound/auth_service';
 
-// Composicion de dependencias del dominio auth (puertos -> adaptadores concretos).
-export const makeAuthModule = () => {
-  const deps = {
-    userRepository: postgresUserRepository,
-    authRepository: postgresAuthRepository,
-    passwordHasher: bcryptPasswordHasher,
-    tokenProvider: jwtTokenProvider,
-    mailer: nodemailerMailer,
-  };
+export interface AuthModuleDeps {
+  userRepository: UserRepository;
+  authRepository: AuthRepository;
+  passwordHasher: PasswordHasher;
+  tokenProvider: TokenProvider;
+  mailer: Mailer;
+}
 
+// Composicion del dominio auth: recibe los adaptadores ya construidos.
+export const makeAuthModule = (deps: AuthModuleDeps) => {
   const authService: AuthService = {
     register: makeRegister(deps),
     login: makeLogin(deps),

@@ -1,6 +1,6 @@
 import { UserRepository } from '../../../ports/outbound/user_repository';
 import { NewUser, User } from '../../../domain/entity';
-import { pool } from '../../../../../shared/database/postgres';
+import { Pool } from 'pg';
 
 interface UserRow {
   user_id: number;
@@ -22,7 +22,7 @@ const toUser = (row: UserRow): User => ({
   createdAt: row.created_at,
 });
 
-export const postgresUserRepository: UserRepository = {
+export const makePostgresUserRepository = (pool: Pool): UserRepository => ({
   findByEmail: async (email: string) => {
     const { rows } = await pool.query<UserRow>(
       `SELECT user_id, name, email, password, terms_accepted, terms_accepted_at, created_at
@@ -58,4 +58,4 @@ export const postgresUserRepository: UserRepository = {
   updatePassword: async (userId: number, hashedPassword: string) => {
     await pool.query(`UPDATE public.users SET password = $1 WHERE user_id = $2`, [hashedPassword, userId]);
   },
-};
+});
