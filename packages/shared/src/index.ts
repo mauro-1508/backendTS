@@ -10,3 +10,8 @@ export * from './events/in_memory_event_bus';
 export * from './events/rabbitmq_event_bus';
 export * from './events/create_event_bus';
 export * from './events/topic_matcher';
+export * from './events/contracts';
+export * from './events/payload_validators';
+export * from './events/publish_quietly';
+export * from './events/backoff';
+export * from './events/subscribe_with_retry';
