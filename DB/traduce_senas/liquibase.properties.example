@@ -1,9 +1,0 @@
-url=jdbc:postgresql://localhost:5432/postgres
-username=postgres
-password=TU_PASSWORD_AQUI
-driver=org.postgresql.Driver
-changeLogFile=master.xml
-# Raices de busqueda (relativas al directorio desde donde se ejecuta liquibase,
-# DB/traduce_senas): "." para master.xml y "../.." (backend/) para que el changelog
-# 012 encuentre migrations/003_lexicon.sql.
-searchPath=.,../..
