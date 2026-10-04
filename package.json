@@ -5,13 +5,7 @@
     "start": "node dist/cmd/server/main.js",
     "test": "npm run build -w @traduce/shared && node scripts/run-tests.js",
     "dev": "nodemon --watch cmd --watch src --ext ts --exec ts-node cmd/server/main.ts",
-    "ia:inspect-lsc54": "ts-node src/domains/ia/training/inspect-lsc54.ts",
-    "ia:download-lsc54": "ts-node src/domains/ia/training/download-lsc54-rep0.ts",
-    "ia:measure-lsc54": "ts-node src/domains/ia/training/measure-lsc54-separability.ts",
-    "ia:convert-lsc54": "ts-node src/domains/ia/training/convert-lsc54-to-templates.ts",
-    "ia:upload-templates": "ts-node src/domains/ia/training/upload-templates.ts",
-    "ia:video": "ts-node src/domains/ia/training/fetch-reference-video.ts",
-    "dev:all": "concurrently -k -n gateway,lexicon \"npm run dev -w @traduce/api-gateway\" \"npm run dev -w @traduce/lexicon-service\""
+    "dev:all": "concurrently -k -n gateway,lexicon,recognition \"npm run dev -w @traduce/api-gateway\" \"npm run dev -w @traduce/lexicon-service\" \"npm run dev -w @traduce/recognition-service\""
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
