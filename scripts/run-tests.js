@@ -29,6 +29,11 @@ if (files.length === 0) {
 const result = spawnSync(
   process.execPath,
   ['--require', 'ts-node/register', '--test', ...files],
-  { stdio: 'inherit', cwd: ROOT },
+  {
+    stdio: 'inherit',
+    cwd: ROOT,
+    // Sin tsconfig.json en la raiz, ts-node usa la configuracion base compartida.
+    env: { ...process.env, TS_NODE_PROJECT: path.join(ROOT, 'tsconfig.base.json') },
+  },
 );
 process.exit(result.status ?? 1);
