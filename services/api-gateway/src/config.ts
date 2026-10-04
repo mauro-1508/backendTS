@@ -1,4 +1,4 @@
-import { Env, makeEnvReader } from '@traduce/shared';
+import { Env, makeEnvReader, requireJwtSecret } from '@traduce/shared';
 import { SERVICE_NAMES, ServiceName } from './route_table';
 
 export interface GatewayConfig {
@@ -35,7 +35,7 @@ export const loadGatewayConfig = (env: Env = process.env): GatewayConfig => {
 
   return {
     port: Number(read('PORT')) || DEFAULT_PORT,
-    jwtSecret: read('JWT_SECRET') ?? '',
+    jwtSecret: requireJwtSecret(read('JWT_SECRET')),
     jwtExpiresIn: read('JWT_EXPIRES_IN') ?? '1d',
     serviceUrls,
     rateLimit: {

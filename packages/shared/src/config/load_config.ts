@@ -26,6 +26,15 @@ export interface LoadConfigOptions {
 
 const DEFAULT_DB_PORT = 5432;
 const DEFAULT_JWT_EXPIRES_IN = '1d';
+export const MIN_JWT_SECRET_LENGTH = 32;
+
+/** Aborta el arranque si el secreto falta o es demasiado corto para HS256. */
+export const requireJwtSecret = (secret: string | undefined): string => {
+  if (!secret || secret.length < MIN_JWT_SECRET_LENGTH) {
+    throw new Error(`JWT_SECRET es obligatorio y debe tener al menos ${MIN_JWT_SECRET_LENGTH} caracteres`);
+  }
+  return secret;
+};
 
 /**
  * Lector de variables de entorno: con prefijo, `<PREFIJO>_<NOMBRE>` gana sobre
@@ -50,7 +59,7 @@ export const loadConfig = (options: LoadConfigOptions): ServiceConfig => {
       database: read('DB_NAME'),
     },
     jwt: {
-      secret: read('JWT_SECRET') ?? '',
+      secret: requireJwtSecret(read('JWT_SECRET')),
       expiresIn: read('JWT_EXPIRES_IN') ?? DEFAULT_JWT_EXPIRES_IN,
     },
     rabbitmqUrl: read('RABBITMQ_URL') ?? '',

@@ -10,7 +10,7 @@ x-postgres: &postgres
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
 
 x-service-env: &service-env
-  JWT_SECRET: ${JWT_SECRET:-cambia-este-secreto-en-desarrollo}
+  JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET (minimo 32 caracteres) en .env o exportalo}
   RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
   DB_USER: postgres
   DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
@@ -25,7 +25,7 @@ services:
       - "8080:8080"
     environment:
       PORT: "8080"
-      JWT_SECRET: ${JWT_SECRET:-cambia-este-secreto-en-desarrollo}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET (minimo 32 caracteres) en .env o exportalo}
       IAM_SERVICE_URL: http://iam-service:3001
       RECOGNITION_SERVICE_URL: http://recognition-service:3002
       LEXICON_SERVICE_URL: http://lexicon-service:3003

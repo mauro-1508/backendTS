@@ -6,18 +6,20 @@ export interface JwtSettings {
   expiresIn: string;
 }
 
+export const JWT_ALGORITHM = 'HS256';
+export const JWT_ISSUER = 'traduce-iam';
+export const JWT_AUDIENCE = 'traduce-api';
+
 /** Payload actual: `sub` es el id del usuario (string, como exige el estandar JWT). */
 interface JwtPayload {
   sub?: string;
-  /** Payload anterior a los microservicios; se sigue aceptando para no invalidar tokens. */
-  user_id?: number;
   email: string;
   roles?: string[];
 }
 
 const toUserId = (payload: JwtPayload): number => {
-  const userId = payload.sub !== undefined ? Number(payload.sub) : payload.user_id;
-  if (userId === undefined || !Number.isInteger(userId)) {
+  const userId = Number(payload.sub);
+  if (payload.sub === undefined || !Number.isInteger(userId)) {
     throw new Error('El token no identifica a un usuario');
   }
   return userId;
@@ -28,12 +30,19 @@ export const makeJwtTokenProvider = (settings: JwtSettings): TokenProvider => {
   return {
     sign: (user) =>
       jwt.sign({ email: user.email, roles: user.roles }, settings.secret, {
+        algorithm: JWT_ALGORITHM,
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
         expiresIn,
         subject: String(user.userId),
       }),
 
     verify: (token) => {
-      const payload = jwt.verify(token, settings.secret) as JwtPayload;
+      const payload = jwt.verify(token, settings.secret, {
+        algorithms: [JWT_ALGORITHM],
+        issuer: JWT_ISSUER,
+        audience: JWT_AUDIENCE,
+      }) as JwtPayload;
       return { userId: toUserId(payload), email: payload.email, roles: payload.roles ?? [] };
     },
   };
