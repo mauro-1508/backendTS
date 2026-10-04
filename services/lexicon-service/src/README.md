@@ -10,7 +10,7 @@ Modelo de datos y reglas: `docs/06-data/domains/04-lexicon.md`.
 ## Base de datos
 
 ```
-psql -h localhost -p 5433 -U postgres -d traduce_senas -f backend/migrations/003_lexicon.sql
+psql -h localhost -p 5435 -U postgres -d lexicon -f services/lexicon-service/db/003_lexicon.sql
 ```
 
 Crea o completa `categories`, `sign_lexicon`, `sign_localizations` y `multimedia_resource` (es compatible con las tablas
@@ -61,5 +61,5 @@ URL absolutas. Variables opcionales: `LEXICON_MEDIA_DIR` (otro directorio de med
 ## Modelos 3D del alfabeto
 
 Salen de `modelado/` (scripts de Blender, ver su README). Si se regeneran, copiar
-`modelado/glb/*.glb` y `modelado/thumbs/*.png` a `backend/public/lexicon/alfabeto/`
+`modelado/glb/*.glb` y `modelado/thumbs/*.png` a `services/lexicon-service/public/lexicon/alfabeto/`
 y a `frontend/src/assets/alfabeto/` (la app los trae empaquetados para funcionar sin red).

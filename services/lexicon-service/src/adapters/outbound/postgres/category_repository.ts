@@ -1,4 +1,4 @@
-import { pool } from '../../../../../shared/database/postgres';
+import { Pool } from 'pg';
 import { Category, CategorySummary } from '../../../domain/entity';
 import { CategoryRepository } from '../../../domain/repository';
 import { CategoryInUseError, CategoryNameTakenError } from '../../../domain/rules';
@@ -21,7 +21,7 @@ const toCategory = (row: CategoryRow): Category => ({
   description: row.description,
 });
 
-export const postgresCategoryRepository: CategoryRepository = {
+export const makePostgresCategoryRepository = (pool: Pool): CategoryRepository => ({
   list: async () => {
     const { rows } = await pool.query<CategoryRow>(
       `SELECT c.category_id, c.name, c.description,
@@ -99,4 +99,4 @@ export const postgresCategoryRepository: CategoryRepository = {
       throw error;
     }
   },
-};
+});

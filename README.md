@@ -10,8 +10,8 @@ src/domains/auth/         # registro, login, recuperación de contraseña
 src/domains/users/        # /api/users/me
 src/domains/translations/ # historial de traducciones
 src/domains/ia/           # plantillas de señas y entrenamiento (ver su README)
-src/domains/lexicon/      # catálogo de señas + alfabeto 3D (ver su README)
-public/lexicon/           # modelos .glb y miniaturas que sirve /api/lexicon/media
+services/lexicon-service/   # catálogo de señas + alfabeto 3D (ver src/README.md)
+services/lexicon-service/public/lexicon/  # modelos .glb y miniaturas que sirve /api/lexicon/media
 migrations/               # SQL
 DB/                       # changelogs de Liquibase
 ```

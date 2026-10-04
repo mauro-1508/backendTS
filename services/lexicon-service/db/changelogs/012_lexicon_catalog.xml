@@ -11,14 +11,12 @@
       Completa sign_lexicon y multimedia_resource (009-011) con lo que usa el
       dominio lexicon del backend (categories, sign_localizations, rol ADMIN) y
       siembra el alfabeto LSC. Reutiliza el mismo SQL que
-      migrations/003_lexicon.sql para no mantener dos versiones; ese archivo es
+      003_lexicon.sql para no mantener dos versiones; ese archivo es
       idempotente y trae su propio BEGIN/COMMIT, por eso runInTransaction="false"
-      (evita el BEGIN anidado). El path se resuelve contra el searchPath de
-      liquibase.properties (backend/), no relativo al changelog: una ruta con
-      "../" fuera de la raiz de busqueda (DB/traduce_senas) la rechaza Liquibase 4. splitStatements="false" por los bloques $$.
+      (evita el BEGIN anidado). El path se resuelve contra el searchPath de liquibase.properties (db/). splitStatements="false" por los bloques $$.
     -->
     <changeSet id="012" author="lexicon" runOnChange="true" runInTransaction="false">
-        <sqlFile path="migrations/003_lexicon.sql"
+        <sqlFile path="003_lexicon.sql"
                  relativeToChangelogFile="false"
                  encoding="UTF-8"
                  splitStatements="false"

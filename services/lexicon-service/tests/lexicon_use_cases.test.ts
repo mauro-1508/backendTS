@@ -1,18 +1,18 @@
 import { test, describe, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeCreateSign } from '../../src/domains/lexicon/application/create_sign';
-import { makeUpdateSign } from '../../src/domains/lexicon/application/update_sign';
-import { makePublishSign } from '../../src/domains/lexicon/application/publish_sign';
-import { makeDeactivateSign } from '../../src/domains/lexicon/application/deactivate_sign';
-import { makeListSigns } from '../../src/domains/lexicon/application/list_signs';
-import { makeGetSign } from '../../src/domains/lexicon/application/get_sign';
-import { makeGetAlphabet } from '../../src/domains/lexicon/application/get_alphabet';
-import { makeUpsertLocalization } from '../../src/domains/lexicon/application/upsert_localization';
-import { makeAddResource, makeRemoveResource } from '../../src/domains/lexicon/application/manage_resources';
+import { makeCreateSign } from '../src/application/create_sign';
+import { makeUpdateSign } from '../src/application/update_sign';
+import { makePublishSign } from '../src/application/publish_sign';
+import { makeDeactivateSign } from '../src/application/deactivate_sign';
+import { makeListSigns } from '../src/application/list_signs';
+import { makeGetSign } from '../src/application/get_sign';
+import { makeGetAlphabet } from '../src/application/get_alphabet';
+import { makeUpsertLocalization } from '../src/application/upsert_localization';
+import { makeAddResource, makeRemoveResource } from '../src/application/manage_resources';
 import {
   makeCreateCategory, makeDeleteCategory, makeListCategories, makeUpdateCategory,
-} from '../../src/domains/lexicon/application/manage_categories';
-import { catchError, makeRepos } from '../helpers/fakes';
+} from '../src/application/manage_categories';
+import { catchError, makeRepos } from './helpers/fakes';
 
 let repos: ReturnType<typeof makeRepos>;
 let saludos: { categoryId: number; name: string };
