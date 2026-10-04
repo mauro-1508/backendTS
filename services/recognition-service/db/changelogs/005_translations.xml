@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!--
+      Tabla translations tal como la usa el servicio (el borrador anterior, "translation",
+      nunca se uso). user_id es un id logico de iam-service: sin FK entre servicios.
+      El SQL es idempotente (IF NOT EXISTS) y se comparte con el arranque de docker.
+    -->
+    <changeSet id="005" author="recognition">
+        <sqlFile path="001_translations.sql" relativeToChangelogFile="false" encoding="UTF-8"
+                 splitStatements="true" stripComments="true"/>
+    </changeSet>
+
+</databaseChangeLog>

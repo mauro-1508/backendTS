@@ -54,24 +54,24 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # TODO fase 2: crear services/recognition-service (translations + ia, Mongo para gesture_samples) y descomentar.
-  # recognition-service:
-  #   build:
-  #     context: .
-  #     dockerfile: services/recognition-service/Dockerfile
-  #   environment:
-  #     <<: *service-env
-  #     PORT: "3002"
-  #     DB_HOST: postgres-recognition
-  #     DB_NAME: recognition
-  #     MONGO_URL: mongodb://mongo:27017/recognition
-  #   depends_on:
-  #     postgres-recognition:
-  #       condition: service_healthy
-  #     mongo:
-  #       condition: service_started
-  #     rabbitmq:
-  #       condition: service_healthy
+  recognition-service:
+    build:
+      context: .
+      dockerfile: services/recognition-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3002"
+      DB_HOST: postgres-recognition
+      DB_NAME: recognition
+      MONGO_URL: mongodb://mongo:27017/recognition
+    depends_on:
+      postgres-recognition:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
 
   lexicon-service:
     build:
@@ -148,6 +148,9 @@ services:
       - "5434:5432"
     volumes:
       - pg-recognition-data:/var/lib/postgresql/data
+      # Esquema (translations, sign_templates): se aplica al crear el volumen por primera vez.
+      - ./services/recognition-service/db/001_translations.sql:/docker-entrypoint-initdb.d/001_translations.sql:ro
+      - ./services/recognition-service/db/002_sign_templates.sql:/docker-entrypoint-initdb.d/002_sign_templates.sql:ro
     healthcheck: *pg-healthcheck
 
   postgres-lexicon:

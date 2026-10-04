@@ -1,0 +1,7 @@
+url=jdbc:postgresql://localhost:5434/recognition
+username=postgres
+password=TU_PASSWORD_AQUI
+driver=org.postgresql.Driver
+changeLogFile=master.xml
+# Raiz de busqueda: este directorio (db/) contiene master.xml y los SQL 001 y 002.
+searchPath=.
