@@ -57,6 +57,7 @@ describe('requireRole', () => {
       const { res, nextCalls } = await run({ hasRole: async () => { throw new Error('db down'); } }, { userId: 1, email: 'x' });
       assert.equal(res.statusCode, 500);
       assert.equal(res.body.success, false);
+      assert.equal(res.body.code, 'INTERNAL_ERROR');
       assert.equal(nextCalls, 0);
     } finally {
       console.error = original;
