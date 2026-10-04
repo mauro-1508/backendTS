@@ -13,14 +13,14 @@
 --   multimedia_resource con display_order NOT NULL y UNIQUE por sena.
 --
 -- Es compatible con tres puntos de partida (y se puede re-ejecutar):
---   a) base vacia (solo users/role);
+--   a) base vacia;
 --   b) tablas legacy de los changelogs 009-011 de Liquibase;
 --   c) base donde ya corrio la version anterior de este archivo (con las
 --      columnas word/description/category en sign_lexicon). Esas tres columnas
 --      se copian (category -> categories.category_id; word/description ->
 --      sign_localizations 'ES') y SOLO DESPUES se eliminan.
 --
--- Ejecutar manualmente contra la base de datos `traduce_senas` (despues de 000):
+-- Ejecutar manualmente contra la base de datos `traduce_senas` :
 --   psql -h localhost -p 5435 -U postgres -d lexicon -f services/lexicon-service/db/003_lexicon.sql
 -- Se puede volver a ejecutar: actualiza las letras sin duplicar nada.
 
@@ -72,10 +72,15 @@ ALTER TABLE public.sign_lexicon
   ADD COLUMN IF NOT EXISTS is_animated   BOOLEAN     NOT NULL DEFAULT FALSE,
   ADD COLUMN IF NOT EXISTS display_order INT         NOT NULL DEFAULT 1000,
   ADD COLUMN IF NOT EXISTS status        VARCHAR(10) NOT NULL DEFAULT 'ACTIVE',
-  ADD COLUMN IF NOT EXISTS created_by    INT REFERENCES public.users(user_id) ON DELETE SET NULL,
-  ADD COLUMN IF NOT EXISTS updated_by    INT REFERENCES public.users(user_id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS created_by    INT,
+  ADD COLUMN IF NOT EXISTS updated_by    INT,
   ADD COLUMN IF NOT EXISTS created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   ADD COLUMN IF NOT EXISTS updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+-- created_by / updated_by son ids logicos de usuarios (iam-service): sin FK entre
+-- servicios. Si una version anterior las creo con FK a users, se quita.
+ALTER TABLE public.sign_lexicon DROP CONSTRAINT IF EXISTS sign_lexicon_created_by_fkey;
+ALTER TABLE public.sign_lexicon DROP CONSTRAINT IF EXISTS sign_lexicon_updated_by_fkey;
 
 -- Filas previas (de Liquibase) incompletas: se les da un valor estable.
 -- (Aun no se tocan word/description/category: se migran mas abajo.)
@@ -350,28 +355,6 @@ BEGIN
   END IF;
 END $$;
 
--- ── Rol ADMIN ───────────────────────────────────────────────────────────
--- role y user_role existen si se uso Liquibase (001/003); si la base se monto
--- solo con migrations/ se crean aqui con la misma forma que los changelogs.
-CREATE TABLE IF NOT EXISTS public.role (
-  role_id     SERIAL PRIMARY KEY,
-  name        VARCHAR(100),
-  description VARCHAR(255)
-);
-
-CREATE TABLE IF NOT EXISTS public.user_role (
-  user_id INT NOT NULL,
-  role_id INT NOT NULL,
-  CONSTRAINT pk_user_role      PRIMARY KEY (user_id, role_id),
-  CONSTRAINT fk_user_role_user FOREIGN KEY (user_id) REFERENCES public.users(user_id),
-  CONSTRAINT fk_user_role_role FOREIGN KEY (role_id) REFERENCES public.role(role_id)
-);
-
--- role.name no tiene UNIQUE: se inserta solo si no existe.
-INSERT INTO public.role (name, description)
-SELECT 'ADMIN', 'Administrador del sistema'
-WHERE NOT EXISTS (SELECT 1 FROM public.role WHERE name = 'ADMIN');
-
 -- ── Semilla: alfabeto LSC (27 letras) ───────────────────────────────────
 -- display_order fija el orden del alfabeto, con la Ñ despues de la N.
 -- Cada letra crea su sena (categoria Alfabeto, ACTIVE) y su localizacion ES
@@ -513,12 +496,3 @@ BEGIN
 END $$;
 
 COMMIT;
-
--- Asignar el rol ADMIN a un usuario por email (instruccion manual, NO se ejecuta
--- aqui; reemplazar el correo):
---   INSERT INTO public.user_role (user_id, role_id)
---   SELECT u.user_id, r.role_id
---   FROM public.users u
---   JOIN public.role r ON r.name = 'ADMIN'
---   WHERE u.email = 'admin@ejemplo.com'
---   ON CONFLICT DO NOTHING;
