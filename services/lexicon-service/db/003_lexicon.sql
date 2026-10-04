@@ -275,13 +275,24 @@ CREATE TABLE IF NOT EXISTS public.multimedia_resource (
   url           VARCHAR(255),
   mime_type     VARCHAR(100),
   display_order INT,
-  lexicon_id    INT REFERENCES public.sign_lexicon(lexicon_id) ON DELETE CASCADE
+  lexicon_id    INT
 );
 
 ALTER TABLE public.multimedia_resource
-  ADD COLUMN IF NOT EXISTS lexicon_id  INT REFERENCES public.sign_lexicon(lexicon_id) ON DELETE CASCADE,
+  ADD COLUMN IF NOT EXISTS lexicon_id  INT,
   ADD COLUMN IF NOT EXISTS description TEXT,
   ADD COLUMN IF NOT EXISTS created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW();
+
+-- FK multimedia -> sign_lexicon con ON DELETE CASCADE explicita. El changelog 011
+-- de Liquibase la creo sin cascada (fk_multimedia_lexicon) y un ADD COLUMN IF NOT
+-- EXISTS con REFERENCES no la reemplaza, asi que se recrea siempre: se borran las
+-- variantes conocidas y se crea una unica con nombre propio.
+ALTER TABLE public.multimedia_resource DROP CONSTRAINT IF EXISTS fk_multimedia_lexicon;
+ALTER TABLE public.multimedia_resource DROP CONSTRAINT IF EXISTS multimedia_resource_lexicon_id_fkey;
+ALTER TABLE public.multimedia_resource DROP CONSTRAINT IF EXISTS fk_multimedia_resource_lexicon;
+ALTER TABLE public.multimedia_resource
+  ADD CONSTRAINT fk_multimedia_resource_lexicon
+  FOREIGN KEY (lexicon_id) REFERENCES public.sign_lexicon(lexicon_id) ON DELETE CASCADE;
 
 -- Margen para tipos MIME largos (Liquibase lo creo como VARCHAR(50)).
 ALTER TABLE public.multimedia_resource ALTER COLUMN mime_type TYPE VARCHAR(100);
