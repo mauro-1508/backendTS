@@ -1,0 +1,212 @@
+# Plataforma completa: gateway + servicios + una base de datos por servicio.
+# Uso:  JWT_SECRET=algo-largo docker compose up --build
+# Puertos en el host: gateway 8080, postgres 5433-5437, mongo 27017, rabbitmq 5672 (UI 15672).
+
+x-postgres: &postgres
+  image: postgres:16-alpine
+  restart: unless-stopped
+  environment: &postgres-env
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+
+x-service-env: &service-env
+  JWT_SECRET: ${JWT_SECRET:-cambia-este-secreto-en-desarrollo}
+  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+  DB_USER: postgres
+  DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  DB_PORT: "5432"
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      JWT_SECRET: ${JWT_SECRET:-cambia-este-secreto-en-desarrollo}
+      IAM_SERVICE_URL: http://iam-service:3001
+      RECOGNITION_SERVICE_URL: http://recognition-service:3002
+      LEXICON_SERVICE_URL: http://lexicon-service:3003
+      ANALYTICS_SERVICE_URL: http://analytics-service:3004
+      PROFILE_SERVICE_URL: http://profile-service:3005
+    depends_on:
+      - lexicon-service
+    restart: unless-stopped
+
+  # TODO fase 2: crear services/iam-service (auth + users + roles en el JWT) y descomentar.
+  # iam-service:
+  #   build:
+  #     context: .
+  #     dockerfile: services/iam-service/Dockerfile
+  #   environment:
+  #     <<: *service-env
+  #     PORT: "3001"
+  #     DB_HOST: postgres-iam
+  #     DB_NAME: iam
+  #   depends_on:
+  #     postgres-iam:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  # TODO fase 2: crear services/recognition-service (translations + ia, Mongo para gesture_samples) y descomentar.
+  # recognition-service:
+  #   build:
+  #     context: .
+  #     dockerfile: services/recognition-service/Dockerfile
+  #   environment:
+  #     <<: *service-env
+  #     PORT: "3002"
+  #     DB_HOST: postgres-recognition
+  #     DB_NAME: recognition
+  #     MONGO_URL: mongodb://mongo:27017/recognition
+  #   depends_on:
+  #     postgres-recognition:
+  #       condition: service_healthy
+  #     mongo:
+  #       condition: service_started
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  lexicon-service:
+    build:
+      context: .
+      dockerfile: services/lexicon-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3003"
+      DB_HOST: postgres-lexicon
+      DB_NAME: lexicon
+      # LEXICON_MEDIA_BASE_URL: https://cdn.ejemplo.com/lexicon
+    depends_on:
+      postgres-lexicon:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # TODO fase 2: crear services/analytics-service (consume eventos y expone estadisticas) y descomentar.
+  # analytics-service:
+  #   build:
+  #     context: .
+  #     dockerfile: services/analytics-service/Dockerfile
+  #   environment:
+  #     <<: *service-env
+  #     PORT: "3004"
+  #     DB_HOST: postgres-analytics
+  #     DB_NAME: analytics
+  #   depends_on:
+  #     postgres-analytics:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  # TODO fase 2: crear services/profile-service (perfil, notificaciones, logros) y descomentar.
+  # profile-service:
+  #   build:
+  #     context: .
+  #     dockerfile: services/profile-service/Dockerfile
+  #   environment:
+  #     <<: *service-env
+  #     PORT: "3005"
+  #     DB_HOST: postgres-profile
+  #     DB_NAME: profile
+  #   depends_on:
+  #     postgres-profile:
+  #       condition: service_healthy
+  #     rabbitmq:
+  #       condition: service_healthy
+
+  postgres-iam:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: iam
+    ports:
+      - "5433:5432"
+    volumes:
+      - pg-iam-data:/var/lib/postgresql/data
+    healthcheck: &pg-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres-recognition:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: recognition
+    ports:
+      - "5434:5432"
+    volumes:
+      - pg-recognition-data:/var/lib/postgresql/data
+    healthcheck: *pg-healthcheck
+
+  postgres-lexicon:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: lexicon
+    ports:
+      - "5435:5432"
+    volumes:
+      - pg-lexicon-data:/var/lib/postgresql/data
+      # Esquema y semilla del alfabeto: se aplican al crear el volumen por primera vez.
+      - ./services/lexicon-service/db/003_lexicon.sql:/docker-entrypoint-initdb.d/003_lexicon.sql:ro
+    healthcheck: *pg-healthcheck
+
+  postgres-analytics:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: analytics
+    ports:
+      - "5436:5432"
+    volumes:
+      - pg-analytics-data:/var/lib/postgresql/data
+    healthcheck: *pg-healthcheck
+
+  postgres-profile:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: profile
+    ports:
+      - "5437:5432"
+    volumes:
+      - pg-profile-data:/var/lib/postgresql/data
+    healthcheck: *pg-healthcheck
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg-iam-data:
+  pg-recognition-data:
+  pg-lexicon-data:
+  pg-analytics-data:
+  pg-profile-data:
+  mongo-data:
+  rabbitmq-data:

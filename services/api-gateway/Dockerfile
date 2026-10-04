@@ -12,6 +12,9 @@ RUN npm run build -w @traduce/shared -w @traduce/api-gateway
 FROM node:20-alpine
 WORKDIR /app
 ENV NODE_ENV=production
+# Los DNS lentos de servicios caidos no deben agotar los 4 hilos por defecto y
+# dejar sin resolver a los que si responden (health agregado en paralelo).
+ENV UV_THREADPOOL_SIZE=16
 COPY package*.json ./
 COPY packages/shared/package.json packages/shared/
 COPY services/api-gateway/package.json services/api-gateway/
