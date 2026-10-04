@@ -1,0 +1,6 @@
+url=jdbc:postgresql://localhost:5433/iam
+username=postgres
+password=TU_PASSWORD_AQUI
+driver=org.postgresql.Driver
+changeLogFile=master.xml
+searchPath=.
