@@ -32,24 +32,27 @@ services:
       ANALYTICS_SERVICE_URL: http://analytics-service:3004
       PROFILE_SERVICE_URL: http://profile-service:3005
     depends_on:
+      - iam-service
       - lexicon-service
     restart: unless-stopped
 
-  # TODO fase 2: crear services/iam-service (auth + users + roles en el JWT) y descomentar.
-  # iam-service:
-  #   build:
-  #     context: .
-  #     dockerfile: services/iam-service/Dockerfile
-  #   environment:
-  #     <<: *service-env
-  #     PORT: "3001"
-  #     DB_HOST: postgres-iam
-  #     DB_NAME: iam
-  #   depends_on:
-  #     postgres-iam:
-  #       condition: service_healthy
-  #     rabbitmq:
-  #       condition: service_healthy
+  iam-service:
+    build:
+      context: .
+      dockerfile: services/iam-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3001"
+      DB_HOST: postgres-iam
+      DB_NAME: iam
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+    depends_on:
+      postgres-iam:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
 
   # TODO fase 2: crear services/recognition-service (translations + ia, Mongo para gesture_samples) y descomentar.
   # recognition-service:
@@ -128,6 +131,8 @@ services:
       - "5433:5432"
     volumes:
       - pg-iam-data:/var/lib/postgresql/data
+      # Esquema de usuarios y roles: se aplica al crear el volumen por primera vez.
+      - ./services/iam-service/db/000_users.sql:/docker-entrypoint-initdb.d/000_users.sql:ro
     healthcheck: &pg-healthcheck
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
