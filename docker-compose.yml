@@ -106,21 +106,21 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
-  # TODO fase 2: crear services/profile-service (perfil, notificaciones, logros) y descomentar.
-  # profile-service:
-  #   build:
-  #     context: .
-  #     dockerfile: services/profile-service/Dockerfile
-  #   environment:
-  #     <<: *service-env
-  #     PORT: "3005"
-  #     DB_HOST: postgres-profile
-  #     DB_NAME: profile
-  #   depends_on:
-  #     postgres-profile:
-  #       condition: service_healthy
-  #     rabbitmq:
-  #       condition: service_healthy
+  profile-service:
+    build:
+      context: .
+      dockerfile: services/profile-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3005"
+      DB_HOST: postgres-profile
+      DB_NAME: profile
+    depends_on:
+      postgres-profile:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
 
   postgres-iam:
     <<: *postgres
@@ -188,6 +188,8 @@ services:
       - "5437:5432"
     volumes:
       - pg-profile-data:/var/lib/postgresql/data
+      # Esquema y semilla de logros: se aplican al crear el volumen por primera vez.
+      - ./services/profile-service/db/001_profile.sql:/docker-entrypoint-initdb.d/001_profile.sql:ro
     healthcheck: *pg-healthcheck
 
   mongo:
