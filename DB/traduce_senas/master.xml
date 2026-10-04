@@ -16,5 +16,6 @@
     <include file= "changelogs/009_multimedia_resource.xml"/>
     <include file= "changelogs/010_sign_lexicon.xml"/>
     <include file="changelogs/011_add_lexicon_fk_to_multimedia.xml"/>
+    <include file="changelogs/012_lexicon_catalog.xml"/>
 
 </databaseChangeLog>
