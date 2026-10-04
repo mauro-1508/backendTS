@@ -1,0 +1,25 @@
+{
+  "name": "@traduce/shared",
+  "version": "1.0.0",
+  "private": true,
+  "main": "dist/src/index.js",
+  "types": "dist/src/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "amqplib": "^0.10.9",
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.20.0"
+  },
+  "devDependencies": {
+    "@types/amqplib": "^0.10.7",
+    "@types/express": "^5.0.0",
+    "@types/jsonwebtoken": "^9.0.7",
+    "@types/node": "^22.10.0",
+    "@types/pg": "^8.11.10"
+  },
+  "peerDependencies": {
+    "express": "^5.2.1"
+  }
+}
