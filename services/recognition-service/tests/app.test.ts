@@ -63,6 +63,15 @@ describe('recognition-service HTTP (sin base de datos)', () => {
     }
   });
 
+  test('importar y borrar plantillas sin rol ADMIN: 403 FORBIDDEN', async () => {
+    for (const route of ['/api/sign-templates', '/api/recognition/sign-templates']) {
+      const imported = await fetch(`${base}${route}`, { method: 'POST', headers: bearer(['USER']), body: '{}' });
+      assert.equal(imported.status, 403, `POST ${route}`);
+      const removed = await fetch(`${base}${route}/1`, { method: 'DELETE', headers: bearer(['USER']) });
+      assert.equal(removed.status, 403, `DELETE ${route}`);
+    }
+  });
+
   test('samples sin rol ADMIN: 403 FORBIDDEN', async () => {
     const response = await postSample(validSample(), ['USER']);
     assert.equal(response.status, 403);
