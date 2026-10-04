@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+<!--
+  Log de uso (append-only) de analytics-service. Sin FK: user_id y session_id son
+  ids logicos de iam-service, y el hecho sobrevive a la cuenta (FR-705).
+  event_id es el eventId del sobre de RabbitMQ: su UNIQUE hace idempotentes los consumidores.
+-->
+<changeSet id="006" author="juan">
+    <createTable tableName="usage_event">
+        <column name="usage_event_id" type="BIGSERIAL">
+            <constraints primaryKey="true"/>
+        </column>
+        <column name="event_id" type="VARCHAR(64)">
+            <constraints nullable="false" unique="true" uniqueConstraintName="uq_usage_event_event_id"/>
+        </column>
+        <column name="user_id" type="VARCHAR(64)"/>
+        <column name="session_id" type="VARCHAR(64)"/>
+        <column name="section" type="VARCHAR(32)">
+            <constraints nullable="false"/>
+        </column>
+        <column name="event_type" type="VARCHAR(32)">
+            <constraints nullable="false"/>
+        </column>
+        <column name="reference_type" type="VARCHAR(32)"/>
+        <column name="reference_id" type="VARCHAR(64)"/>
+        <column name="sign_codes" type="TEXT[]" defaultValue="{}">
+            <constraints nullable="false"/>
+        </column>
+        <column name="created_at" type="TIMESTAMPTZ" defaultValueComputed="CURRENT_TIMESTAMP">
+            <constraints nullable="false"/>
+        </column>
+    </createTable>
+
+    <createIndex tableName="usage_event" indexName="idx_usage_event_type_created">
+        <column name="event_type"/>
+        <column name="created_at"/>
+    </createIndex>
+    <createIndex tableName="usage_event" indexName="idx_usage_event_section_created">
+        <column name="section"/>
+        <column name="created_at"/>
+    </createIndex>
+    <createIndex tableName="usage_event" indexName="idx_usage_event_user_created">
+        <column name="user_id"/>
+        <column name="created_at"/>
+    </createIndex>
+</changeSet>
+
+</databaseChangeLog>
