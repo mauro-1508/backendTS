@@ -1,3 +1,4 @@
+import { EventPublisher } from '@traduce/shared';
 import {
   Category, CategorySummary, Localization, MultimediaResource, NewResource, NewSign, Sign, SignChanges,
   SignFilter, SignStatus,
@@ -142,10 +143,22 @@ export class FakeLexiconRepository implements LexiconRepository {
   }
 }
 
+/** Publicador falso: guarda lo publicado; con failWith simula un broker caido. */
+export class RecordingEventPublisher implements EventPublisher {
+  published: Array<{ type: string; payload: unknown }> = [];
+  failWith?: Error;
+
+  async publish(type: string, payload: unknown): Promise<void> {
+    if (this.failWith) throw this.failWith;
+    this.published.push({ type, payload });
+  }
+}
+
 export const makeRepos = () => {
   const categoryRepository = new FakeCategoryRepository();
   const lexiconRepository = new FakeLexiconRepository(categoryRepository);
-  return { categoryRepository, lexiconRepository };
+  const eventPublisher = new RecordingEventPublisher();
+  return { categoryRepository, lexiconRepository, eventPublisher };
 };
 
 /** Ejecuta `fn` y devuelve el error lanzado (falla si no lanza). */

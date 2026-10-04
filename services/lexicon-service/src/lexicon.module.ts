@@ -1,5 +1,6 @@
 import { RequestHandler } from 'express';
 import { Pool } from 'pg';
+import { EventPublisher } from '@traduce/shared';
 import { makePostgresLexiconRepository } from './adapters/outbound/postgres/lexicon_repository';
 import { makePostgresCategoryRepository } from './adapters/outbound/postgres/category_repository';
 import { makeListSigns } from './application/list_signs';
@@ -20,6 +21,7 @@ import { LexiconConfig } from './config';
 
 export const makeLexiconModule = (deps: {
   pool: Pool;
+  eventPublisher: EventPublisher;
   authMiddleware: RequestHandler;
   /** Exige rol ADMIN; va despues de authMiddleware. */
   requireAdmin: RequestHandler;
@@ -34,14 +36,15 @@ export const makeLexiconModule = (deps: {
     lexiconRepository,
     categoryRepository: makePostgresCategoryRepository(deps.pool),
   };
+  const eventDeps = { lexiconRepository, eventPublisher: deps.eventPublisher };
   const lexiconService: LexiconService = {
     list: makeListSigns(repoDeps),
     alphabet: makeGetAlphabet(repoDeps),
     get: makeGetSign(repoDeps),
     create: makeCreateSign(repoDeps),
     update: makeUpdateSign(repoDeps),
-    publish: makePublishSign(repoDeps),
-    deactivate: makeDeactivateSign(repoDeps),
+    publish: makePublishSign(eventDeps),
+    deactivate: makeDeactivateSign(eventDeps),
     upsertLocalization: makeUpsertLocalization(repoDeps),
     addResource: makeAddResource(resourceDeps),
     removeResource: makeRemoveResource(repoDeps),

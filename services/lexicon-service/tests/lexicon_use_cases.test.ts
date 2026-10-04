@@ -1,5 +1,6 @@
-import { test, describe, beforeEach } from 'node:test';
+import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
+import { InMemoryEventBus } from '@traduce/shared';
 import { makeCreateSign } from '../src/application/create_sign';
 import { makeUpdateSign } from '../src/application/update_sign';
 import { makePublishSign } from '../src/application/publish_sign';
@@ -439,5 +440,59 @@ describe('categorías (HU-LEX-001/006)', () => {
     assert.deepEqual(res.data, { categoryId: saludos.categoryId });
     assert.equal(repos.categoryRepository.categories.length, 0);
     assert.equal(errCode(await catchError(() => del({ categoryId: saludos.categoryId }))), 'CATEGORY_NOT_FOUND/404');
+  });
+});
+
+describe('eventos de lexicon', () => {
+  let silenced: typeof console.error;
+  beforeEach(() => { silenced = console.error; console.error = () => {}; });
+  afterEach(() => { console.error = silenced; });
+
+  test('publicar emite lexicon.SignPublished con los datos de la seña', async () => {
+    repos.lexiconRepository.seed({ code: 'HOLA', status: 'DRAFT' });
+    await makePublishSign(repos)({ code: 'hola', userId: 7 });
+    assert.equal(repos.eventPublisher.published.length, 1);
+    const [event] = repos.eventPublisher.published;
+    assert.equal(event.type, 'lexicon.SignPublished');
+    assert.equal((event.payload as any).code, 'HOLA');
+    assert.deepEqual(Object.keys(event.payload as object).sort(),
+      ['categoryId', 'code', 'language', 'letter', 'lexiconId', 'type']);
+  });
+
+  test('publicar que falla (sin nombre ES) no emite evento', async () => {
+    repos.lexiconRepository.seed({ code: 'HELLO', status: 'DRAFT', localizations: [] });
+    await catchError(() => makePublishSign(repos)({ code: 'HELLO', userId: 1 }));
+    assert.equal(repos.eventPublisher.published.length, 0);
+  });
+
+  test('retirar emite lexicon.SignWithdrawn', async () => {
+    repos.lexiconRepository.seed({ code: 'HOLA' });
+    await makeDeactivateSign(repos)({ code: 'hola', userId: 3 });
+    assert.equal(repos.eventPublisher.published.length, 1);
+    assert.equal(repos.eventPublisher.published[0].type, 'lexicon.SignWithdrawn');
+    assert.equal((repos.eventPublisher.published[0].payload as any).code, 'HOLA');
+  });
+
+  test('retirar inexistente no emite evento', async () => {
+    await catchError(() => makeDeactivateSign(repos)({ code: 'NOPE', userId: 1 }));
+    assert.equal(repos.eventPublisher.published.length, 0);
+  });
+
+  test('si el broker falla, publicar y retirar siguen funcionando', async () => {
+    repos.eventPublisher.failWith = new Error('rabbit caido');
+    repos.lexiconRepository.seed({ code: 'HOLA', status: 'DRAFT' });
+    const published = await makePublishSign(repos)({ code: 'hola', userId: 1 });
+    assert.equal((published.data as any).status, 'ACTIVE');
+    const withdrawn = await makeDeactivateSign(repos)({ code: 'hola', userId: 1 });
+    assert.deepEqual(withdrawn.data, { code: 'HOLA', status: 'INACTIVE' });
+  });
+
+  test('con InMemoryEventBus un suscriptor recibe el evento de publicación', async () => {
+    const bus = new InMemoryEventBus();
+    const received: string[] = [];
+    await bus.subscribe({ queue: 'recognition.lexicon', pattern: 'lexicon.*' }, async e => { received.push(e.type); });
+    repos.lexiconRepository.seed({ code: 'HOLA', status: 'DRAFT' });
+    await makePublishSign({ ...repos, eventPublisher: bus })({ code: 'hola', userId: 1 });
+    assert.deepEqual(received, ['lexicon.SignPublished']);
   });
 });
