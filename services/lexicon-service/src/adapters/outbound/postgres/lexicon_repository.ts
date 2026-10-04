@@ -169,154 +169,154 @@ export const makePostgresLexiconRepository = (pool: Pool): LexiconRepository => 
   const findByCode: LexiconRepository['findByCode'] = (code, options) => findSignByCode(pool, code, options);
 
   return {
-  list: async ({ type, language, category, q, status, limit, offset, lang, includeInactive }) => {
-    const { rows } = await pool.query<SignRow>(
-      `${SELECT_SIGN}
-       WHERE ($2::varchar IS NULL OR s.type = $2)
-         AND ($3::varchar IS NULL OR s.language = $3)
-         AND ($4::varchar IS NULL OR lower(c.name) = lower($4))
-         AND ($5::varchar IS NULL OR ${RELEVANCE} < 3)
-         AND ($6::boolean OR s.status = 'ACTIVE')
-         AND ($7::varchar IS NULL OR s.status = $7)
-       ORDER BY
-         CASE WHEN $5::varchar IS NULL THEN 0 ELSE ${RELEVANCE} END,
-         CASE WHEN $5::varchar IS NULL THEN s.display_order ELSE 0 END,
-         lower(COALESCE(l.name, s.code)), s.lexicon_id
-       LIMIT $8::int OFFSET COALESCE($9::int, 0)`,
-      [lang, type ?? null, language ?? null, category ?? null, q ?? null, includeInactive ?? false, status ?? null, limit ?? null, offset ?? null]
-    );
-    return rows.map(toSign);
-  },
-
-  findByCode,
-
-  create: async (sign, userId) => {
-    const client = await pool.connect();
-    let releaseError: Error | undefined;
-    try {
-      await client.query('BEGIN');
-      const { rows } = await client.query<{ lexicon_id: number }>(
-        `INSERT INTO public.sign_lexicon
-           (code, type, letter, language, category_id, is_animated, display_order, status, created_by, updated_by)
-         VALUES ($1, $2, $3, $4, $5, $6, $7, 'DRAFT', $8, $8)
-         RETURNING lexicon_id`,
-        [sign.code, sign.type, sign.letter, sign.language, sign.categoryId, sign.animated, sign.displayOrder, userId]
+    list: async ({ type, language, category, q, status, limit, offset, lang, includeInactive }) => {
+      const { rows } = await pool.query<SignRow>(
+        `${SELECT_SIGN}
+         WHERE ($2::varchar IS NULL OR s.type = $2)
+           AND ($3::varchar IS NULL OR s.language = $3)
+           AND ($4::varchar IS NULL OR lower(c.name) = lower($4))
+           AND ($5::varchar IS NULL OR ${RELEVANCE} < 3)
+           AND ($6::boolean OR s.status = 'ACTIVE')
+           AND ($7::varchar IS NULL OR s.status = $7)
+         ORDER BY
+           CASE WHEN $5::varchar IS NULL THEN 0 ELSE ${RELEVANCE} END,
+           CASE WHEN $5::varchar IS NULL THEN s.display_order ELSE 0 END,
+           lower(COALESCE(l.name, s.code)), s.lexicon_id
+         LIMIT $8::int OFFSET COALESCE($9::int, 0)`,
+        [lang, type ?? null, language ?? null, category ?? null, q ?? null, includeInactive ?? false, status ?? null, limit ?? null, offset ?? null]
       );
-      for (const l of sign.localizations) {
-        await client.query(UPSERT_LOCALIZATION, [rows[0].lexicon_id, l.uiLanguage, l.name, l.meaning, l.description]);
+      return rows.map(toSign);
+    },
+
+    findByCode,
+
+    create: async (sign, userId) => {
+      const client = await pool.connect();
+      let releaseError: Error | undefined;
+      try {
+        await client.query('BEGIN');
+        const { rows } = await client.query<{ lexicon_id: number }>(
+          `INSERT INTO public.sign_lexicon
+             (code, type, letter, language, category_id, is_animated, display_order, status, created_by, updated_by)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, 'DRAFT', $8, $8)
+           RETURNING lexicon_id`,
+          [sign.code, sign.type, sign.letter, sign.language, sign.categoryId, sign.animated, sign.displayOrder, userId]
+        );
+        for (const l of sign.localizations) {
+          await client.query(UPSERT_LOCALIZATION, [rows[0].lexicon_id, l.uiLanguage, l.name, l.meaning, l.description]);
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        releaseError = await rollback(client);
+        if (isUniqueViolation(error, 'uq_sign_lexicon_code')) throw new CodeTakenError(sign.code);
+        if (isUniqueViolation(error, 'uq_sign_lexicon_letter')) throw new LetterTakenError();
+        throw error;
+      } finally {
+        client.release(releaseError);
       }
-      await client.query('COMMIT');
-    } catch (error) {
-      releaseError = await rollback(client);
-      if (isUniqueViolation(error, 'uq_sign_lexicon_code')) throw new CodeTakenError(sign.code);
-      if (isUniqueViolation(error, 'uq_sign_lexicon_letter')) throw new LetterTakenError();
-      throw error;
-    } finally {
-      client.release(releaseError);
-    }
-    return (await findByCode(sign.code, { includeInactive: true })) as Sign;
-  },
+      return (await findByCode(sign.code, { includeInactive: true })) as Sign;
+    },
 
-  update: async (code, changes, userId, localization) => {
-    const sets: string[] = [];
-    const values: unknown[] = [];
-    (Object.keys(changes) as (keyof SignChanges)[]).forEach(key => {
-      if (changes[key] === undefined || !EDITABLE[key]) return;
-      values.push(changes[key]);
-      sets.push(`${EDITABLE[key]} = $${values.length}`);
-    });
-    values.push(userId);
-    sets.push(`updated_by = $${values.length}`, 'updated_at = NOW()');
-    values.push(code);
+    update: async (code, changes, userId, localization) => {
+      const sets: string[] = [];
+      const values: unknown[] = [];
+      (Object.keys(changes) as (keyof SignChanges)[]).forEach(key => {
+        if (changes[key] === undefined || !EDITABLE[key]) return;
+        values.push(changes[key]);
+        sets.push(`${EDITABLE[key]} = $${values.length}`);
+      });
+      values.push(userId);
+      sets.push(`updated_by = $${values.length}`, 'updated_at = NOW()');
+      values.push(code);
 
-    // Seña y localizacion ES se guardan juntas o no se guarda nada.
-    const client = await pool.connect();
-    let releaseError: Error | undefined;
-    let found: boolean;
-    try {
-      await client.query('BEGIN');
-      const { rows } = await client.query<{ lexicon_id: number }>(
-        `UPDATE public.sign_lexicon SET ${sets.join(', ')} WHERE code = $${values.length} RETURNING lexicon_id`,
-        values
+      // Seña y localizacion ES se guardan juntas o no se guarda nada.
+      const client = await pool.connect();
+      let releaseError: Error | undefined;
+      let found: boolean;
+      try {
+        await client.query('BEGIN');
+        const { rows } = await client.query<{ lexicon_id: number }>(
+          `UPDATE public.sign_lexicon SET ${sets.join(', ')} WHERE code = $${values.length} RETURNING lexicon_id`,
+          values
+        );
+        found = rows.length > 0;
+        if (found && localization) {
+          await client.query(UPSERT_LOCALIZATION, [
+            rows[0].lexicon_id, localization.uiLanguage, localization.name, localization.meaning, localization.description,
+          ]);
+        }
+        await client.query('COMMIT');
+      } catch (error) {
+        releaseError = await rollback(client);
+        if (isUniqueViolation(error, 'uq_sign_lexicon_letter')) throw new LetterTakenError();
+        throw error;
+      } finally {
+        client.release(releaseError);
+      }
+      return found ? findByCode(code, { includeInactive: true }) : null;
+    },
+
+    setStatus: async (code, status, userId) => {
+      const { rowCount } = await pool.query(
+        `UPDATE public.sign_lexicon SET status = $1, updated_by = $2, updated_at = NOW() WHERE code = $3`,
+        [status, userId, code]
       );
-      found = rows.length > 0;
-      if (found && localization) {
-        await client.query(UPSERT_LOCALIZATION, [
-          rows[0].lexicon_id, localization.uiLanguage, localization.name, localization.meaning, localization.description,
-        ]);
-      }
-      await client.query('COMMIT');
-    } catch (error) {
-      releaseError = await rollback(client);
-      if (isUniqueViolation(error, 'uq_sign_lexicon_letter')) throw new LetterTakenError();
-      throw error;
-    } finally {
-      client.release(releaseError);
-    }
-    return found ? findByCode(code, { includeInactive: true }) : null;
-  },
+      return rowCount ? findByCode(code, { includeInactive: true }) : null;
+    },
 
-  setStatus: async (code, status, userId) => {
-    const { rowCount } = await pool.query(
-      `UPDATE public.sign_lexicon SET status = $1, updated_by = $2, updated_at = NOW() WHERE code = $3`,
-      [status, userId, code]
-    );
-    return rowCount ? findByCode(code, { includeInactive: true }) : null;
-  },
-
-  upsertLocalization: async (code, l) => {
-    const { rows } = await pool.query<LocalizationRow>(
-      `WITH target AS (SELECT lexicon_id FROM public.sign_lexicon WHERE code = $1)
-       INSERT INTO public.sign_localizations (lexicon_id, ui_language, name, meaning, description)
-       SELECT lexicon_id, $2, $3, $4, $5 FROM target
-       ON CONFLICT (lexicon_id, ui_language)
-       DO UPDATE SET name = EXCLUDED.name, meaning = EXCLUDED.meaning,
-                     description = EXCLUDED.description, updated_at = NOW()
-       RETURNING ui_language, name, meaning, description`,
-      [code, l.uiLanguage, l.name, l.meaning, l.description]
-    );
-    return rows[0] ? toLocalization(rows[0]) : null;
-  },
-
-  hasResourceAt: async (code, displayOrder) => {
-    const { rowCount } = await pool.query(
-      `SELECT 1 FROM public.multimedia_resource r
-       JOIN public.sign_lexicon s ON s.lexicon_id = r.lexicon_id
-       WHERE s.code = $1 AND r.display_order = $2`,
-      [code, displayOrder]
-    );
-    return (rowCount ?? 0) > 0;
-  },
-
-  addResource: async (code, resource: NewResource) => {
-    try {
-      const { rows } = await pool.query<ResourceRow>(
-        `INSERT INTO public.multimedia_resource (lexicon_id, type, url, mime_type, display_order, description)
-         SELECT s.lexicon_id, $2, $3, $4,
-                COALESCE($5, (SELECT COALESCE(MAX(display_order), 0) + 1
-                              FROM public.multimedia_resource WHERE lexicon_id = s.lexicon_id)),
-                $6
-         FROM public.sign_lexicon s WHERE s.code = $1
-         RETURNING resource_id, type, url, mime_type, display_order, description`,
-        [code, resource.type, resource.url, resource.mimeType ?? null, resource.displayOrder ?? null, resource.description ?? null]
+    upsertLocalization: async (code, l) => {
+      const { rows } = await pool.query<LocalizationRow>(
+        `WITH target AS (SELECT lexicon_id FROM public.sign_lexicon WHERE code = $1)
+         INSERT INTO public.sign_localizations (lexicon_id, ui_language, name, meaning, description)
+         SELECT lexicon_id, $2, $3, $4, $5 FROM target
+         ON CONFLICT (lexicon_id, ui_language)
+         DO UPDATE SET name = EXCLUDED.name, meaning = EXCLUDED.meaning,
+                       description = EXCLUDED.description, updated_at = NOW()
+         RETURNING ui_language, name, meaning, description`,
+        [code, l.uiLanguage, l.name, l.meaning, l.description]
       );
-      return rows[0] ? toResource(rows[0]) : null;
-    } catch (error) {
-      if (isUniqueViolation(error, 'uq_multimedia_resource_position')) {
-        throw new PositionTakenError(resource.displayOrder ?? undefined);
-      }
-      throw error;
-    }
-  },
+      return rows[0] ? toLocalization(rows[0]) : null;
+    },
 
-  removeResource: async (code, resourceId) => {
-    const { rowCount } = await pool.query(
-      `DELETE FROM public.multimedia_resource r
-       USING public.sign_lexicon s
-       WHERE r.lexicon_id = s.lexicon_id AND s.code = $1 AND r.resource_id = $2`,
-      [code, resourceId]
-    );
-    return (rowCount ?? 0) > 0;
-  },
+    hasResourceAt: async (code, displayOrder) => {
+      const { rowCount } = await pool.query(
+        `SELECT 1 FROM public.multimedia_resource r
+         JOIN public.sign_lexicon s ON s.lexicon_id = r.lexicon_id
+         WHERE s.code = $1 AND r.display_order = $2`,
+        [code, displayOrder]
+      );
+      return (rowCount ?? 0) > 0;
+    },
+
+    addResource: async (code, resource: NewResource) => {
+      try {
+        const { rows } = await pool.query<ResourceRow>(
+          `INSERT INTO public.multimedia_resource (lexicon_id, type, url, mime_type, display_order, description)
+           SELECT s.lexicon_id, $2, $3, $4,
+                  COALESCE($5, (SELECT COALESCE(MAX(display_order), 0) + 1
+                                FROM public.multimedia_resource WHERE lexicon_id = s.lexicon_id)),
+                  $6
+           FROM public.sign_lexicon s WHERE s.code = $1
+           RETURNING resource_id, type, url, mime_type, display_order, description`,
+          [code, resource.type, resource.url, resource.mimeType ?? null, resource.displayOrder ?? null, resource.description ?? null]
+        );
+        return rows[0] ? toResource(rows[0]) : null;
+      } catch (error) {
+        if (isUniqueViolation(error, 'uq_multimedia_resource_position')) {
+          throw new PositionTakenError(resource.displayOrder ?? undefined);
+        }
+        throw error;
+      }
+    },
+
+    removeResource: async (code, resourceId) => {
+      const { rowCount } = await pool.query(
+        `DELETE FROM public.multimedia_resource r
+         USING public.sign_lexicon s
+         WHERE r.lexicon_id = s.lexicon_id AND s.code = $1 AND r.resource_id = $2`,
+        [code, resourceId]
+      );
+      return (rowCount ?? 0) > 0;
+    },
   };
 };
