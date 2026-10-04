@@ -1,19 +1,24 @@
 # Plataforma completa: gateway + servicios + una base de datos por servicio.
-# Uso:  JWT_SECRET=algo-largo docker compose up --build
-# Puertos en el host: gateway 8080, postgres 5433-5437, mongo 27017, rabbitmq 5672 (UI 15672).
+# Uso:  copia .env.example a .env, rellena los secretos y ejecuta  docker compose up --build
+# Variables obligatorias (sin valor por defecto): JWT_SECRET, POSTGRES_PASSWORD,
+#   MONGO_ROOT_PASSWORD y RABBITMQ_PASSWORD. Usa contraseñas sin caracteres especiales de URL
+#   (@ : / ? #) porque van dentro de MONGO_URL y RABBITMQ_URL.
+# Puertos en el host: solo el gateway (8080). Para depurar, postgres (5433-5437), mongo (27017)
+#   y la UI de rabbitmq (15672) se enlazan unicamente a 127.0.0.1. El AMQP (5672) y los
+#   servicios (3001-3005) no se publican.
 
 x-postgres: &postgres
   image: postgres:16-alpine
   restart: unless-stopped
   environment: &postgres-env
     POSTGRES_USER: postgres
-    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env o exportalo}
 
 x-service-env: &service-env
   JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET (minimo 32 caracteres) en .env o exportalo}
-  RABBITMQ_URL: amqp://guest:guest@rabbitmq:5672
+  RABBITMQ_URL: amqp://${RABBITMQ_USER:-signa}:${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD en .env o exportalo}@rabbitmq:5672
   DB_USER: postgres
-  DB_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env o exportalo}
   DB_PORT: "5432"
 
 services:
@@ -63,7 +68,7 @@ services:
       PORT: "3002"
       DB_HOST: postgres-recognition
       DB_NAME: recognition
-      MONGO_URL: mongodb://mongo:27017/recognition
+      MONGO_URL: mongodb://${MONGO_ROOT_USER:-signa}:${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD en .env o exportalo}@mongo:27017/recognition?authSource=admin
     depends_on:
       postgres-recognition:
         condition: service_healthy
@@ -128,7 +133,7 @@ services:
       <<: *postgres-env
       POSTGRES_DB: iam
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - pg-iam-data:/var/lib/postgresql/data
       # Esquema de usuarios y roles: se aplica al crear el volumen por primera vez.
@@ -145,7 +150,7 @@ services:
       <<: *postgres-env
       POSTGRES_DB: recognition
     ports:
-      - "5434:5432"
+      - "127.0.0.1:5434:5432"
     volumes:
       - pg-recognition-data:/var/lib/postgresql/data
       # Esquema (translations, sign_templates): se aplica al crear el volumen por primera vez.
@@ -159,7 +164,7 @@ services:
       <<: *postgres-env
       POSTGRES_DB: lexicon
     ports:
-      - "5435:5432"
+      - "127.0.0.1:5435:5432"
     volumes:
       - pg-lexicon-data:/var/lib/postgresql/data
       # Esquema y semilla del alfabeto: se aplican al crear el volumen por primera vez.
@@ -172,7 +177,7 @@ services:
       <<: *postgres-env
       POSTGRES_DB: analytics
     ports:
-      - "5436:5432"
+      - "127.0.0.1:5436:5432"
     volumes:
       - pg-analytics-data:/var/lib/postgresql/data
       # Esquema: se aplica al crear el volumen por primera vez.
@@ -185,7 +190,7 @@ services:
       <<: *postgres-env
       POSTGRES_DB: profile
     ports:
-      - "5437:5432"
+      - "127.0.0.1:5437:5432"
     volumes:
       - pg-profile-data:/var/lib/postgresql/data
       # Esquema y semilla de logros: se aplican al crear el volumen por primera vez.
@@ -195,17 +200,23 @@ services:
   mongo:
     image: mongo:7
     restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-signa}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD en .env o exportalo}
     ports:
-      - "27017:27017"
+      - "127.0.0.1:27017:27017"
     volumes:
       - mongo-data:/data/db
 
   rabbitmq:
     image: rabbitmq:3-management-alpine
     restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-signa}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD en .env o exportalo}
     ports:
-      - "5672:5672"
-      - "15672:15672"
+      # Solo la UI de administracion y solo en local; el AMQP queda en la red interna.
+      - "127.0.0.1:15672:15672"
     volumes:
       - rabbitmq-data:/var/lib/rabbitmq
     healthcheck:

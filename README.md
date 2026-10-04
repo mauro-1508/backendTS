@@ -19,21 +19,25 @@ Cada servicio tiene su base de datos propia y se comunican por eventos (RabbitMQ
 ## Levantar todo con Docker
 
 ```
-cp .env.example .env     # opcional: define JWT_SECRET, POSTGRES_PASSWORD, EMAIL_USER, EMAIL_PASS
+cp .env.example .env     # obligatorio: rellena JWT_SECRET (32+ caracteres) y las contraseñas
 docker compose up --build
 ```
 
-Sin `.env` se usan valores de desarrollo. Para apagar: `docker compose down` (añade `-v` para borrar los datos).
+Variables obligatorias en `.env` (sin valor por defecto; compose falla si faltan):
+`JWT_SECRET`, `POSTGRES_PASSWORD`, `MONGO_ROOT_PASSWORD`, `RABBITMQ_PASSWORD`.
+Opcionales: `MONGO_ROOT_USER` y `RABBITMQ_USER` (por defecto `signa`), `CORS_ORIGINS`, `EMAIL_USER`, `EMAIL_PASS`.
+Evita `@ : / ? #` en las contraseñas: van dentro de `MONGO_URL` y `RABBITMQ_URL`.
+Para apagar: `docker compose down` (añade `-v` para borrar los datos).
 
 ## Puertos
 
 | Componente | Puerto en el host |
 |---|---|
-| api-gateway | 8080 |
-| iam / recognition / lexicon / analytics / profile | 3001 / 3002 / 3003 / 3004 / 3005 |
-| postgres (iam, recognition, lexicon, analytics, profile) | 5433 / 5434 / 5435 / 5436 / 5437 |
-| mongo | 27017 |
-| rabbitmq | 5672 (panel: http://localhost:15672, guest/guest) |
+| api-gateway | 8080 (único publicado a toda la red) |
+| postgres (iam, recognition, lexicon, analytics, profile) | solo 127.0.0.1: 5433 / 5434 / 5435 / 5436 / 5437 |
+| mongo | solo 127.0.0.1: 27017 |
+| rabbitmq | panel solo en 127.0.0.1:15672 (usuario/contraseña de `.env`); AMQP no se publica |
+| servicios 3001-3005 | no se publican; solo accesibles dentro de la red de Docker |
 
 **El frontend debe apuntar al gateway: `http://localhost:8080`.** No llama a los servicios directamente.
 
