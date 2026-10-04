@@ -1,11 +1,12 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
-import { PasswordHasher, TokenProvider } from '../ports/outbound/auth_provider';
+import { PasswordHasher } from '../ports/outbound/auth_provider';
+import { IssueToken } from './issue_token';
 import { AuthResult, LoginInput } from '../ports/inbound/auth_service';
 
 export const makeLogin = (deps: {
   userRepository: UserRepository;
   passwordHasher: PasswordHasher;
-  tokenProvider: TokenProvider;
+  issueToken: IssueToken;
 }) =>
   async ({ email, password }: LoginInput): Promise<AuthResult> => {
     if (!email || !password) {
@@ -22,7 +23,7 @@ export const makeLogin = (deps: {
       throw new Error('Credenciales inválidas');
     }
 
-    const token = deps.tokenProvider.sign({ userId: user.userId, email: user.email, roles: [] });
+    const token = await deps.issueToken(user);
 
     return {
       success: true,

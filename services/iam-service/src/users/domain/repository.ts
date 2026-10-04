@@ -6,3 +6,7 @@ export interface UserRepository {
   create(user: NewUser): Promise<User>;
   updatePassword(userId: number, hashedPassword: string): Promise<void>;
 }
+
+export interface RoleRepository {
+  findRoleNamesByUserId(userId: number): Promise<string[]>;
+}
