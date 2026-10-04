@@ -18,6 +18,6 @@ export const makeRequireRole = (roleChecker: RoleChecker) =>
         });
       } catch (error) {
         console.error('[require_role]', error);
-        res.status(500).json({ success: false, message: 'Error interno del servidor' });
+        res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error interno del servidor' });
       }
     };

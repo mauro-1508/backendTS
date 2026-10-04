@@ -75,6 +75,7 @@ describe('mapeo de errores de dominio a status + code', () => {
     await makeLexiconController(service).list(makeReq(), res);
     assert.equal(res.statusCode, 500);
     assert.equal(res.body.success, false);
+    assert.equal(res.body.code, 'INTERNAL_ERROR');
     assert.doesNotMatch(JSON.stringify(res.body), /secreto/);
   });
 

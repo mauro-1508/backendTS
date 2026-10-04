@@ -51,7 +51,7 @@ const fail = (res: Response, error: unknown) => {
     return res.status(400).json({ success: false, code: 'VALIDATION_ERROR', message: 'Alguno de los datos enviados no es válido' });
   }
   console.error('[lexicon]', error);
-  return res.status(500).json({ success: false, message: 'Error interno del servidor' });
+  return res.status(500).json({ success: false, code: 'INTERNAL_ERROR', message: 'Error interno del servidor' });
 };
 
 /** Envuelve un handler: una sola captura de errores en vez de un try/catch por ruta. */
