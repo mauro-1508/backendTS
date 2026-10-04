@@ -1,6 +1,6 @@
 -- Migracion 001: profile-service
 -- Perfil/preferencias (03-profile), notificaciones (07-notification) y logros
--- (09-gamification). Los user_id son logicos (los crea iam-service): sin FK a users.
+-- (09-gamification). Los user_id son logicos (ids enteros de iam-service, guardados como texto): sin FK a users.
 -- Se puede volver a ejecutar:
 --   psql -h localhost -p 5437 -U postgres -d profile -f services/profile-service/db/001_profile.sql
 
@@ -10,7 +10,7 @@ BEGIN;
 
 -- Datos de cuenta replicados desde iam.UserRegistered.
 CREATE TABLE IF NOT EXISTS user_profiles (
-  user_id    UUID         PRIMARY KEY,
+  user_id    VARCHAR(64) PRIMARY KEY,
   email      VARCHAR(255),
   full_name  VARCHAR(255),
   username   VARCHAR(255),
@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS user_profiles (
 
 CREATE TABLE IF NOT EXISTS user_preferences (
   user_preference_id    UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id               UUID        NOT NULL UNIQUE,
+  user_id               VARCHAR(64) NOT NULL UNIQUE,
   ui_language           VARCHAR(2)  NOT NULL DEFAULT 'ES' CHECK (ui_language IN ('ES', 'EN')),
   theme                 VARCHAR(5)  NOT NULL DEFAULT 'LIGHT' CHECK (theme IN ('LIGHT', 'DARK')),
   notifications_enabled BOOLEAN     NOT NULL DEFAULT TRUE,
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS notification_types (
 
 CREATE TABLE IF NOT EXISTS notifications (
   notification_id      UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id              UUID         NOT NULL,
+  user_id              VARCHAR(64) NOT NULL,
   notification_type_id UUID         NOT NULL REFERENCES notification_types (notification_type_id) ON DELETE RESTRICT,
   channel              VARCHAR(10)  NOT NULL DEFAULT 'IN_APP' CHECK (channel IN ('PUSH', 'EMAIL', 'IN_APP')),
   title                VARCHAR(150) NOT NULL,
@@ -70,7 +70,7 @@ CREATE TABLE IF NOT EXISTS achievements (
 
 CREATE TABLE IF NOT EXISTS user_achievements (
   user_achievement_id UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id             UUID        NOT NULL,
+  user_id             VARCHAR(64) NOT NULL,
   achievement_id      UUID        NOT NULL REFERENCES achievements (achievement_id) ON DELETE RESTRICT,
   current_count       INTEGER     NOT NULL DEFAULT 0,
   achieved_at         TIMESTAMPTZ,
