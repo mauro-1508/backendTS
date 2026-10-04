@@ -1,11 +1,11 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { makeLexiconController } from '../../src/domains/lexicon/adapters/inbound/http/lexicon_controller';
-import { LexiconResult, LexiconService } from '../../src/domains/lexicon/ports/inbound/lexicon_service';
+import { makeLexiconController } from '../src/adapters/inbound/http/lexicon_controller';
+import { LexiconResult, LexiconService } from '../src/ports/inbound/lexicon_service';
 import {
   CategoryInUseError, CategoryNameTakenError, CategoryNotFoundError, CodeTakenError, LexiconValidationError,
   PositionTakenError, SignNotFoundError,
-} from '../../src/domains/lexicon/domain/rules';
+} from '../src/domain/rules';
 
 /** Servicio falso: cada método registra la llamada y devuelve `next` (o lanza si es un Error). */
 const makeService = () => {

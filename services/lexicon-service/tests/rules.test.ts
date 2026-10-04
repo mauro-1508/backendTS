@@ -6,7 +6,7 @@ import {
   LexiconValidationError, LexiconError, SignNotFoundError, CodeTakenError, CategoryNotFoundError, CategoryInUseError,
   CategoryNameTakenError, PositionTakenError, LetterTakenError, parseSignLanguage, parseDisplayOrder, parseAnimated,
   parsePositiveInt, parsePagination,
-} from '../../src/domains/lexicon/domain/rules';
+} from '../src/domain/rules';
 
 const throwsValidation = (fn: () => unknown, msg: RegExp = /./) =>
   assert.throws(fn, (e: unknown) => e instanceof LexiconValidationError && msg.test((e as Error).message));

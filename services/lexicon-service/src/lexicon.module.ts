@@ -1,7 +1,8 @@
 import path from 'path';
 import { RequestHandler } from 'express';
-import { postgresLexiconRepository } from './adapters/outbound/postgres/lexicon_repository';
-import { postgresCategoryRepository } from './adapters/outbound/postgres/category_repository';
+import { Pool } from 'pg';
+import { makePostgresLexiconRepository } from './adapters/outbound/postgres/lexicon_repository';
+import { makePostgresCategoryRepository } from './adapters/outbound/postgres/category_repository';
 import { makeListSigns } from './application/list_signs';
 import { makeGetAlphabet } from './application/get_alphabet';
 import { makeGetSign } from './application/get_sign';
@@ -18,18 +19,20 @@ import { makeLexiconRoutes } from './adapters/inbound/http/routes';
 import { LexiconService } from './ports/inbound/lexicon_service';
 
 export const makeLexiconModule = (deps: {
+  pool: Pool;
   authMiddleware: RequestHandler;
   /** Exige rol ADMIN; va despues de authMiddleware. */
   requireAdmin: RequestHandler;
   mediaDir?: string;
 }) => {
+  const lexiconRepository = makePostgresLexiconRepository(deps.pool);
   const resourceDeps = {
-    lexiconRepository: postgresLexiconRepository,
+    lexiconRepository,
     mediaBaseUrl: process.env.LEXICON_MEDIA_BASE_URL,
   };
   const repoDeps = {
-    lexiconRepository: postgresLexiconRepository,
-    categoryRepository: postgresCategoryRepository,
+    lexiconRepository,
+    categoryRepository: makePostgresCategoryRepository(deps.pool),
   };
   const lexiconService: LexiconService = {
     list: makeListSigns(repoDeps),

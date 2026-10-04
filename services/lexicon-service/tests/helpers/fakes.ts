@@ -1,8 +1,8 @@
 import {
   Category, CategorySummary, Localization, MultimediaResource, NewResource, NewSign, Sign, SignChanges,
   SignFilter, SignStatus,
-} from '../../src/domains/lexicon/domain/entity';
-import { CategoryRepository, FindSignOptions, LexiconRepository } from '../../src/domains/lexicon/domain/repository';
+} from '../../src/domain/entity';
+import { CategoryRepository, FindSignOptions, LexiconRepository } from '../../src/domain/repository';
 
 /** Repositorios falsos en memoria que implementan los puertos del dominio lexicon. */
 export class FakeCategoryRepository implements CategoryRepository {

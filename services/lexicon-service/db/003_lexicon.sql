@@ -21,7 +21,7 @@
 --      sign_localizations 'ES') y SOLO DESPUES se eliminan.
 --
 -- Ejecutar manualmente contra la base de datos `traduce_senas` (despues de 000):
---   psql -h localhost -p 5433 -U postgres -d traduce_senas -f backend/migrations/003_lexicon.sql
+--   psql -h localhost -p 5435 -U postgres -d lexicon -f services/lexicon-service/db/003_lexicon.sql
 -- Se puede volver a ejecutar: actualiza las letras sin duplicar nada.
 
 SET client_encoding = 'UTF8';

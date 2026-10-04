@@ -16,8 +16,6 @@ COPY package*.json ./
 RUN npm install --omit=dev
 
 COPY --from=build /app/dist ./dist
-# Modelos 3D y miniaturas que sirve el dominio lexicon en /api/lexicon/media
-COPY --from=build /app/public ./public
 
 EXPOSE 3000
 

@@ -1,5 +1,4 @@
-import { PoolClient } from 'pg';
-import { pool } from '../../../../../shared/database/postgres';
+import { Pool, PoolClient } from 'pg';
 import { FindSignOptions, LexiconRepository } from '../../../domain/repository';
 import {
   DEFAULT_UI_LANGUAGE, Localization, MultimediaResource, NewResource, ResourceType, Sign, SignChanges,
@@ -116,7 +115,7 @@ const rank = (column: string, q: string) => `
 
 const RELEVANCE = `LEAST(${rank('COALESCE(l.name, s.code)', '$5::varchar')}, ${rank('s.code', '$5::varchar')})`;
 
-const findByCode = async (code: string, options: FindSignOptions = {}): Promise<Sign | null> => {
+const findSignByCode = async (pool: Pool, code: string, options: FindSignOptions = {}): Promise<Sign | null> => {
   const lang = options.lang ?? DEFAULT_UI_LANGUAGE;
   const { rows } = await pool.query<SignRow>(
     `${SELECT_SIGN}
@@ -166,7 +165,10 @@ const isUniqueViolation = (error: unknown, constraint: string): boolean => {
   return e.code === '23505' && e.constraint === constraint;
 };
 
-export const postgresLexiconRepository: LexiconRepository = {
+export const makePostgresLexiconRepository = (pool: Pool): LexiconRepository => {
+  const findByCode: LexiconRepository['findByCode'] = (code, options) => findSignByCode(pool, code, options);
+
+  return {
   list: async ({ type, language, category, q, status, limit, offset, lang, includeInactive }) => {
     const { rows } = await pool.query<SignRow>(
       `${SELECT_SIGN}
@@ -316,4 +318,5 @@ export const postgresLexiconRepository: LexiconRepository = {
     );
     return (rowCount ?? 0) > 0;
   },
+  };
 };
