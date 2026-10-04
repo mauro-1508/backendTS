@@ -2,8 +2,8 @@
 -- Plantillas de senas que el motor del frontend compara con DTW/KNN.
 -- Hasta ahora vivian solo en el AsyncStorage de cada navegador; con esta tabla
 -- se comparten entre dispositivos y personas.
--- Ejecutar manualmente contra la base de datos `traduce_senas`:
---   psql -h localhost -p 5433 -U postgres -d traduce_senas -f backend/migrations/002_sign_templates.sql
+-- Ejecutar manualmente contra la base de datos `recognition`:
+--   psql -h localhost -p 5434 -U postgres -d recognition -f services/recognition-service/db/002_sign_templates.sql
 --
 -- Valores de `kind`:
 --   - 'static' (abecedario, un frame de 63 valores)
@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.sign_templates (
   kind        VARCHAR(10) NOT NULL CHECK (kind IN ('static', 'motion')),
   features    JSONB NOT NULL,
   source      VARCHAR(20) NOT NULL DEFAULT 'manual',
-  created_by  INT REFERENCES public.users(user_id) ON DELETE SET NULL,
+  created_by  INT, -- id logico de iam-service, sin FK
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

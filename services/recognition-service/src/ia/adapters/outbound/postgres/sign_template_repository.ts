@@ -1,4 +1,4 @@
-import { pool } from '../../../../../shared/database/postgres';
+import { Pool } from 'pg';
 import { SignTemplateRepository } from '../../../ports/outbound/sign_template_repository';
 import { NewSignTemplate, SignTemplate, TemplateKind } from '../../../domain/entity';
 
@@ -24,7 +24,7 @@ const toTemplate = (row: SignTemplateRow): SignTemplate => ({
 
 const RETURNING = 'template_id, label, kind, features, source, created_by, created_at';
 
-export const postgresSignTemplateRepository: SignTemplateRepository = {
+export const makePostgresSignTemplateRepository = (pool: Pool): SignTemplateRepository => ({
   createMany: async (templates: NewSignTemplate[], createdBy: number | null) => {
     // Una sola sentencia con UNNEST: los lotes del dataset son de cientos de filas.
     const { rows } = await pool.query<SignTemplateRow>(
@@ -63,4 +63,4 @@ export const postgresSignTemplateRepository: SignTemplateRepository = {
     );
     return rows[0] ? { templateId: rows[0].template_id } : null;
   },
-};
+});

@@ -11,7 +11,7 @@
  *   - que mano domina en cada muestra
  *
  * Uso:
- *   npx ts-node src/domains/ia/training/inspect-lsc54.ts [ruta.json] [--limit N]
+ *   npx ts-node services/recognition-service/src/ia/training/inspect-lsc54.ts [ruta.json] [--limit N]
  * Deja un resumen en training/output/lsc54-inspection.json.
  */
 import fs from 'fs';
