@@ -21,6 +21,13 @@ describe('handlers de eventos', () => {
     assert.equal(repository.events[0].referenceId, '9');
   });
 
+  test('toma las senas de gloss (contrato de recognition)', async () => {
+    const repository = makeInMemoryUsageRepository();
+    await makeIngestTranslationProduced({ repository })(
+      envelope('e3', 'recognition.TranslationProduced', { translationId: 1, userId: 3, gloss: ' HOLA  GRACIAS ', text: 'Hola gracias' }));
+    assert.deepEqual(repository.events[0].signCodes, ['HOLA', 'GRACIAS']);
+  });
+
   test('acepta signCode suelto y userId ausente', async () => {
     const repository = makeInMemoryUsageRepository();
     await makeIngestTranslationProduced({ repository })(envelope('e2', 'x', { signCode: 'A' }));

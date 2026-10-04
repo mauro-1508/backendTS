@@ -5,10 +5,14 @@ import { UsageEventRepository } from '../domain/repository';
 export const TRANSLATION_PRODUCED = 'recognition.TranslationProduced';
 export const USER_REGISTERED = 'iam.UserRegistered';
 
-/** Payload tolerante: acepta `signCodes` (lista) o `signCode` (uno solo). */
+/**
+ * Contrato de recognition: `gloss` (senas separadas por espacios). Por compatibilidad
+ * tambien se acepta `signCodes` (lista) o `signCode` (uno solo).
+ */
 interface TranslationProducedPayload {
   translationId?: string | number;
   userId?: string | number | null;
+  gloss?: string;
   signCode?: string;
   signCodes?: string[];
 }
@@ -19,8 +23,15 @@ interface UserRegisteredPayload {
 const idOrNull = (value: string | number | null | undefined): string | null =>
   value === undefined || value === null ? null : String(value);
 
+const GLOSS_SEPARATOR = /\s+/;
+
+const codesFromPayload = (payload: TranslationProducedPayload): string[] => {
+  if (payload.gloss) return payload.gloss.trim().split(GLOSS_SEPARATOR);
+  return payload.signCodes ?? (payload.signCode ? [payload.signCode] : []);
+};
+
 const signCodesOf = (payload: TranslationProducedPayload): string[] => {
-  const codes = payload.signCodes ?? (payload.signCode ? [payload.signCode] : []);
+  const codes = codesFromPayload(payload);
   return codes.filter(code => typeof code === 'string' && code.length > 0);
 };
 
