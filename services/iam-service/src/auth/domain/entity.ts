@@ -4,4 +4,6 @@ export interface PasswordResetToken {
   tokenHash: string;
   expiresAt: Date;
   usedAt: Date | null;
+  /** Codigos erroneos ya probados contra este token. */
+  attempts: number;
 }

@@ -1,18 +1,26 @@
 import { Env, makeEnvReader, requireJwtSecret } from '@traduce/shared';
 import { SERVICE_NAMES, ServiceName } from './route_table';
 
+export interface RateLimitConfig {
+  windowMs: number;
+  maxRequests: number;
+}
+
 export interface GatewayConfig {
   port: number;
   jwtSecret: string;
   jwtExpiresIn: string;
   serviceUrls: Record<ServiceName, string>;
-  rateLimit: { windowMs: number; maxRequests: number };
+  rateLimit: RateLimitConfig;
+  /** Limite estricto para los endpoints sensibles de /api/auth. */
+  authRateLimit: RateLimitConfig;
   healthTimeoutMs: number;
 }
 
 const DEFAULT_PORT = 8080;
 const DEFAULT_RATE_WINDOW_MS = 60_000;
 const DEFAULT_RATE_MAX_REQUESTS = 300;
+const DEFAULT_AUTH_RATE_MAX_REQUESTS = 10;
 const DEFAULT_HEALTH_TIMEOUT_MS = 2_000;
 
 /** Puertos por defecto de cada servicio en desarrollo local. */
@@ -41,6 +49,10 @@ export const loadGatewayConfig = (env: Env = process.env): GatewayConfig => {
     rateLimit: {
       windowMs: Number(read('RATE_LIMIT_WINDOW_MS')) || DEFAULT_RATE_WINDOW_MS,
       maxRequests: Number(read('RATE_LIMIT_MAX')) || DEFAULT_RATE_MAX_REQUESTS,
+    },
+    authRateLimit: {
+      windowMs: Number(read('AUTH_RATE_LIMIT_WINDOW_MS')) || DEFAULT_RATE_WINDOW_MS,
+      maxRequests: Number(read('AUTH_RATE_LIMIT_MAX')) || DEFAULT_AUTH_RATE_MAX_REQUESTS,
     },
     healthTimeoutMs: Number(read('HEALTH_TIMEOUT_MS')) || DEFAULT_HEALTH_TIMEOUT_MS,
   };

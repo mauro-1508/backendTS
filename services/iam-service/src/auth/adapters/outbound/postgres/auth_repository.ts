@@ -8,6 +8,7 @@ interface ResetTokenRow {
   token_hash: string;
   expires_at: Date;
   used_at: Date | null;
+  attempts: number;
 }
 
 const toResetToken = (row: ResetTokenRow): PasswordResetToken => ({
@@ -16,6 +17,7 @@ const toResetToken = (row: ResetTokenRow): PasswordResetToken => ({
   tokenHash: row.token_hash,
   expiresAt: row.expires_at,
   usedAt: row.used_at,
+  attempts: row.attempts,
 });
 
 export const makePostgresAuthRepository = (pool: Pool): AuthRepository => ({
@@ -29,15 +31,27 @@ export const makePostgresAuthRepository = (pool: Pool): AuthRepository => ({
     return { tokenId: rows[0].token_id };
   },
 
-  findResetToken: async (tokenHash: string) => {
+  findActiveResetToken: async (userId: number) => {
     const { rows } = await pool.query<ResetTokenRow>(
-      `SELECT token_id, user_id, token_hash, expires_at, used_at
+      `SELECT token_id, user_id, token_hash, expires_at, used_at, attempts
        FROM public.password_reset_token
-       WHERE token_hash = $1
+       WHERE user_id = $1 AND used_at IS NULL
+       ORDER BY token_id DESC
        LIMIT 1`,
-      [tokenHash]
+      [userId]
     );
     return rows[0] ? toResetToken(rows[0]) : null;
+  },
+
+  registerFailedAttempt: async (tokenId: number) => {
+    await pool.query(`UPDATE public.password_reset_token SET attempts = attempts + 1 WHERE token_id = $1`, [tokenId]);
+  },
+
+  invalidateResetTokens: async (userId: number) => {
+    await pool.query(
+      `UPDATE public.password_reset_token SET used_at = NOW() WHERE user_id = $1 AND used_at IS NULL`,
+      [userId]
+    );
   },
 
   markTokenAsUsed: async (tokenId: number) => {
