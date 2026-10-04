@@ -1,4 +1,6 @@
-import { TokenProvider } from '@traduce/shared';
+import { EventPublisher, TokenProvider } from '@traduce/shared';
+import { RoleRepository } from '../users/ports/outbound/role_repository';
+import { makeIssueToken } from './application/issue_token';
 import { UserRepository } from '../users/ports/outbound/user_repository';
 import { AuthRepository } from './ports/outbound/auth_repository';
 import { Mailer } from './ports/outbound/mailer';
@@ -16,19 +18,22 @@ export interface AuthModuleDeps {
   userRepository: UserRepository;
   authRepository: AuthRepository;
   passwordHasher: PasswordHasher;
+  roleRepository: RoleRepository;
   tokenProvider: TokenProvider;
+  eventPublisher: EventPublisher;
   mailer: Mailer;
 }
 
 // Composicion del dominio auth: recibe los adaptadores ya construidos.
 export const makeAuthModule = (deps: AuthModuleDeps) => {
+  const issueToken = makeIssueToken(deps);
   const authService: AuthService = {
     register: makeRegister(deps),
-    login: makeLogin(deps),
+    login: makeLogin({ ...deps, issueToken }),
     forgotPassword: makeForgotPassword(deps),
     verifyCode: makeVerifyCode(deps),
     resetPassword: makeResetPassword(deps),
-    googleLogin: makeGoogleLogin(deps),
+    googleLogin: makeGoogleLogin({ ...deps, issueToken }),
   };
 
   return { authService, router: makeAuthRoutes(authService) };
