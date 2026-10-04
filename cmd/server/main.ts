@@ -7,8 +7,6 @@ import { makeAuthMiddleware } from '../../src/shared/http/auth_middleware';
 import { errorHandler } from '../../src/shared/http/error_handler';
 import { makeAuthModule } from '../../src/domains/auth/auth.module';
 import { makeUsersModule } from '../../src/domains/users/users.module';
-import { makeTranslationsModule } from '../../src/domains/translations/translations.module';
-import { makeIaModule } from '../../src/domains/ia/ia.module';
 
 const authMiddleware = makeAuthMiddleware(jwtTokenProvider);
 
@@ -21,9 +19,7 @@ app.use(express.json({ limit: '2mb' }));
 
 // Cada dominio expone su router; aqui solo se montan.
 app.use('/api/auth', makeAuthModule().router);
-app.use('/api/translations', makeTranslationsModule({ authMiddleware }).router);
 app.use('/api/users', makeUsersModule({ authMiddleware }).router);
-app.use('/api/sign-templates', makeIaModule({ authMiddleware }).router);
 
 app.use(errorHandler);
 
