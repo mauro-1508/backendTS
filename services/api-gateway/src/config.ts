@@ -1,4 +1,5 @@
 import { Env, makeEnvReader, requireJwtSecret } from '@traduce/shared';
+import { resolveCorsOrigins } from './cors_options';
 import { SERVICE_NAMES, ServiceName } from './route_table';
 
 export interface RateLimitConfig {
@@ -15,8 +16,11 @@ export interface GatewayConfig {
   /** Limite estricto para los endpoints sensibles de /api/auth. */
   authRateLimit: RateLimitConfig;
   healthTimeoutMs: number;
+  /** Origenes con permiso CORS (lista blanca). */
+  corsOrigins: string[];
 }
 
+const PRODUCTION_ENV = 'production';
 const DEFAULT_PORT = 8080;
 const DEFAULT_RATE_WINDOW_MS = 60_000;
 const DEFAULT_RATE_MAX_REQUESTS = 300;
@@ -55,5 +59,6 @@ export const loadGatewayConfig = (env: Env = process.env): GatewayConfig => {
       maxRequests: Number(read('AUTH_RATE_LIMIT_MAX')) || DEFAULT_AUTH_RATE_MAX_REQUESTS,
     },
     healthTimeoutMs: Number(read('HEALTH_TIMEOUT_MS')) || DEFAULT_HEALTH_TIMEOUT_MS,
+    corsOrigins: resolveCorsOrigins(read('CORS_ORIGINS'), read('NODE_ENV') === PRODUCTION_ENV),
   };
 };

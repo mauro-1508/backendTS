@@ -3,8 +3,8 @@ export type ServiceName = typeof SERVICE_NAMES[number];
 
 /** Prefijos publicos que atiende cada servicio (ver MICROSERVICES_PLAN.md). */
 export const ROUTE_PREFIXES: Record<ServiceName, readonly string[]> = {
-  iam: ['/api/auth', '/api/users', '/api/roles', '/api/consents'],
-  recognition: ['/api/translations', '/api/recognition', '/api/sign-templates', '/api/models', '/api/samples'],
+  iam: ['/api/auth', '/api/users'],
+  recognition: ['/api/translations', '/api/recognition', '/api/sign-templates', '/api/samples'],
   lexicon: ['/api/lexicon'],
   analytics: ['/api/analytics'],
   profile: ['/api/profile', '/api/notifications', '/api/achievements'],

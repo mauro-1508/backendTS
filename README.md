@@ -39,6 +39,8 @@ Para apagar: `docker compose down` (añade `-v` para borrar los datos).
 | rabbitmq | panel solo en 127.0.0.1:15672 (usuario/contraseña de `.env`); AMQP no se publica |
 | servicios 3001-3005 | no se publican; solo accesibles dentro de la red de Docker |
 
+`CORS_ORIGINS` es la lista blanca (separada por comas) de orígenes web que pueden llamar al gateway; por defecto Expo web (`http://localhost:8081`, `http://localhost:19006`). Las apps nativas no envían `Origin` y no dependen de ella.
+
 **El frontend debe apuntar al gateway: `http://localhost:8080`.** No llama a los servicios directamente.
 
 ## Desarrollo sin Docker
