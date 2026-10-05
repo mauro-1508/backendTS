@@ -263,6 +263,7 @@ describe('login sin filtrar por tiempo', () => {
       userRepository: { findByEmail: async () => found } as never,
       passwordHasher: { hash: async () => 'x', compare },
       tokenProvider: { sign: () => 't' } as never,
+      roleReader: { listRoleNames: async () => ['USER'] },
     });
     return { login, compare };
   };

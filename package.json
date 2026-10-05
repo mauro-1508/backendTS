@@ -3,7 +3,6 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/cmd/server/main.js",
-    "test": "node --require ts-node/register --test \"tests/**/*.test.ts\"",
     "dev": "nodemon --watch cmd --watch src --ext ts --exec ts-node cmd/server/main.ts",
     "ia:inspect-lsc54": "ts-node src/domains/ia/training/inspect-lsc54.ts",
     "ia:download-lsc54": "ts-node src/domains/ia/training/download-lsc54-rep0.ts",

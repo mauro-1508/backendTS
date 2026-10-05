@@ -6,7 +6,11 @@ const signOptions: SignOptions = { expiresIn: config.jwt.expiresIn as SignOption
 
 export const jwtTokenProvider: TokenProvider = {
   sign: (payload: TokenPayload) =>
-    jwt.sign({ user_id: payload.userId, email: payload.email }, config.jwt.secret, signOptions),
+    jwt.sign(
+      { sub: String(payload.userId), user_id: payload.userId, email: payload.email, roles: payload.roles ?? [] },
+      config.jwt.secret,
+      signOptions,
+    ),
 
   verify: (token: string): TokenPayload => {
     const decoded = jwt.verify(token, config.jwt.secret) as { user_id: number; email: string };
