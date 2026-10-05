@@ -16,7 +16,7 @@ const transporter = nodemailer.createTransport({
 });
 
 const send = async (to: string, { subject, html }: { subject: string; html: string }) => {
-  await transporter.sendMail({ from: `"Signa App" <${config.mailer.user}>`, to, subject, html });
+  await transporter.sendMail({ from: `"TraduceSeñas" <${config.mailer.user}>`, to, subject, html });
 };
 
 export const nodemailerMailer: Mailer = {

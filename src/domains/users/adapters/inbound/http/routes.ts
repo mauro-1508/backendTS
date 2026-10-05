@@ -7,7 +7,10 @@ export const makeUserRoutes = (deps: { userService: UserService; authMiddleware:
   const userController = makeUserController(deps.userService);
 
   router.use(deps.authMiddleware);
+  router.get('/stats', userController.stats);
   router.get('/me', userController.me);
+  router.delete('/me', userController.deleteAccount);
+  router.post('/me/password', userController.changePassword);
 
   return router;
 };

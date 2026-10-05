@@ -31,8 +31,19 @@ const iam = makeIamModule({ authMiddleware });
 // auth no conoce iam: recibe un adaptador que cumple su puerto RoleAssigner.
 const roleAssigner = { assignDefaultRole: iam.iamService.assignDefaultRole };
 
+// auth tampoco conoce iam para leer roles: van en el JWT.
+const roleReader = {
+  listRoleNames: async (userId: number): Promise<string[]> => {
+    const result = await iam.iamService.getMyAccess({ userId });
+    return (result.data as { roles: string[] }).roles;
+  },
+};
+
 // analytics no conoce iam: recibe un adaptador que cumple su puerto PermissionChecker.
 const permissionChecker = { hasPermission: iam.iamService.hasPermission };
+
+// users tampoco conoce iam para la baja de cuenta: pregunta si es el ultimo ADMIN por un puerto.
+const adminGuard = { isLastAdmin: iam.iamService.isLastAdmin };
 
 app.use('/api/iam', iam.router);
 app.use('/api/auth', makeAuthModule({ roleAssigner }).router);

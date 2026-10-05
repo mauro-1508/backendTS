@@ -2,12 +2,14 @@ import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { normalizeEmail } from '../../users/domain/service';
 import { PasswordHasher, TokenProvider } from '../ports/outbound/auth_provider';
 import { AccountBlockedError, DUMMY_HASH, EmailNotVerifiedError, InvalidCredentialsError, ValidationError } from '../domain/service';
+import { RoleReader } from '../ports/outbound/role_reader';
 import { AuthResult, LoginInput } from '../ports/inbound/auth_service';
 
 export const makeLogin = (deps: {
   userRepository: UserRepository;
   passwordHasher: PasswordHasher;
   tokenProvider: TokenProvider;
+  roleReader: RoleReader;
 }) =>
   async ({ email, password }: LoginInput): Promise<AuthResult> => {
     if (!email || !password) {
@@ -25,7 +27,8 @@ export const makeLogin = (deps: {
     if (user.status === 'BLOCKED') throw new AccountBlockedError();
     if (user.status !== 'ACTIVE') throw new EmailNotVerifiedError();
 
-    const token = deps.tokenProvider.sign({ userId: user.userId, email: user.email });
+    const roles = await deps.roleReader.listRoleNames(user.userId);
+    const token = deps.tokenProvider.sign({ userId: user.userId, email: user.email, roles });
 
     return {
       success: true,
