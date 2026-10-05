@@ -117,6 +117,13 @@ export const postgresIamRepository: IamRepository = {
     }
   },
 
+  isLastAdmin: async (userId) => {
+    const { rows } = await pool.query<{ user_id: number }>(
+      `SELECT ur.user_id FROM public.user_roles ur JOIN public.roles r ON r.role_id = ur.role_id WHERE r.name = 'ADMIN'`
+    );
+    return rows.length === 1 && rows[0].user_id === userId;
+  },
+
   countUsersWithRole: async (roleId) => {
     const { rows } = await pool.query<{ total: string }>(
       'SELECT COUNT(*) AS total FROM public.user_roles WHERE role_id = $1',
