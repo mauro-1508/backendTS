@@ -53,6 +53,15 @@ export const makeTranslationController = (translationService: TranslationService
     }
   },
 
+  myStats: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await translationService.getMyStats({ userId: req.user!.userId });
+      return res.status(200).json({ success: true, data });
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   remove: async (req: Request, res: Response) => {
     try {
       const userId = resolveUserId(req);
