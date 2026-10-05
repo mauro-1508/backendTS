@@ -1,3 +1,5 @@
+import { TranslationStats } from '../../domain/stats';
+
 export interface TranslationResult {
   success: boolean;
   message?: string;
@@ -14,5 +16,6 @@ export interface TranslationService {
     source?: string | null;
   }): Promise<TranslationResult>;
   list(input: { userId: number | null; limit?: number | string; offset?: number | string }): Promise<TranslationResult>;
+  getStats(input: { userId: number }): Promise<TranslationStats>;
   remove(input: { translationId: number; userId: number }): Promise<TranslationResult>;
 }
