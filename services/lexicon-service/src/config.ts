@@ -1,5 +1,5 @@
 import path from 'path';
-import { Env, makeEnvReader } from '@traduce/shared';
+import { Env, makeEnvReader } from './shared/config/env';
 
 export interface LexiconConfig {
   /** Directorio de los modelos 3D y miniaturas que sirve /media. */

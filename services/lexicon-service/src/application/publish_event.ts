@@ -1,4 +1,4 @@
-import { EventPublisher } from '@traduce/shared';
+import { EventPublisher } from '../shared/events/event_publisher';
 
 /**
  * Publica sin romper la operacion: la seña ya cambio de estado en la base y el
