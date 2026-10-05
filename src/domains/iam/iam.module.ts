@@ -6,6 +6,7 @@ import { makeListRoles } from './application/list_roles';
 import { makeAssignRole } from './application/assign_role';
 import { makeRevokeRole } from './application/revoke_role';
 import { makeDeleteRole } from './application/delete_role';
+import { makeIsLastAdmin } from './application/is_last_admin';
 import { makeAssignDefaultRole } from './application/assign_default_role';
 import { makeIamRoutes } from './adapters/inbound/http/routes';
 import { IamService } from './ports/inbound/iam_service';
@@ -20,6 +21,7 @@ export const makeIamModule = (deps: { authMiddleware: RequestHandler }) => {
     revokeRole: makeRevokeRole(repoDeps),
     deleteRole: makeDeleteRole(repoDeps),
     assignDefaultRole: makeAssignDefaultRole(repoDeps),
+    isLastAdmin: makeIsLastAdmin(repoDeps),
   };
 
   return { iamService, router: makeIamRoutes({ iamService, authMiddleware: deps.authMiddleware }) };

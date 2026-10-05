@@ -38,10 +38,13 @@ const roleReader = {
 // analytics no conoce iam: recibe un adaptador que cumple su puerto PermissionChecker.
 const permissionChecker = { hasPermission: iam.iamService.hasPermission };
 
+// users tampoco conoce iam para la baja de cuenta: pregunta si es el ultimo ADMIN por un puerto.
+const adminGuard = { isLastAdmin: iam.iamService.isLastAdmin };
+
 app.use('/api/iam', iam.router);
 app.use('/api/auth', makeAuthModule({ roleAssigner, roleReader }).router);
 app.use('/api/translations', makeTranslationsModule({ authMiddleware, permissionChecker }).router);
-app.use('/api/users', makeUsersModule({ authMiddleware, permissionChecker }).router);
+app.use('/api/users', makeUsersModule({ authMiddleware, permissionChecker, adminGuard }).router);
 app.use('/api/sign-templates', makeIaModule({ authMiddleware, permissionChecker }).router);
 app.use('/api/analytics', makeAnalyticsModule({ authMiddleware, permissionChecker }).router);
 

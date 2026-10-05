@@ -35,6 +35,10 @@ export const makeFakeIamRepository = () => {
       if (outcome === 'revoked') userRoles.delete(key(userId, roleId));
       return outcome;
     },
+    isLastAdmin: async (userId) => {
+      const admins = [...userRoles].filter((k) => k.endsWith(':3'));
+      return admins.length === 1 && admins[0] === key(userId, 3);
+    },
     countUsersWithRole: async (roleId) => [...userRoles].filter((k) => k.endsWith(':' + roleId)).length,
     deleteRole: async (roleId) => void roles.splice(roles.findIndex((r) => r.roleId === roleId), 1),
   };
