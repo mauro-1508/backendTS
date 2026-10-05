@@ -1,0 +1,49 @@
+# Servicio autonomo: `docker compose up -d --build` dentro de esta carpeta.
+# Variables: se leen del entorno o de un .env junto a este archivo (ver .env.example).
+# RabbitMQ es opcional: `docker compose --profile events up -d --build`.
+services:
+  lexicon-service:
+    build: .
+    ports:
+      - "${PORT:-3003}:3003"
+    environment:
+      PORT: 3003
+      DB_HOST: lexicon-db
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-postgres}
+      DB_NAME: ${DB_NAME:-lexicon}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET es obligatorio (minimo 32 caracteres)}
+      ROLE_SOURCE: ${ROLE_SOURCE:-none}
+      RABBITMQ_URL: ${RABBITMQ_URL:-}
+    depends_on:
+      lexicon-db:
+        condition: service_healthy
+
+  lexicon-db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
+      POSTGRES_DB: ${DB_NAME:-lexicon}
+    ports:
+      - "${DB_PORT:-5435}:5432"
+    volumes:
+      - lexicon-data:/var/lib/postgresql/data
+      # El script es idempotente: crea el esquema y siembra el alfabeto en el primer arranque.
+      - ./db/003_lexicon.sql:/docker-entrypoint-initdb.d/003_lexicon.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-lexicon}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    profiles: ["events"]
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+
+volumes:
+  lexicon-data:
