@@ -1,40 +1,32 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { AuthRepository } from '../ports/outbound/auth_repository';
 import { PasswordHasher } from '../ports/outbound/auth_provider';
+import { InvalidCodeError, ValidationError } from '../domain/service';
 import { AuthResult } from '../ports/inbound/auth_service';
-import { makeVerifyCode } from './verify_code';
+import { makeCheckResetCode } from './verify_code';
 
 export const makeResetPassword = (deps: {
   userRepository: UserRepository;
   authRepository: AuthRepository;
   passwordHasher: PasswordHasher;
+  now?: () => Date;
 }) => {
-  const verifyCode = makeVerifyCode(deps);
+  const check = makeCheckResetCode(deps);
 
-  return async ({
-    email,
-    code,
-    newPassword,
-  }: {
-    email: string;
-    code: string;
-    newPassword: string;
-  }): Promise<AuthResult> => {
+  return async ({ email, code, newPassword }: { email: string; code: string; newPassword: string }): Promise<AuthResult> => {
     if (!email || !code || !newPassword) {
-      throw new Error('Email, código y nueva contraseña son obligatorios');
+      throw new ValidationError('Email, código y nueva contraseña son obligatorios');
     }
     if (newPassword.length < 8) {
-      throw new Error('La contraseña debe tener al menos 8 caracteres');
+      throw new ValidationError('La contraseña debe tener al menos 8 caracteres');
     }
 
-    const verification = await verifyCode({ email, code });
-
+    const { user, token } = await check(email, code);
     const hashedPassword = await deps.passwordHasher.hash(newPassword);
-    const user = await deps.userRepository.findByEmail(email);
-    await deps.userRepository.updatePassword(user!.userId, hashedPassword);
 
-    const tokenId = (verification.data as { token_id: number }).token_id;
-    await deps.authRepository.markTokenAsUsed(tokenId);
+    // Consumo atomico: si otra peticion gano la carrera, el token ya no sirve.
+    const done = await deps.authRepository.consumeAndResetPassword(token.tokenId, user.userId, hashedPassword);
+    if (!done) throw new InvalidCodeError();
 
     return { success: true, message: 'Contraseña actualizada correctamente' };
   };

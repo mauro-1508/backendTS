@@ -1,5 +1,6 @@
 import { UserRepository } from '../../../ports/outbound/user_repository';
-import { NewUser, User } from '../../../domain/entity';
+import { NewUser, User, UserStatus } from '../../../domain/entity';
+import { normalizeEmail } from '../../../domain/service';
 import { pool } from '../../../../../shared/database/postgres';
 
 interface UserRow {
@@ -7,6 +8,8 @@ interface UserRow {
   name: string;
   email: string;
   password: string | null;
+  status: UserStatus;
+  email_verified_at: Date | null;
   terms_accepted: boolean;
   terms_accepted_at: Date | null;
   created_at: Date;
@@ -17,6 +20,8 @@ const toUser = (row: UserRow): User => ({
   name: row.name,
   email: row.email,
   password: row.password,
+  status: row.status,
+  emailVerifiedAt: row.email_verified_at,
   termsAccepted: row.terms_accepted,
   termsAcceptedAt: row.terms_accepted_at,
   createdAt: row.created_at,
@@ -25,18 +30,18 @@ const toUser = (row: UserRow): User => ({
 export const postgresUserRepository: UserRepository = {
   findByEmail: async (email: string) => {
     const { rows } = await pool.query<UserRow>(
-      `SELECT user_id, name, email, password, terms_accepted, terms_accepted_at, created_at
+      `SELECT user_id, name, email, password, status, email_verified_at, terms_accepted, terms_accepted_at, created_at
        FROM public.users
        WHERE email = $1
        LIMIT 1`,
-      [email]
+      [normalizeEmail(email)]
     );
     return rows[0] ? toUser(rows[0]) : null;
   },
 
   findById: async (userId: number) => {
     const { rows } = await pool.query<UserRow>(
-      `SELECT user_id, name, email, password, terms_accepted, terms_accepted_at, created_at
+      `SELECT user_id, name, email, password, status, email_verified_at, terms_accepted, terms_accepted_at, created_at
        FROM public.users
        WHERE user_id = $1
        LIMIT 1`,
@@ -45,14 +50,18 @@ export const postgresUserRepository: UserRepository = {
     return rows[0] ? toUser(rows[0]) : null;
   },
 
-  create: async ({ name, email, password }: NewUser) => {
+  create: async ({ name, email, password, status = 'INACTIVE', emailVerifiedAt = null }: NewUser) => {
     const { rows } = await pool.query<UserRow>(
-      `INSERT INTO public.users (name, email, password, terms_accepted, terms_accepted_at)
-       VALUES ($1, $2, $3, true, NOW())
-       RETURNING user_id, name, email, password, terms_accepted, terms_accepted_at, created_at`,
-      [name, email, password]
+      `INSERT INTO public.users (name, email, password, status, email_verified_at, terms_accepted, terms_accepted_at)
+       VALUES ($1, $2, $3, $4, $5, true, NOW())
+       RETURNING user_id, name, email, password, status, email_verified_at, terms_accepted, terms_accepted_at, created_at`,
+      [name, normalizeEmail(email), password, status, emailVerifiedAt]
     );
     return toUser(rows[0]);
+  },
+
+  deleteById: async (userId: number) => {
+    await pool.query('DELETE FROM public.users WHERE user_id = $1', [userId]);
   },
 
   updatePassword: async (userId: number, hashedPassword: string) => {
