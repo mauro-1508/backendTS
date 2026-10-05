@@ -14,9 +14,10 @@ import { makeGoogleLogin } from './application/google_login';
 import { makeAuthRoutes } from './adapters/inbound/http/routes';
 import { AuthService } from './ports/inbound/auth_service';
 import { RoleAssigner } from './ports/outbound/role_assigner';
+import { RoleReader } from './ports/outbound/role_reader';
 
 // Composicion de dependencias del dominio auth (puertos -> adaptadores concretos).
-export const makeAuthModule = (moduleDeps: { roleAssigner: RoleAssigner }) => {
+export const makeAuthModule = (moduleDeps: { roleAssigner: RoleAssigner; roleReader: RoleReader }) => {
   const deps = {
     userRepository: postgresUserRepository,
     authRepository: postgresAuthRepository,
@@ -24,6 +25,7 @@ export const makeAuthModule = (moduleDeps: { roleAssigner: RoleAssigner }) => {
     tokenProvider: jwtTokenProvider,
     mailer: nodemailerMailer,
     roleAssigner: moduleDeps.roleAssigner,
+    roleReader: moduleDeps.roleReader,
   };
 
   const authService: AuthService = {

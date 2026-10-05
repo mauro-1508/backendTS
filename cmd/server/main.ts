@@ -27,11 +27,19 @@ const iam = makeIamModule({ authMiddleware });
 // auth no conoce iam: recibe un adaptador que cumple su puerto RoleAssigner.
 const roleAssigner = { assignDefaultRole: iam.iamService.assignDefaultRole };
 
+// auth tampoco conoce iam para leer roles: van en el JWT.
+const roleReader = {
+  listRoleNames: async (userId: number): Promise<string[]> => {
+    const result = await iam.iamService.getMyAccess({ userId });
+    return (result.data as { roles: string[] }).roles;
+  },
+};
+
 // analytics no conoce iam: recibe un adaptador que cumple su puerto PermissionChecker.
 const permissionChecker = { hasPermission: iam.iamService.hasPermission };
 
 app.use('/api/iam', iam.router);
-app.use('/api/auth', makeAuthModule({ roleAssigner }).router);
+app.use('/api/auth', makeAuthModule({ roleAssigner, roleReader }).router);
 app.use('/api/translations', makeTranslationsModule({ authMiddleware }).router);
 app.use('/api/users', makeUsersModule({ authMiddleware }).router);
 app.use('/api/sign-templates', makeIaModule({ authMiddleware }).router);

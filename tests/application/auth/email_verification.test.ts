@@ -92,6 +92,7 @@ const setup = (users: U[] = []) => {
     passwordHasher: hasher,
     mailer: { sendVerificationCode, sendPasswordResetCode },
     roleAssigner: { assignDefaultRole },
+    roleReader: { listRoleNames: async () => ['USER'] },
     tokenProvider: { sign: () => 'jwt' } as never,
     now: () => clock,
   };

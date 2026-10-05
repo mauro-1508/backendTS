@@ -19,6 +19,7 @@ describe('register asigna rol por defecto', () => {
       } as never,
       passwordHasher: { hash: async () => 'hashed', compare: async () => true } as never,
       roleAssigner: { assignDefaultRole },
+      roleReader: { listRoleNames: async () => ['USER'] },
       ...verificationDeps,
     });
 
@@ -40,6 +41,7 @@ describe('registro atomico por compensacion', () => {
       } as never,
       passwordHasher: { hash: async () => 'hashed', compare: async () => true } as never,
       roleAssigner: { assignDefaultRole },
+      roleReader: { listRoleNames: async () => ['USER'] },
       ...verificationDeps,
     });
     return { register, deleteById };
@@ -67,6 +69,7 @@ describe('google_login asigna rol a cuentas nuevas', () => {
       } as never,
       tokenProvider: { sign: () => 'tok' } as never,
       roleAssigner: { assignDefaultRole },
+      roleReader: { listRoleNames: async () => ['USER'] },
     });
     return { googleLogin, deleteById };
   };

@@ -4,8 +4,9 @@ import { TokenProvider } from '../ports/outbound/auth_provider';
 import { AuthResult, GoogleLoginInput } from '../ports/inbound/auth_service';
 import { AccountBlockedError, EmailNotVerifiedError, RegistrationFailedError, ValidationError } from '../domain/service';
 import { RoleAssigner } from '../ports/outbound/role_assigner';
+import { RoleReader } from '../ports/outbound/role_reader';
 
-export const makeGoogleLogin = (deps: { userRepository: UserRepository; tokenProvider: TokenProvider; roleAssigner: RoleAssigner }) =>
+export const makeGoogleLogin = (deps: { userRepository: UserRepository; tokenProvider: TokenProvider; roleAssigner: RoleAssigner; roleReader: RoleReader }) =>
   async ({ email: rawEmail, name }: GoogleLoginInput): Promise<AuthResult> => {
     if (!rawEmail || !name) {
       throw new ValidationError('Email y nombre son obligatorios');
@@ -17,7 +18,8 @@ export const makeGoogleLogin = (deps: { userRepository: UserRepository; tokenPro
       // Sin correo verificado (o bloqueada) tampoco hay sesion por Google: evita el secuestro previo de cuentas.
       if (existingUser.status === 'BLOCKED') throw new AccountBlockedError();
       if (existingUser.status !== 'ACTIVE') throw new EmailNotVerifiedError();
-      const token = deps.tokenProvider.sign({ userId: existingUser.userId, email: existingUser.email });
+      const roles = await deps.roleReader.listRoleNames(existingUser.userId);
+      const token = deps.tokenProvider.sign({ userId: existingUser.userId, email: existingUser.email, roles });
       return { success: true, message: 'Inicio de sesión exitoso', data: { token } };
     }
 
@@ -30,7 +32,8 @@ export const makeGoogleLogin = (deps: { userRepository: UserRepository; tokenPro
       await deps.userRepository.deleteById(newUser.userId);
       throw new RegistrationFailedError();
     }
-    const token = deps.tokenProvider.sign({ userId: newUser.userId, email: newUser.email });
+    const roles = await deps.roleReader.listRoleNames(newUser.userId);
+    const token = deps.tokenProvider.sign({ userId: newUser.userId, email: newUser.email, roles });
 
     return { success: true, message: 'Cuenta creada y sesión iniciada', data: { token } };
   };
