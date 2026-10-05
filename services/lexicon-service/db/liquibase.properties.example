@@ -1,0 +1,8 @@
+url=jdbc:postgresql://localhost:5435/lexicon
+username=postgres
+password=TU_PASSWORD_AQUI
+driver=org.postgresql.Driver
+changeLogFile=master.xml
+# Raiz de busqueda: este directorio (db/) contiene master.xml y 003_lexicon.sql,
+# que el changelog 012 reutiliza para no mantener dos versiones del SQL.
+searchPath=.
