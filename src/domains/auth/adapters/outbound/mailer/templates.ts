@@ -15,11 +15,11 @@ const codeEmail = (title: string, intro: string, greeting: string, code: string)
 `;
 
 export const passwordResetEmail = ({ name, code }: { name: string; code: string }) => ({
-  subject: 'Código de recuperación - Signa',
+  subject: 'Código de recuperación - TraduceSeñas',
   html: codeEmail('Recuperar contraseña', 'tu código de verificación es:', `Hola ${escapeHtml(name)}`, code),
 });
 
 export const verificationEmail = ({ code }: { name?: string; code: string }) => ({
-  subject: 'Verifica tu correo - Signa',
+  subject: 'Verifica tu correo - TraduceSeñas',
   html: codeEmail('Verificar correo', 'tu código para verificar tu correo es:', 'Hola', code),
 });

@@ -12,6 +12,8 @@ export interface IamRepository {
   assignRole(params: { userId: number; roleId: number }): Promise<void>;
   /** Comprueba invariantes (decideRevoke) y borra en una sola transaccion con bloqueo de filas. */
   revokeRoleGuarded(params: { userId: number; roleId: number; isAdminRole: boolean }): Promise<RevokeOutcome>;
+  /** true si el usuario es ADMIN y es el unico que queda con ese rol. */
+  isLastAdmin(userId: number): Promise<boolean>;
   countUsersWithRole(roleId: number): Promise<number>;
   deleteRole(roleId: number): Promise<void>;
 }

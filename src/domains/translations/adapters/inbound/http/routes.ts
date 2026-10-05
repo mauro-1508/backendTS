@@ -15,6 +15,8 @@ export const makeTranslationRoutes = (deps: {
   router.post('/', translationController.create);
   // Antes de '/:id' para que 'stats' no se tome como id.
   router.get('/stats', translationController.stats);
+  // Solo token: estadisticas del propio usuario (Perfil).
+  router.get('/me/stats', translationController.myStats);
   router.get('/history', translationController.list);
   router.delete('/:id', translationController.remove);
 
