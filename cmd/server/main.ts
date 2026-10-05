@@ -40,8 +40,8 @@ const permissionChecker = { hasPermission: iam.iamService.hasPermission };
 
 app.use('/api/iam', iam.router);
 app.use('/api/auth', makeAuthModule({ roleAssigner, roleReader }).router);
-app.use('/api/translations', makeTranslationsModule({ authMiddleware }).router);
-app.use('/api/users', makeUsersModule({ authMiddleware }).router);
+app.use('/api/translations', makeTranslationsModule({ authMiddleware, permissionChecker }).router);
+app.use('/api/users', makeUsersModule({ authMiddleware, permissionChecker }).router);
 app.use('/api/sign-templates', makeIaModule({ authMiddleware, permissionChecker }).router);
 app.use('/api/analytics', makeAnalyticsModule({ authMiddleware, permissionChecker }).router);
 

@@ -1,7 +1,20 @@
-import { Request, Response } from 'express';
+import { NextFunction, Request, Response } from 'express';
+import { PermissionDeniedError } from '../../../domain/stats';
 import { UserService } from '../../../ports/inbound/user_service';
 
 export const makeUserController = (userService: UserService) => ({
+  stats: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      const data = await userService.getStats({ userId: req.user!.userId });
+      return res.status(200).json({ success: true, data });
+    } catch (error) {
+      if (error instanceof PermissionDeniedError) {
+        return res.status(403).json({ success: false, code: 'PERMISSION_ERROR', message: 'Permiso insuficiente' });
+      }
+      return next(error);
+    }
+  },
+
   me: async (req: Request, res: Response) => {
     try {
       const user = await userService.getById(req.user!.userId);
