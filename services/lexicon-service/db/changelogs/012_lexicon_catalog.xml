@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <!--
+      Completa sign_lexicon y multimedia_resource (009-011) con lo que usa el
+      dominio lexicon del backend (categories, sign_localizations, rol ADMIN) y
+      siembra el alfabeto LSC. Reutiliza el mismo SQL que
+      003_lexicon.sql para no mantener dos versiones; ese archivo es
+      idempotente y trae su propio BEGIN/COMMIT, por eso runInTransaction="false"
+      (evita el BEGIN anidado). El path se resuelve contra el searchPath de liquibase.properties (db/). splitStatements="false" por los bloques $$.
+    -->
+    <changeSet id="012" author="lexicon" runOnChange="true" runInTransaction="false">
+        <sqlFile path="003_lexicon.sql"
+                 relativeToChangelogFile="false"
+                 encoding="UTF-8"
+                 splitStatements="false"
+                 stripComments="false"/>
+    </changeSet>
+
+</databaseChangeLog>
