@@ -11,7 +11,6 @@ import { makeAuthModule } from '../../src/domains/auth/auth.module';
 import { makeUsersModule } from '../../src/domains/users/users.module';
 import { makeTranslationsModule } from '../../src/domains/translations/translations.module';
 import { makeIaModule } from '../../src/domains/ia/ia.module';
-import { makeLexiconModule } from '../../src/domains/lexicon/lexicon.module';
 
 const authMiddleware = makeAuthMiddleware(jwtTokenProvider);
 const requireRole = makeRequireRole(postgresRoleChecker);
@@ -28,7 +27,6 @@ app.use('/api/auth', makeAuthModule().router);
 app.use('/api/translations', makeTranslationsModule({ authMiddleware }).router);
 app.use('/api/users', makeUsersModule({ authMiddleware }).router);
 app.use('/api/sign-templates', makeIaModule({ authMiddleware }).router);
-app.use('/api/lexicon', makeLexiconModule({ authMiddleware, requireAdmin: requireRole('ADMIN') }).router);
 
 app.use(errorHandler);
 
