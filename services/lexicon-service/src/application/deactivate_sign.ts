@@ -1,4 +1,4 @@
-import { EventPublisher } from '@traduce/shared';
+import { EventPublisher } from '../shared/events/event_publisher';
 import { LEXICON_EVENTS, SignWithdrawnPayload } from '../domain/events';
 import { LexiconRepository } from '../domain/repository';
 import { normalizeCode, SignNotFoundError } from '../domain/rules';
