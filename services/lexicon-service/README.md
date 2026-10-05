@@ -16,13 +16,15 @@ npm test
 Con Docker (servicio + su PostgreSQL con el esquema y el alfabeto sembrados):
 
 ```
-JWT_SECRET=<minimo-32-caracteres> docker compose up -d --build
+# Requiere DB_USER, DB_PASSWORD y JWT_SECRET (copia .env.example a .env y complétalo)
+docker compose up -d --build
 curl http://localhost:3003/health
 docker compose down -v
 ```
 
-RabbitMQ es opcional: `docker compose --profile events up -d` y
-`RABBITMQ_URL=amqp://rabbitmq:5672`.
+Solo el servicio publica puerto (3003); PostgreSQL y RabbitMQ quedan en la red interna de compose.
+RabbitMQ es opcional: define `RABBITMQ_USER` y `RABBITMQ_PASSWORD`, ejecuta
+`docker compose --profile events up -d` y usa `RABBITMQ_URL=amqp://USER:PASS@rabbitmq:5672`.
 
 ## Variables de entorno
 
