@@ -10,7 +10,7 @@ export const makeTranslationRoutes = (deps: {
   const translationController = makeTranslationController(deps.translationService);
 
   // Todas las rutas de traducciones requieren JWT valido; el controller
-  // resuelve el user_id desde req.user (con fallback a body/query).
+  // resuelve el user_id solo desde req.user.
   router.use(deps.authMiddleware);
   router.post('/', translationController.create);
   router.get('/history', translationController.list);

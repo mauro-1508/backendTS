@@ -1,9 +1,7 @@
-import { EventPublisher } from '@traduce/shared';
-import { LEXICON_EVENTS, SignPublishedPayload } from '../domain/events';
+import { EVENT_TYPES, EventPublisher, publishQuietly, SignPublished } from '@traduce/shared';
 import { LexiconRepository } from '../domain/repository';
 import { LexiconValidationError, normalizeCode, SignNotFoundError } from '../domain/rules';
 import { LexiconResult } from '../ports/inbound/lexicon_service';
-import { publishQuietly } from './publish_event';
 
 /** DRAFT -> ACTIVE. Sin nombre en español no hay nada que mostrar al público. */
 export const makePublishSign = (deps: { lexiconRepository: LexiconRepository; eventPublisher: EventPublisher }) =>
@@ -16,7 +14,7 @@ export const makePublishSign = (deps: { lexiconRepository: LexiconRepository; ev
     }
     const published = await deps.lexiconRepository.setStatus(normalized, 'ACTIVE', userId);
     if (!published) throw new SignNotFoundError(code);
-    const payload: SignPublishedPayload = {
+    const payload: SignPublished = {
       lexiconId: published.lexiconId,
       code: published.code,
       type: published.type,
@@ -24,6 +22,6 @@ export const makePublishSign = (deps: { lexiconRepository: LexiconRepository; ev
       letter: published.letter,
       categoryId: published.categoryId,
     };
-    await publishQuietly(deps.eventPublisher, LEXICON_EVENTS.SignPublished, payload);
+    await publishQuietly(deps.eventPublisher, EVENT_TYPES.SignPublished, payload);
     return { success: true, message: 'Seña publicada', data: published };
   };

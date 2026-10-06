@@ -1,74 +1,49 @@
-import { EventEnvelope } from '@traduce/shared';
+import {
+  EventEnvelope, EventHandler, isTranslationProduced, isUserRegistered, withValidPayload,
+} from '@traduce/shared';
 import { UsageEvent } from '../domain/entity';
 import { UsageEventRepository } from '../domain/repository';
 
-export const TRANSLATION_PRODUCED = 'recognition.TranslationProduced';
-export const USER_REGISTERED = 'iam.UserRegistered';
-
-/**
- * Contrato de recognition: `gloss` (senas separadas por espacios). Por compatibilidad
- * tambien se acepta `signCodes` (lista) o `signCode` (uno solo).
- */
-interface TranslationProducedPayload {
-  translationId?: string | number;
-  userId?: string | number | null;
-  gloss?: string;
-  signCode?: string;
-  signCodes?: string[];
-}
-interface UserRegisteredPayload {
-  userId?: string | number;
-}
-
-const idOrNull = (value: string | number | null | undefined): string | null =>
-  value === undefined || value === null ? null : String(value);
-
 const GLOSS_SEPARATOR = /\s+/;
 
-const codesFromPayload = (payload: TranslationProducedPayload): string[] => {
-  if (payload.gloss) return payload.gloss.trim().split(GLOSS_SEPARATOR);
-  return payload.signCodes ?? (payload.signCode ? [payload.signCode] : []);
-};
+/** `gloss`: senas separadas por espacios (contrato de recognition). */
+const signCodesOf = (gloss: string): string[] => gloss.split(GLOSS_SEPARATOR).filter(code => code.length > 0);
 
-const signCodesOf = (payload: TranslationProducedPayload): string[] => {
-  const codes = codesFromPayload(payload);
-  return codes.filter(code => typeof code === 'string' && code.length > 0);
-};
+const idOrNull = (value: number | null): string | null => (value === null ? null : String(value));
 
-const baseOf = (envelope: EventEnvelope) => ({
+const baseOf = (envelope: EventEnvelope<unknown>) => ({
   eventId: envelope.eventId,
   sessionId: null,
   createdAt: new Date(envelope.occurredAt),
 });
 
 /** Idempotente: si el eventId ya esta guardado, `save` lo ignora y no se cuenta dos veces. */
-export const makeIngestTranslationProduced = (deps: { repository: UsageEventRepository }) =>
-  async (envelope: EventEnvelope): Promise<void> => {
-    const payload = (envelope.payload ?? {}) as TranslationProducedPayload;
+export const makeIngestTranslationProduced = (deps: { repository: UsageEventRepository }): EventHandler =>
+  withValidPayload(isTranslationProduced, async envelope => {
+    const { payload } = envelope;
     const event: UsageEvent = {
       ...baseOf(envelope),
       userId: idOrNull(payload.userId),
       section: 'TRANSLATION',
       eventType: 'TRANSLATION_COMPLETED',
-      referenceType: payload.translationId === undefined ? null : 'TRANSLATION',
-      referenceId: idOrNull(payload.translationId),
-      signCodes: signCodesOf(payload),
+      referenceType: 'TRANSLATION',
+      referenceId: String(payload.translationId),
+      signCodes: signCodesOf(payload.gloss),
     };
     await deps.repository.save(event);
-  };
+  });
 
-export const makeIngestUserRegistered = (deps: { repository: UsageEventRepository }) =>
-  async (envelope: EventEnvelope): Promise<void> => {
-    const payload = (envelope.payload ?? {}) as UserRegisteredPayload;
-    const userId = idOrNull(payload.userId);
+export const makeIngestUserRegistered = (deps: { repository: UsageEventRepository }): EventHandler =>
+  withValidPayload(isUserRegistered, async envelope => {
+    const userId = String(envelope.payload.userId);
     const event: UsageEvent = {
       ...baseOf(envelope),
       userId,
       section: 'HOME',
       eventType: 'USER_REGISTERED',
-      referenceType: userId === null ? null : 'USER',
+      referenceType: 'USER',
       referenceId: userId,
       signCodes: [],
     };
     await deps.repository.save(event);
-  };
+  });

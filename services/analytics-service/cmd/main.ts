@@ -25,10 +25,8 @@ const server = app.listen(config.port, () => {
   console.log(`analytics-service escuchando en el puerto ${config.port}`);
 });
 
-// El broker puede no estar arriba aun: el servicio HTTP sigue sirviendo y el fallo queda en el log.
-subscribeToDomainEvents({ subscriber: eventBus, repository }).catch(error => {
-  console.error('[analytics] no se pudo suscribir a los eventos', error);
-});
+// El broker puede no estar arriba aun: subscribeWithRetry reintenta sin bloquear el servicio HTTP.
+void subscribeToDomainEvents({ subscriber: eventBus, repository });
 
 process.on('SIGTERM', () => {
   server.close();

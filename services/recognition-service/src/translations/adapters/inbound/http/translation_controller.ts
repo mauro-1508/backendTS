@@ -1,17 +1,8 @@
 import { Request, Response } from 'express';
 import { TranslationService } from '../../../ports/inbound/translation_service';
 
-/**
- * El user_id sale del JWT verificado por authMiddleware (req.user).
- * Se mantiene el fallback a body/query solo para pruebas manuales con
- * herramientas tipo curl/Postman.
- */
-const resolveUserId = (req: Request): number | null => {
-  if (req.user?.userId) return req.user.userId;
-  if (req.body?.user_id) return Number(req.body.user_id);
-  if (req.query?.user_id) return Number(req.query.user_id);
-  return null;
-};
+/** El user_id sale solo del JWT verificado por authMiddleware (req.user); nunca del cuerpo ni de la query. */
+const resolveUserId = (req: Request): number => req.user!.userId;
 
 export const makeTranslationController = (translationService: TranslationService) => ({
   create: async (req: Request, res: Response) => {
@@ -44,7 +35,7 @@ export const makeTranslationController = (translationService: TranslationService
     try {
       const userId = resolveUserId(req);
       const translationId = Number(req.params.id);
-      const result = await translationService.remove({ translationId, userId: userId as number });
+      const result = await translationService.remove({ translationId, userId });
       return res.status(200).json(result);
     } catch (error) {
       return res.status(400).json({ success: false, message: (error as Error).message });

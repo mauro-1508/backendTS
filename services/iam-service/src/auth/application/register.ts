@@ -1,11 +1,10 @@
-import { EventPublisher } from '@traduce/shared';
+import { EVENT_TYPES, EventPublisher, publishQuietly, UserRegistered } from '@traduce/shared';
 import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { RoleRepository } from '../../users/ports/outbound/role_repository';
 import { PasswordHasher } from '../ports/outbound/auth_provider';
 import { DEFAULT_ROLE } from '../../users/domain/roles';
 import { userDomainService } from '../../users/domain/service';
 import { AuthResult, RegisterInput } from '../ports/inbound/auth_service';
-import { publishUserRegistered } from './publish_user_registered';
 
 export const makeRegister = (deps: {
   userRepository: UserRepository;
@@ -25,11 +24,8 @@ export const makeRegister = (deps: {
     const newUser = await deps.userRepository.create({ name, email, password: hashedPassword });
     await deps.roleRepository.assignRole(newUser.userId, DEFAULT_ROLE);
 
-    await publishUserRegistered(deps.eventPublisher, {
-      userId: newUser.userId,
-      email: newUser.email,
-      name: newUser.name,
-    });
+    const registered: UserRegistered = { userId: newUser.userId, email: newUser.email, name: newUser.name };
+    await publishQuietly(deps.eventPublisher, EVENT_TYPES.UserRegistered, registered);
 
     return {
       success: true,
