@@ -42,7 +42,7 @@ export const isSignWithdrawn: PayloadGuard<SignWithdrawn> = (payload): payload i
 export const withValidPayload = <T>(
   isValid: PayloadGuard<T>,
   handle: (event: EventEnvelope<T>) => Promise<void>,
-  log: (message: string) => void = console.error,
+  log: (message: string) => void = message => console.error(message),
 ): EventHandler =>
   async event => {
     if (!isValid(event.payload)) {

@@ -1,21 +1,10 @@
-import { EventPublisher } from '@traduce/shared';
+import { EVENT_TYPES, EventPublisher, publishQuietly, TranslationProduced } from '@traduce/shared';
 import { TranslationRepository } from '../ports/outbound/translation_repository';
 import { translationDomainService } from '../domain/service';
 import { Translation, TranslationType } from '../domain/entity';
 import { TranslationResult } from '../ports/inbound/translation_service';
 
-export const TRANSLATION_PRODUCED_EVENT = 'recognition.TranslationProduced';
-
-/** Contrato del evento: texto y glosa; nunca el video ni los landmarks. */
-export interface TranslationProducedPayload {
-  translationId: number;
-  userId: number | null;
-  gloss: string;
-  text: string;
-  occurredAt: string;
-}
-
-const toEventPayload = (translation: Translation): TranslationProducedPayload => ({
+const toEventPayload = (translation: Translation): TranslationProduced => ({
   translationId: translation.translationId,
   userId: translation.userId,
   gloss: translation.inputText,
@@ -27,15 +16,6 @@ export const makeCreateTranslation = (deps: {
   translationRepository: TranslationRepository;
   eventPublisher: EventPublisher;
 }) => {
-  // La traduccion ya esta guardada: un fallo del bus no debe tumbar la peticion.
-  const announce = async (translation: Translation): Promise<void> => {
-    try {
-      await deps.eventPublisher.publish(TRANSLATION_PRODUCED_EVENT, toEventPayload(translation));
-    } catch (error) {
-      console.error(`[recognition] no se pudo publicar ${TRANSLATION_PRODUCED_EVENT}`, error);
-    }
-  };
-
   return async (input: {
     userId: number | null;
     inputText?: string;
@@ -54,7 +34,8 @@ export const makeCreateTranslation = (deps: {
       confidence: input.confidence,
       source: input.source,
     });
-    await announce(created);
+    // La traduccion ya esta guardada: un fallo del bus no debe tumbar la peticion.
+    await publishQuietly(deps.eventPublisher, EVENT_TYPES.TranslationProduced, toEventPayload(created));
 
     return { success: true, message: 'Traduccion guardada', data: created };
   };

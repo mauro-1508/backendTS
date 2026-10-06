@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
-import { EventPublisher, InMemoryEventBus, EventEnvelope } from '@traduce/shared';
-import { makeCreateTranslation, TRANSLATION_PRODUCED_EVENT } from '../src/translations/application/create_translation';
+import { EVENT_TYPES, EventPublisher, InMemoryEventBus, EventEnvelope } from '@traduce/shared';
+import { makeCreateTranslation } from '../src/translations/application/create_translation';
 import { Translation } from '../src/translations/domain/entity';
 import { TranslationRepository } from '../src/translations/domain/repository';
 
@@ -30,7 +30,7 @@ describe('create_translation', () => {
 
     assert.equal(result.success, true);
     assert.equal(received.length, 1);
-    assert.equal(received[0].type, TRANSLATION_PRODUCED_EVENT);
+    assert.equal(received[0].type, EVENT_TYPES.TranslationProduced);
     assert.deepEqual(received[0].payload, {
       translationId: 7,
       userId: 5,

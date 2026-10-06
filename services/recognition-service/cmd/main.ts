@@ -45,9 +45,8 @@ const start = async () => {
   const server = app.listen(config.port, () => {
     console.log(`recognition-service escuchando en el puerto ${config.port}`);
   });
-  // El broker puede tardar en estar arriba: no debe impedir que el servicio arranque.
-  subscribeToLexiconEvents(eventBus).catch(error =>
-    console.error('[recognition] no se pudo suscribir a eventos de lexicon', error));
+  // El broker puede tardar en estar arriba: subscribeWithRetry reintenta sin bloquear el arranque.
+  void subscribeToLexiconEvents(eventBus);
 
   process.on('SIGTERM', () => {
     server.close();
