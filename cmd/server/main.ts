@@ -42,10 +42,10 @@ const permissionChecker = { hasPermission: iam.iamService.hasPermission };
 const adminGuard = { isLastAdmin: iam.iamService.isLastAdmin };
 
 app.use('/api/iam', iam.router);
-app.use('/api/auth', makeAuthModule({ roleAssigner }).router);
-app.use('/api/translations', makeTranslationsModule({ authMiddleware }).router);
-app.use('/api/users', makeUsersModule({ authMiddleware }).router);
-app.use('/api/sign-templates', makeIaModule({ authMiddleware }).router);
+app.use('/api/auth', makeAuthModule({ roleAssigner, roleReader }).router);
+app.use('/api/translations', makeTranslationsModule({ authMiddleware, permissionChecker }).router);
+app.use('/api/users', makeUsersModule({ authMiddleware, permissionChecker, adminGuard }).router);
+app.use('/api/sign-templates', makeIaModule({ authMiddleware, permissionChecker }).router);
 
 app.use(errorHandler);
 
