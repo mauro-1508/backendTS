@@ -37,7 +37,6 @@ describe('GET /translations/me/stats', () => {
   const getMyRepo = vi.fn(async (_: number) => ({ totalTranslations: 3, distinctWords: 2, days: ['2026-10-05'] }));
   const getMyStats = makeGetMyTranslationStats({
     myStatsRepository: { getMyStats: getMyRepo },
-    now: () => new Date('2026-10-05T15:00:00Z'),
   });
   const router = makeTranslationRoutes({ translationService: { getMyStats } as unknown as TranslationService, authMiddleware });
 
@@ -50,7 +49,7 @@ describe('GET /translations/me/stats', () => {
     expect(r.status).toBe(200);
     expect(r.body).toEqual({
       success: true,
-      data: { totalTranslations: 3, distinctWords: 2, activeDays: 1, currentStreakDays: 1, longestStreakDays: 1 },
+      data: { totalTranslations: 3, distinctWords: 2, activeDays: 1 },
     });
     expect(getMyRepo).toHaveBeenCalledWith(7);
   });
