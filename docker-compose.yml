@@ -138,8 +138,11 @@ services:
       - "127.0.0.1:5433:5432"
     volumes:
       - pg-iam-data:/var/lib/postgresql/data
-      # Esquema de usuarios y roles: se aplica al crear el volumen por primera vez.
+      # Esquema de usuarios, RBAC y codigos de un solo uso: se aplica al crear el volumen por primera vez.
       - ./services/iam-service/db/000_users.sql:/docker-entrypoint-initdb.d/000_users.sql:ro
+      - ./services/iam-service/db/003_iam_roles_permissions.sql:/docker-entrypoint-initdb.d/003_iam_roles_permissions.sql:ro
+      - ./services/iam-service/db/005_auth_email_normalization_user_tokens.sql:/docker-entrypoint-initdb.d/005_auth_email_normalization_user_tokens.sql:ro
+      - ./services/iam-service/db/006_users_status_email_verification.sql:/docker-entrypoint-initdb.d/006_users_status_email_verification.sql:ro
     healthcheck: &pg-healthcheck
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

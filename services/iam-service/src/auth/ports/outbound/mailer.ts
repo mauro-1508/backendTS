@@ -1,3 +1,4 @@
 export interface Mailer {
-  sendMail(params: { to: string; subject: string; html: string }): Promise<void>;
+  sendPasswordResetCode(params: { to: string; name: string; code: string }): Promise<void>;
+  sendVerificationCode(params: { to: string; name: string; code: string }): Promise<void>;
 }

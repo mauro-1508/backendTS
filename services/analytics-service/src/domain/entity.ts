@@ -38,6 +38,16 @@ export interface UsageSummary {
   newUsers: number;
 }
 
+/** Visitas (SECTION_VIEW) de una seccion de la app. */
+export interface SectionVisits {
+  section: string;
+  visits: number;
+}
+
+export interface SectionReport extends DateRange {
+  sections: SectionVisits[];
+}
+
 export interface TopSign {
   signCode: string;
   translations: number;

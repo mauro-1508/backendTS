@@ -1,4 +1,4 @@
-import { DailyUsage, TopSign, UsageSummary } from '../../domain/entity';
+import { DailyUsage, SectionReport, TopSign, UsageSummary } from '../../domain/entity';
 
 export interface RecordEventInput {
   userId: number;
@@ -19,4 +19,5 @@ export interface AnalyticsService {
   summary(input: RangeInput): Promise<UsageSummary>;
   topSigns(input: RangeInput & { limit?: unknown }): Promise<TopSign[]>;
   dailySeries(input: RangeInput): Promise<DailyUsage[]>;
+  sectionReport(input: RangeInput): Promise<SectionReport>;
 }

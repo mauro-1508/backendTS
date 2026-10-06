@@ -47,4 +47,8 @@ export const makeAnalyticsController = (service: AnalyticsService) => ({
   dailySeries: handle(async (req, res) => {
     res.json({ success: true, data: await service.dailySeries(req.query) });
   }),
+
+  sectionReport: handle(async (req, res) => {
+    res.json({ success: true, data: await service.sectionReport(req.query) });
+  }),
 });

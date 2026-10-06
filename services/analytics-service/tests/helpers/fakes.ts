@@ -1,4 +1,4 @@
-import { DailyUsage, DateRange, TopSign, UsageEvent, UsageSummary } from '../../src/domain/entity';
+import { DailyUsage, DateRange, SectionVisits, TopSign, UsageEvent, UsageSummary } from '../../src/domain/entity';
 import { UsageEventRepository } from '../../src/domain/repository';
 
 const BOGOTA_OFFSET_MS = -5 * 60 * 60 * 1000;
@@ -35,6 +35,13 @@ export const makeInMemoryUsageRepository = (): UsageEventRepository & { events: 
         const list = inRange({ from: date, to: date });
         return { date, translations: count(list, 'TRANSLATION_COMPLETED'), newUsers: count(list, 'USER_REGISTERED') };
       });
+    },
+    async sectionViews(range): Promise<SectionVisits[]> {
+      const totals = new Map<string, number>();
+      inRange(range).filter(e => e.eventType === 'SECTION_VIEW')
+        .forEach(e => { if (e.section) totals.set(e.section, (totals.get(e.section) ?? 0) + 1); });
+      return [...totals].map(([section, visits]) => ({ section, visits }))
+        .sort((a, b) => b.visits - a.visits);
     },
   };
 };

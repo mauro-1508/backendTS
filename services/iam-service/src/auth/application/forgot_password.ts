@@ -1,44 +1,50 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
+import { normalizeEmail } from '../../users/domain/service';
 import { AuthRepository } from '../ports/outbound/auth_repository';
 import { Mailer } from '../ports/outbound/mailer';
-import { authDomainService } from '../domain/service';
+import { PasswordHasher } from '../ports/outbound/auth_provider';
+import { authDomainService, ValidationError } from '../domain/service';
 import { AuthResult } from '../ports/inbound/auth_service';
+
+const GENERIC_RESPONSE: AuthResult = { success: true, message: 'Si el correo existe, recibirás un código' };
 
 export const makeForgotPassword = (deps: {
   userRepository: UserRepository;
   authRepository: AuthRepository;
+  passwordHasher: PasswordHasher;
   mailer: Mailer;
-}) =>
-  async ({ email }: { email: string }): Promise<AuthResult> => {
-    if (!email) {
-      throw new Error('El email es obligatorio');
-    }
-
+  now?: () => Date;
+}) => {
+  const issueAndSend = async (email: string) => {
+    const now = (deps.now ?? (() => new Date()))();
     const user = await deps.userRepository.findByEmail(email);
+    // ACTIVE e INACTIVE (el reset prueba la propiedad del correo); BLOCKED recibe la misma respuesta, sin correo.
+    if (!user || user.status === 'BLOCKED') return;
 
-    // Respondemos igual aunque no exista, por seguridad.
-    if (!user) {
-      return { success: true, message: 'Si el correo existe, recibirás un código' };
-    }
+    const code = authDomainService.generateCode();
+    const result = await deps.authRepository.issueTokenIfAllowed({
+      userId: user.userId,
+      type: 'PASSWORD_RESET',
+      hashToken: () => deps.passwordHasher.hash(code),
+      expiresAt: authDomainService.codeExpiryDate(now),
+      now,
+      // Cooldown y tope horario los decide el dominio, dentro de la transaccion con bloqueo por usuario.
+      decide: (last, sent) => authDomainService.issueDecision(last, sent, now),
+    });
+    if (result !== 'issued') return;
+    await deps.mailer.sendPasswordResetCode({ to: user.email, name: user.name, code });
+  };
 
-    const code = authDomainService.generateResetCode();
-    const tokenHash = authDomainService.hashResetCode(code);
-    const expiresAt = authDomainService.resetCodeExpiryDate();
+  return async ({ email }: { email: string }): Promise<AuthResult> => {
+    if (!email) throw new ValidationError('El email es obligatorio');
 
-    await deps.authRepository.invalidateResetTokens(user.userId);
-    await deps.authRepository.createResetToken({ userId: user.userId, tokenHash, expiresAt });
-
-    await deps.mailer.sendMail({
-      to: user.email,
-      subject: 'Código de recuperación - Signa',
-      html: `
-        <h2>Recuperar contraseña</h2>
-        <p>Hola ${user.name}, tu código de verificación es:</p>
-        <h1 style="letter-spacing:8px;color:#3B82F6;">${code}</h1>
-        <p>Este código expira en <strong>15 minutos</strong>.</p>
-        <p>Si no solicitaste esto, ignora este correo.</p>
-      `,
+    // Todo el trabajo va en segundo plano: la respuesta y su tiempo no dependen de si la cuenta existe.
+    issueAndSend(normalizeEmail(email)).catch((error: unknown) => {
+      // Solo nombre y codigo del error: error.message puede traer el correo o datos del SMTP.
+      const e = error as { name?: string; code?: string } | null;
+      console.error('[auth] forgot-password: no se pudo emitir o enviar el código', e?.name ?? 'error', e?.code ?? '');
     });
 
-    return { success: true, message: 'Si el correo existe, recibirás un código' };
+    return GENERIC_RESPONSE;
   };
+};

@@ -6,7 +6,7 @@ arquitectura hexagonal dentro de cada servicio. Plan completo: `MICROSERVICES_PL
 ```
 packages/shared/            # config, JWT, middleware HTTP y bus de eventos (RabbitMQ) compartidos
 services/api-gateway/       # único punto de entrada: JWT, rate limit y proxy a los servicios
-services/iam-service/       # registro, login, roles, recuperación de contraseña
+services/iam-service/       # registro, login, verificación de correo, RBAC (roles y permisos), cuenta y recuperación de contraseña
 services/recognition-service/ # traducciones, plantillas de gestos, IA/entrenamiento
 services/lexicon-service/   # catálogo de señas, alfabeto 3D y medios
 services/analytics-service/ # métricas de uso a partir de eventos

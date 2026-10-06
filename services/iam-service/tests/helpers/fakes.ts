@@ -1,44 +1,8 @@
+import { mock } from 'node:test';
+import assert from 'node:assert/strict';
 import { EventPublisher } from '@traduce/shared';
-import { NewUser, User } from '../../src/users/domain/entity';
-import { RoleRepository, UserRepository } from '../../src/users/domain/repository';
-import { PasswordResetToken } from '../../src/auth/domain/entity';
-import { AuthRepository } from '../../src/auth/domain/repository';
-import { PasswordHasher } from '../../src/auth/ports/outbound/auth_provider';
 
-/** Repositorios y servicios falsos en memoria que implementan los puertos de iam. */
-export class FakeUserRepository implements UserRepository {
-  users: User[] = [];
-  private nextId = 1;
-
-  async findByEmail(email: string) { return this.users.find(u => u.email === email) ?? null; }
-  async findById(userId: number) { return this.users.find(u => u.userId === userId) ?? null; }
-  async create({ name, email, password }: NewUser) {
-    const user: User = {
-      userId: this.nextId++, name, email, password,
-      termsAccepted: true, termsAcceptedAt: new Date(), createdAt: new Date(),
-    };
-    this.users.push(user);
-    return user;
-  }
-  async updatePassword(userId: number, hashedPassword: string) {
-    const user = this.users.find(u => u.userId === userId);
-    if (user) user.password = hashedPassword;
-  }
-}
-
-export class FakeRoleRepository implements RoleRepository {
-  rolesByUser = new Map<number, string[]>();
-  async findRoleNamesByUserId(userId: number) { return this.rolesByUser.get(userId) ?? []; }
-  async assignRole(userId: number, roleName: string) {
-    this.rolesByUser.set(userId, [...(this.rolesByUser.get(userId) ?? []), roleName]);
-  }
-}
-
-export const fakePasswordHasher: PasswordHasher = {
-  hash: async plain => `hash:${plain}`,
-  compare: async (plain, hashed) => hashed === `hash:${plain}`,
-};
-
+/** Publicador falso que guarda lo publicado. */
 export class RecordingEventPublisher implements EventPublisher {
   published: Array<{ type: string; payload: unknown }> = [];
   async publish(type: string, payload: unknown) { this.published.push({ type, payload }); }
@@ -48,37 +12,42 @@ export const failingEventPublisher: EventPublisher = {
   publish: async () => { throw new Error('broker caido'); },
 };
 
-export class FakeAuthRepository implements AuthRepository {
-  tokens: PasswordResetToken[] = [];
-  private nextId = 1;
+/** Respuesta Express falsa: status/json encadenables y espiables. */
+export const fakeRes = () => {
+  const res: any = {};
+  res.status = mock.fn(() => res);
+  res.json = mock.fn(() => res);
+  return res;
+};
 
-  async createResetToken({ userId, tokenHash, expiresAt }: { userId: number; tokenHash: string; expiresAt: Date }) {
-    const token: PasswordResetToken = { tokenId: this.nextId++, userId, tokenHash, expiresAt, usedAt: null, attempts: 0 };
-    this.tokens.push(token);
-    return { tokenId: token.tokenId };
-  }
-  async findActiveResetToken(userId: number) {
-    const active = this.tokens.filter(t => t.userId === userId && !t.usedAt);
-    return active[active.length - 1] ?? null;
-  }
-  async registerFailedAttempt(tokenId: number) {
-    const token = this.tokens.find(t => t.tokenId === tokenId);
-    if (token) token.attempts++;
-  }
-  async markTokenAsUsed(tokenId: number) {
-    const token = this.tokens.find(t => t.tokenId === tokenId);
-    if (token) token.usedAt = new Date();
-  }
-  async invalidateResetTokens(userId: number) {
-    this.tokens.filter(t => t.userId === userId && !t.usedAt).forEach(t => { t.usedAt = new Date(); });
-  }
-}
+/** Argumentos de la llamada n-esima (por defecto la ultima) de un mock.fn. */
+export const argsOf = (fn: { mock: { calls: Array<{ arguments: any[] }> } }, index = -1): any[] =>
+  fn.mock.calls.at(index)!.arguments;
 
-export class RecordingMailer {
-  sent: Array<{ to: string; subject: string; html: string }> = [];
-  async sendMail(mail: { to: string; subject: string; html: string }) { this.sent.push(mail); }
-  /** El codigo de 6 digitos del ultimo correo enviado. */
-  lastCode(): string {
-    return /<h1[^>]*>(\d{6})<\/h1>/.exec(this.sent[this.sent.length - 1].html)![1];
+const isPlainObject = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !(value instanceof Date) && !(value instanceof RegExp);
+
+/** Equivalente a toMatchObject: `expected` solo lista las propiedades que importan. RegExp compara texto. */
+export const assertMatch = (actual: unknown, expected: unknown, path = 'valor'): void => {
+  if (expected instanceof RegExp) {
+    assert.match(String(actual), expected, path);
+  } else if (isPlainObject(expected)) {
+    assert.ok(isPlainObject(actual) || Array.isArray(actual), `${path} deberia ser un objeto`);
+    for (const key of Object.keys(expected)) assertMatch((actual as any)[key], expected[key], `${path}.${key}`);
+  } else {
+    assert.deepStrictEqual(actual, expected, path);
   }
-}
+};
+
+/** Espera que la promesa se rechace con un error que cumpla `expected` (propiedades parciales). */
+export const rejectsWith = async (promise: Promise<unknown>, expected: Record<string, unknown>): Promise<void> => {
+  const error = await promise.then(() => assert.fail('se esperaba un rechazo'), (e: unknown) => e);
+  assertMatch(error, expected);
+};
+
+/** Espera que la promesa se resuelva con un valor que cumpla `expected` (propiedades parciales). */
+export const resolvesMatching = async (promise: Promise<unknown>, expected: Record<string, unknown>): Promise<void> => {
+  assertMatch(await promise, expected);
+};
+
+export const flush = () => new Promise<void>(resolve => setImmediate(resolve));

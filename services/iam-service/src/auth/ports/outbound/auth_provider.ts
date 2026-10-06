@@ -1,4 +1,4 @@
-export type { AuthenticatedUser, TokenProvider } from '@traduce/shared';
+export type { TokenProvider } from '@traduce/shared';
 
 export interface PasswordHasher {
   hash(plain: string): Promise<string>;

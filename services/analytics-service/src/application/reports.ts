@@ -12,3 +12,9 @@ export const makeGetTopSigns = ({ repository }: Deps): AnalyticsService['topSign
 
 export const makeGetDailySeries = ({ repository }: Deps): AnalyticsService['dailySeries'] =>
   async ({ from, to }) => repository.dailySeries(parseDateRange(from, to));
+
+export const makeGetSectionReport = ({ repository }: Deps): AnalyticsService['sectionReport'] =>
+  async ({ from, to }) => {
+    const range = parseDateRange(from, to);
+    return { ...range, sections: await repository.sectionViews(range) };
+  };

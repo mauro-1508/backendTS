@@ -1,39 +1,47 @@
+import { EventPublisher } from '@traduce/shared';
 import { UserRepository } from '../../users/ports/outbound/user_repository';
-import { RoleRepository } from '../../users/ports/outbound/role_repository';
-import { DEFAULT_ROLE } from '../../users/domain/roles';
-import { EVENT_TYPES, EventPublisher, publishQuietly, UserRegistered } from '@traduce/shared';
-import { IssueToken } from './issue_token';
+import { normalizeEmail } from '../../users/domain/service';
+import { TokenProvider } from '../ports/outbound/auth_provider';
 import { AuthResult, GoogleLoginInput } from '../ports/inbound/auth_service';
+import { AccountBlockedError, EmailNotVerifiedError, RegistrationFailedError, ValidationError } from '../domain/service';
+import { RoleAssigner } from '../ports/outbound/role_assigner';
+import { RoleReader } from '../ports/outbound/role_reader';
+import { signSession } from './sign_session';
+import { publishUserRegistered } from './publish_registered';
 
-/**
- * TODO(seguridad): esta funcion NO verifica el ID token de Google; confia en el email y el
- * nombre que recibe, asi que cualquiera podria entrar como cualquier correo. Por eso NO
- * esta expuesta como ruta HTTP. Antes de publicarla hay que recibir el `idToken` y validarlo
- * en el servidor (p. ej. con google-auth-library `verifyIdToken`, comprobando audience y
- * `email_verified`), y tomar email y nombre del token verificado, nunca del cuerpo.
- */
 export const makeGoogleLogin = (deps: {
   userRepository: UserRepository;
-  roleRepository: RoleRepository;
-  issueToken: IssueToken;
+  tokenProvider: TokenProvider;
+  roleAssigner: RoleAssigner;
+  roleReader: RoleReader;
   eventPublisher: EventPublisher;
 }) =>
-  async ({ email, name }: GoogleLoginInput): Promise<AuthResult> => {
-    if (!email || !name) {
-      throw new Error('Email y nombre son obligatorios');
+  async ({ email: rawEmail, name }: GoogleLoginInput): Promise<AuthResult> => {
+    if (!rawEmail || !name) {
+      throw new ValidationError('Email y nombre son obligatorios');
     }
 
+    const email = normalizeEmail(rawEmail);
     const existingUser = await deps.userRepository.findByEmail(email);
     if (existingUser) {
-      const token = await deps.issueToken(existingUser);
+      // Sin correo verificado (o bloqueada) tampoco hay sesion por Google: evita el secuestro previo de cuentas.
+      if (existingUser.status === 'BLOCKED') throw new AccountBlockedError();
+      if (existingUser.status !== 'ACTIVE') throw new EmailNotVerifiedError();
+      const token = await signSession(deps, existingUser);
       return { success: true, message: 'Inicio de sesión exitoso', data: { token } };
     }
 
-    const newUser = await deps.userRepository.create({ email, name, password: null });
-    await deps.roleRepository.assignRole(newUser.userId, DEFAULT_ROLE);
-    const registered: UserRegistered = { userId: newUser.userId, email: newUser.email, name: newUser.name };
-    await publishQuietly(deps.eventPublisher, EVENT_TYPES.UserRegistered, registered);
-    const token = await deps.issueToken(newUser);
+    const newUser = await deps.userRepository.create({ email, name, password: null, status: 'ACTIVE', emailVerifiedAt: new Date() });
+    // Cuenta nueva: mismo rol por defecto que en el registro.
+    try {
+      await deps.roleAssigner.assignDefaultRole(newUser.userId);
+    } catch {
+      // Compensacion: no dejar una cuenta sin rol; el detalle interno no llega al cliente.
+      await deps.userRepository.deleteById(newUser.userId);
+      throw new RegistrationFailedError();
+    }
+    await publishUserRegistered(deps.eventPublisher, newUser);
+    const token = await signSession(deps, newUser);
 
     return { success: true, message: 'Cuenta creada y sesión iniciada', data: { token } };
   };

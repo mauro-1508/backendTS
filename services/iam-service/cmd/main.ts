@@ -7,8 +7,10 @@ import { loadMailerConfig } from '../src/config';
 import { makePostgresAuthRepository } from '../src/auth/adapters/outbound/postgres/auth_repository';
 import { bcryptPasswordHasher } from '../src/auth/adapters/outbound/security/password';
 import { makeNodemailerMailer } from '../src/auth/adapters/outbound/mailer/mailer';
-import { makePostgresRoleRepository } from '../src/users/adapters/outbound/postgres/role_repository';
 import { makePostgresUserRepository } from '../src/users/adapters/outbound/postgres/user_repository';
+import { makePostgresAccountRepository } from '../src/users/adapters/outbound/postgres/account_repository';
+import { makePostgresUserStatsRepository } from '../src/users/adapters/outbound/postgres/user_stats_repository';
+import { makePostgresIamRepository } from '../src/iam/adapters/outbound/postgres/iam_repository';
 
 const IAM_DEFAULT_PORT = 3001;
 
@@ -20,7 +22,9 @@ const tokenProvider = makeJwtTokenProvider(config.jwt);
 const app = makeIamApp({
   userRepository: makePostgresUserRepository(pool),
   authRepository: makePostgresAuthRepository(pool),
-  roleRepository: makePostgresRoleRepository(pool),
+  accountRepository: makePostgresAccountRepository(pool),
+  userStatsRepository: makePostgresUserStatsRepository(pool),
+  iamRepository: makePostgresIamRepository(pool),
   passwordHasher: bcryptPasswordHasher,
   tokenProvider,
   eventPublisher: eventBus,

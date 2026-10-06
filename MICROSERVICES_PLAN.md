@@ -12,12 +12,12 @@ backend/
   packages/shared/        # @traduce/shared
     src/config/           # loadConfig(prefix) leyendo env; sin process.env disperso
     src/database/         # makePgPool(config), makeMongo(config)
-    src/http/             # errorHandler, makeAuthMiddleware (JWT), makeRequireRole (lee roles del token)
-    src/security/         # jwtTokenProvider: payload { sub, email, roles[] }
+    src/http/             # errorHandler, makeAuthMiddleware (JWT), requireRole y requirePermission (leen roles y permisos del token)
+    src/security/         # jwtTokenProvider: payload { sub, email, roles[], permissions[] }; PERMISSIONS
     src/events/           # EventBus port + RabbitMqEventBus (amqplib, exchange topic `traduce.events`) + InMemoryEventBus (tests / RABBITMQ_URL vacío)
   services/
     api-gateway/          # :8080  proxy por prefijo, valida JWT si viene, CORS, rate limit, GET /health
-    iam-service/          # :3001  auth + users (dominios actuales auth, users) + roles en el JWT
+    iam-service/          # :3001  auth + users + iam (RBAC); roles y permisos efectivos en el JWT
     recognition-service/  # :3002  translations + ia (sign-templates); Mongo para gesture_samples
     lexicon-service/      # :3003  lexicon (+ public/lexicon)
     analytics-service/    # :3004  nuevo: consume eventos y expone estadísticas
@@ -29,7 +29,7 @@ Cada servicio: `src/` hexagonal (domain, application, ports, adapters) copiado t
 ## Rutas públicas (gateway)
 | Prefijo | Servicio | Nota |
 |---|---|---|
-| `/api/auth`, `/api/users` | iam | |
+| `/api/auth`, `/api/users`, `/api/iam` | iam | |
 | `/api/translations`, `/api/recognition`, `/api/sign-templates`, `/api/samples` | recognition | `/api/sign-templates` se mantiene por compatibilidad con el frontend actual |
 | `/api/lexicon` | lexicon | incluye `/api/lexicon/media` |
 | `/api/analytics` | analytics | |

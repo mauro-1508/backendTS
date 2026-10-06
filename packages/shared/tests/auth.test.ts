@@ -4,6 +4,7 @@ import jwt from 'jsonwebtoken';
 import { JWT_AUDIENCE, JWT_ISSUER, makeJwtTokenProvider } from '../src/security/jwt_token_provider';
 import { makeAuthMiddleware } from '../src/http/auth_middleware';
 import { requireRole } from '../src/http/require_role';
+import { requirePermission } from '../src/http/require_permission';
 import { errorHandler } from '../src/http/error_handler';
 
 const SECRET = 'secreto-de-prueba';
@@ -22,7 +23,15 @@ describe('jwt token provider', () => {
     const payload = jwt.decode(token) as Record<string, unknown>;
     assert.equal(payload.sub, '7');
     assert.deepEqual(payload.roles, ['ADMIN']);
-    assert.deepEqual(provider.verify(token), { userId: 7, email: 'a@b.c', roles: ['ADMIN'] });
+    // Sin claim de permisos, verify devuelve [] (un token sin permisos no concede nada).
+    assert.deepEqual(provider.verify(token), { userId: 7, email: 'a@b.c', roles: ['ADMIN'], permissions: [] });
+  });
+
+  test('firma y verifica los permisos del token', () => {
+    const token = provider.sign({ userId: 7, email: 'a@b.c', roles: ['ADMIN'], permissions: ['stats.read', 'users.manage'] });
+    const payload = jwt.decode(token) as Record<string, unknown>;
+    assert.deepEqual(payload.permissions, ['stats.read', 'users.manage']);
+    assert.deepEqual(provider.verify(token).permissions, ['stats.read', 'users.manage']);
   });
 
   test('rechaza el payload viejo { user_id, email }', () => {
@@ -67,7 +76,7 @@ describe('authMiddleware', () => {
     const token = provider.sign({ userId: 1, email: 'a@b.c', roles: ['USER'] });
     const { req, nextCalls } = run(`Bearer ${token}`);
     assert.equal(nextCalls, 1);
-    assert.deepEqual(req.user, { userId: 1, email: 'a@b.c', roles: ['USER'] });
+    assert.deepEqual(req.user, { userId: 1, email: 'a@b.c', roles: ['USER'], permissions: [] });
   });
 
   test('sin cabecera: 401 UNAUTHORIZED', () => {
@@ -108,6 +117,33 @@ describe('requireRole', () => {
   test('sin usuario o sin roles (token viejo): 403', () => {
     assert.equal(run(undefined).res.statusCode, 403);
     assert.equal(run({ userId: 1, email: 'a@b.c' }).res.statusCode, 403);
+  });
+});
+
+describe('requirePermission', () => {
+  const run = (user: unknown, permission = 'stats.read') => {
+    const res = makeRes();
+    let nextCalls = 0;
+    requirePermission(permission)({ user } as any, res, (() => { nextCalls++; }) as any);
+    return { res, nextCalls };
+  };
+
+  test('el token trae el permiso: llama a next()', () => {
+    const { res, nextCalls } = run({ userId: 1, email: 'a@b.c', roles: ['USER'], permissions: ['stats.read'] });
+    assert.equal(nextCalls, 1);
+    assert.equal(res.statusCode, undefined);
+  });
+
+  test('sin el permiso: 403 FORBIDDEN aunque tenga rol ADMIN', () => {
+    const { res, nextCalls } = run({ userId: 1, email: 'a@b.c', roles: ['ADMIN'], permissions: ['models.manage'] });
+    assert.equal(nextCalls, 0);
+    assert.equal(res.statusCode, 403);
+    assert.equal(res.body.code, 'FORBIDDEN');
+  });
+
+  test('sin usuario o sin lista de permisos: 403', () => {
+    assert.equal(run(undefined).res.statusCode, 403);
+    assert.equal(run({ userId: 1, email: 'a@b.c', roles: ['ADMIN'] }).res.statusCode, 403);
   });
 });
 

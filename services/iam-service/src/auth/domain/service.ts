@@ -1,49 +1,81 @@
-import { createHash, randomInt, timingSafeEqual } from 'crypto';
-import { PasswordResetToken } from './entity';
+import { randomInt } from 'crypto';
 
-const RESET_CODE_TTL_MS = 15 * 60 * 1000;
-const RESET_CODE_MIN = 100_000;
-const RESET_CODE_MAX_EXCLUSIVE = 1_000_000;
-export const MAX_RESET_ATTEMPTS = 5;
+export type IssueDecision = 'ok' | 'cooldown' | 'hourly_limit';
 
-export class InvalidResetCodeError extends Error {}
-export class ExpiredResetCodeError extends Error {}
-export class UsedResetCodeError extends Error {}
-export class TooManyResetAttemptsError extends Error {}
+export const CODE_TTL_MS = 15 * 60 * 1000;
+export const MAX_ATTEMPTS = 5;
+export const RESEND_COOLDOWN_MS = 60_000;
+export const MAX_SENDS_PER_HOUR = 5;
+export const ONE_HOUR_MS = 60 * 60 * 1000;
+
+/** Hash bcrypt (coste 10) de una clave inexistente: se compara cuando no hay usuario para igualar tiempos. */
+export const DUMMY_HASH = '$2b$10$rkfeSplziI2zx6pmV8wlneYDuvOlPiBTNOL.fRa6lMtI0i1YFVO52';
+
+/** Error de negocio conocido de auth: mensaje seguro de mostrar, con codigo estable para el cliente. */
+export class AuthError extends Error {
+  constructor(
+    message: string,
+    public readonly code: string = 'AUTH_ERROR',
+    public readonly httpStatus: number = 400
+  ) {
+    super(message);
+  }
+}
+export class ValidationError extends AuthError {
+  constructor(message: string) {
+    super(message, 'VALIDATION_ERROR');
+  }
+}
+export class InvalidCredentialsError extends AuthError {
+  constructor() {
+    super('Credenciales inválidas', 'INVALID_CREDENTIALS');
+  }
+}
+export class EmailAlreadyExistsError extends AuthError {
+  constructor() {
+    super('Este correo ya tiene una cuenta', 'EMAIL_ALREADY_EXISTS', 409);
+  }
+}
+export class InvalidCodeError extends AuthError {
+  constructor() {
+    super('Código inválido', 'INVALID_CODE');
+  }
+}
+export class EmailNotVerifiedError extends AuthError {
+  constructor() {
+    super('Debes verificar tu correo antes de iniciar sesión', 'EMAIL_NOT_VERIFIED', 403);
+  }
+}
+export class AccountBlockedError extends AuthError {
+  constructor() {
+    super('Cuenta bloqueada', 'ACCOUNT_BLOCKED', 403);
+  }
+}
+/** Fallo interno al crear la cuenta (p. ej. asignar rol): sin detalle al cliente, termina en 500. */
+export class RegistrationFailedError extends Error {
+  constructor() {
+    super('No se pudo completar el registro');
+  }
+}
 
 export const authDomainService = {
-  /** Codigo de 6 digitos con generador criptografico. */
-  generateResetCode(): string {
-    return randomInt(RESET_CODE_MIN, RESET_CODE_MAX_EXCLUSIVE).toString();
+  /** Codigo de 6 digitos con ceros a la izquierda; `random` es inyectable para tests. */
+  generateCode(random: (min: number, max: number) => number = randomInt): string {
+    return random(0, 1_000_000).toString().padStart(6, '0');
   },
 
-  hashResetCode(code: string): string {
-    return createHash('sha256').update(code).digest('hex');
+  codeExpiryDate(now: Date = new Date()): Date {
+    return new Date(now.getTime() + CODE_TTL_MS);
   },
 
-  resetCodeExpiryDate(): Date {
-    return new Date(Date.now() + RESET_CODE_TTL_MS);
+  /** Reenvio: 60 s desde el ultimo envio y maximo 5 en la ultima hora. Devuelve el motivo si se rechaza. */
+  issueDecision(lastCreatedAt: Date | null, sentLastHour: number, now: Date = new Date()): IssueDecision {
+    if (sentLastHour >= MAX_SENDS_PER_HOUR) return 'hourly_limit';
+    if (lastCreatedAt && now.getTime() - lastCreatedAt.getTime() < RESEND_COOLDOWN_MS) return 'cooldown';
+    return 'ok';
   },
 
-  codeMatchesToken(code: string, token: PasswordResetToken): boolean {
-    const candidate = Buffer.from(authDomainService.hashResetCode(code));
-    const stored = Buffer.from(token.tokenHash);
-    return candidate.length === stored.length && timingSafeEqual(candidate, stored);
-  },
-
-  ensureResetTokenIsUsable(token: PasswordResetToken | null): PasswordResetToken {
-    if (!token) {
-      throw new InvalidResetCodeError('Código inválido');
-    }
-    if (token.usedAt) {
-      throw new UsedResetCodeError('Este código ya fue utilizado');
-    }
-    if (token.attempts >= MAX_RESET_ATTEMPTS) {
-      throw new TooManyResetAttemptsError('Demasiados intentos: solicita un código nuevo');
-    }
-    if (new Date() > new Date(token.expiresAt)) {
-      throw new ExpiredResetCodeError('El código ha expirado');
-    }
-    return token;
+  canIssueToken(lastCreatedAt: Date | null, sentLastHour: number, now: Date = new Date()): boolean {
+    return authDomainService.issueDecision(lastCreatedAt, sentLastHour, now) === 'ok';
   },
 };

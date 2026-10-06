@@ -46,10 +46,14 @@ CREATE TABLE IF NOT EXISTS public.categories (
   CONSTRAINT uq_categories_name UNIQUE (name)
 );
 
-INSERT INTO public.categories (name, description) VALUES
+-- Sin distinguir mayusculas: si ya existe 'alfabeto' no se crea 'Alfabeto'.
+INSERT INTO public.categories (name, description)
+SELECT v.name, v.description
+FROM (VALUES
   ('Alfabeto', 'Letras del alfabeto dactilologico'),
   ('General',  'Senas sin categoria especifica')
-ON CONFLICT (name) DO NOTHING;
+) AS v(name, description)
+WHERE NOT EXISTS (SELECT 1 FROM public.categories c WHERE lower(c.name) = lower(v.name));
 
 -- Unicidad de nombres sin distinguir mayusculas ('Saludos' = 'saludos'): la
 -- aplica la base, no solo la capa de aplicacion. Si ya hay categorias que solo
@@ -132,10 +136,12 @@ BEGIN
   IF has_cat THEN
     EXECUTE $q$
       INSERT INTO public.categories (name)
-      SELECT DISTINCT LEFT(BTRIM(category), 100)
-      FROM public.sign_lexicon
-      WHERE category IS NOT NULL AND BTRIM(category) <> ''
-      ON CONFLICT (name) DO NOTHING
+      SELECT DISTINCT ON (lower(LEFT(BTRIM(s.category), 100))) LEFT(BTRIM(s.category), 100)
+      FROM public.sign_lexicon s
+      WHERE s.category IS NOT NULL AND BTRIM(s.category) <> ''
+        AND NOT EXISTS (SELECT 1 FROM public.categories c
+                        WHERE lower(c.name) = lower(LEFT(BTRIM(s.category), 100)))
+      ORDER BY lower(LEFT(BTRIM(s.category), 100)), LEFT(BTRIM(s.category), 100)
     $q$;
     EXECUTE $q$
       UPDATE public.sign_lexicon s
@@ -143,7 +149,7 @@ BEGIN
       FROM public.categories c
       WHERE s.category_id IS NULL
         AND s.category IS NOT NULL
-        AND c.name = LEFT(BTRIM(s.category), 100)
+        AND lower(c.name) = lower(LEFT(BTRIM(s.category), 100))
     $q$;
   END IF;
 
@@ -191,9 +197,16 @@ BEGIN
   END IF;
 END $$;
 
+-- Unicidad de nombres sin distinguir mayusculas ('Saludos' = 'saludos'): la
+-- aplica la base, no solo la capa de aplicacion. Se crea DESPUES de migrar la
+-- columna antigua `category`, que ya no genera variantes de mayusculas. Si ya
+-- hay categorias que solo difieren en mayusculas, hay que fusionarlas antes.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_categories_name_lower
+  ON public.categories (lower(name));
+
 -- Sin categoria -> General.
 UPDATE public.sign_lexicon
-SET category_id = (SELECT category_id FROM public.categories WHERE name = 'General')
+SET category_id = (SELECT category_id FROM public.categories WHERE lower(name) = 'general')
 WHERE category_id IS NULL;
 
 -- ── Saneamiento de datos previos (antes de crear constraints/indices) ───
@@ -394,7 +407,7 @@ WITH seed (code, letter, description, is_animated, display_order) AS (
   INSERT INTO public.sign_lexicon
     (code, type, letter, language, category_id, is_animated, display_order, status)
   SELECT s.code, 'LETTER', s.letter, 'LSC',
-         (SELECT category_id FROM public.categories WHERE name = 'Alfabeto'),
+         (SELECT category_id FROM public.categories WHERE lower(name) = 'alfabeto'),
          s.is_animated, s.display_order, 'ACTIVE'
   FROM seed s
   ON CONFLICT DO NOTHING

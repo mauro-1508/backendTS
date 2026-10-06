@@ -15,6 +15,7 @@ interface JwtPayload {
   sub?: string;
   email: string;
   roles?: string[];
+  permissions?: string[];
 }
 
 const toUserId = (payload: JwtPayload): number => {
@@ -29,7 +30,7 @@ export const makeJwtTokenProvider = (settings: JwtSettings): TokenProvider => {
   const expiresIn = settings.expiresIn as SignOptions['expiresIn'];
   return {
     sign: (user) =>
-      jwt.sign({ email: user.email, roles: user.roles }, settings.secret, {
+      jwt.sign({ email: user.email, roles: user.roles, permissions: user.permissions }, settings.secret, {
         algorithm: JWT_ALGORITHM,
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
@@ -43,7 +44,12 @@ export const makeJwtTokenProvider = (settings: JwtSettings): TokenProvider => {
         issuer: JWT_ISSUER,
         audience: JWT_AUDIENCE,
       }) as JwtPayload;
-      return { userId: toUserId(payload), email: payload.email, roles: payload.roles ?? [] };
+      return {
+        userId: toUserId(payload),
+        email: payload.email,
+        roles: payload.roles ?? [],
+        permissions: payload.permissions ?? [],
+      };
     },
   };
 };

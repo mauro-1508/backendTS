@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { DailyUsage, DateRange, TopSign, UsageEvent, UsageSummary } from '../../../domain/entity';
+import { DailyUsage, DateRange, SectionVisits, TopSign, UsageEvent, UsageSummary } from '../../../domain/entity';
 import { UsageEventRepository } from '../../../domain/repository';
 
 const REPORT_TIME_ZONE = 'America/Bogota';
@@ -35,6 +35,13 @@ const DAILY_SERIES = `
   FROM usage_event WHERE ${IN_RANGE}
   GROUP BY 1 ORDER BY 1`;
 
+const SECTION_VIEWS = `
+  SELECT section, count(*) AS visits
+  FROM usage_event
+  WHERE event_type = 'SECTION_VIEW' AND ${IN_RANGE}
+  GROUP BY section
+  ORDER BY visits DESC, section`;
+
 export const makePostgresUsageEventRepository = (pool: Pool): UsageEventRepository => ({
   async save(event: UsageEvent) {
     const result = await pool.query(INSERT_EVENT, [
@@ -59,5 +66,10 @@ export const makePostgresUsageEventRepository = (pool: Pool): UsageEventReposito
     return rows.map(row => ({
       date: row.date, translations: Number(row.translations), newUsers: Number(row.new_users),
     }));
+  },
+
+  async sectionViews({ from, to }: DateRange): Promise<SectionVisits[]> {
+    const { rows } = await pool.query(SECTION_VIEWS, [from, to]);
+    return rows.map(row => ({ section: row.section, visits: Number(row.visits) }));
   },
 });

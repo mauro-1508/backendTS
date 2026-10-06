@@ -1,7 +1,7 @@
 import { RequestHandler } from 'express';
 import { UsageEventRepository } from './domain/repository';
 import { makeRecordEvent } from './application/record_event';
-import { makeGetDailySeries, makeGetSummary, makeGetTopSigns } from './application/reports';
+import { makeGetDailySeries, makeGetSectionReport, makeGetSummary, makeGetTopSigns } from './application/reports';
 import { makeAnalyticsRoutes } from './adapters/inbound/http/routes';
 import { AnalyticsService } from './ports/inbound/analytics_service';
 
@@ -15,6 +15,7 @@ export const makeAnalyticsModule = (deps: {
     summary: makeGetSummary(deps),
     topSigns: makeGetTopSigns(deps),
     dailySeries: makeGetDailySeries(deps),
+    sectionReport: makeGetSectionReport(deps),
   };
 
   return {

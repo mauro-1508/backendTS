@@ -56,6 +56,13 @@ describe('recognition-service HTTP (sin base de datos)', () => {
     assert.equal(response.status, 401);
   });
 
+  test('estadisticas: /stats exige stats.read en el token (403) y /me/stats exige token (401)', async () => {
+    assert.equal((await fetch(`${base}/api/translations/me/stats`)).status, 401);
+    const withoutPermission = await fetch(`${base}/api/translations/stats`, { headers: bearer(['ADMIN']) });
+    assert.equal(withoutPermission.status, 403);
+    assert.equal(((await withoutPermission.json()) as { code: string }).code, 'PERMISSION_ERROR');
+  });
+
   test('crear plantilla exige token en las dos rutas montadas', async () => {
     for (const route of ['/api/sign-templates', '/api/recognition/sign-templates']) {
       const response = await fetch(`${base}${route}`, { method: 'POST' });

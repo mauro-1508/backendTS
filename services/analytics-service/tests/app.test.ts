@@ -7,7 +7,8 @@ import { makeAnalyticsApp } from '../src/app';
 import { makeInMemoryUsageRepository } from './helpers/fakes';
 
 const tokenProvider = makeJwtTokenProvider({ secret: 'secreto-analytics', expiresIn: '1h' });
-const tokenFor = (roles: string[]) => tokenProvider.sign({ userId: 4, email: 'a@b.co', roles });
+const tokenFor = (roles: string[], permissions: string[] = []) =>
+  tokenProvider.sign({ userId: 4, email: 'a@b.co', roles, permissions });
 
 describe('analytics-service HTTP', () => {
   let server: Server;
@@ -64,5 +65,18 @@ describe('analytics-service HTTP', () => {
     assert.equal(ok.status, 200);
     assert.deepEqual(((await ok.json()) as any).data, { translations: 0, newUsers: 0 });
     assert.equal((await call('/api/analytics/daily', tokenFor(['ADMIN']))).status, 400);
+  });
+
+  test('GET /reports/sections exige el permiso stats.read en el token', async () => {
+    const path = '/api/analytics/reports/sections?from=2026-01-01&to=2026-12-31';
+    assert.equal((await call(path)).status, 401);
+    assert.equal((await call(path, tokenFor(['USER']))).status, 403);
+    assert.equal((await call(path, tokenFor(['ADMIN'], ['models.manage']))).status, 403);
+
+    const ok = await call(path, tokenFor(['USER'], ['stats.read']));
+    assert.equal(ok.status, 200);
+    const data = ((await ok.json()) as any).data;
+    assert.equal(data.from, '2026-01-01');
+    assert.ok(Array.isArray(data.sections));
   });
 });
