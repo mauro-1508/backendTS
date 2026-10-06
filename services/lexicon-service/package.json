@@ -1,24 +1,20 @@
 {
-  "name": "lexicon-service",
+  "name": "@traduce/lexicon-service",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "start": "node dist/cmd/main.js",
-    "test": "node --require ts-node/register --test \"tests/**/*.test.ts\"",
     "dev": "nodemon --watch cmd --watch src --ext ts --exec ts-node cmd/main.ts"
   },
   "dependencies": {
-    "amqplib": "^0.10.5",
+    "@traduce/shared": "*",
     "dotenv": "^17.4.1",
     "express": "^5.2.1",
-    "jsonwebtoken": "^9.0.3",
     "pg": "^8.20.0"
   },
   "devDependencies": {
-    "@types/amqplib": "^0.10.5",
     "@types/express": "^5.0.0",
-    "@types/jsonwebtoken": "^9.0.7",
     "@types/node": "^22.10.0",
     "@types/pg": "^8.11.10",
     "nodemon": "^3.1.14",

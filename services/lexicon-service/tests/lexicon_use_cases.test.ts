@@ -1,6 +1,6 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-import { InMemoryEventPublisher } from '../src/shared/events/in_memory_event_publisher';
+import { InMemoryEventBus } from '@traduce/shared';
 import { makeCreateSign } from '../src/application/create_sign';
 import { makeUpdateSign } from '../src/application/update_sign';
 import { makePublishSign } from '../src/application/publish_sign';
@@ -487,10 +487,12 @@ describe('eventos de lexicon', () => {
     assert.deepEqual(withdrawn.data, { code: 'HOLA', status: 'INACTIVE' });
   });
 
-  test('con InMemoryEventPublisher queda registrado el evento de publicacion', async () => {
-    const publisher = new InMemoryEventPublisher();
+  test('con InMemoryEventBus un suscriptor recibe el evento de publicación', async () => {
+    const bus = new InMemoryEventBus();
+    const received: string[] = [];
+    await bus.subscribe({ queue: 'recognition.lexicon', pattern: 'lexicon.*' }, async e => { received.push(e.type); });
     repos.lexiconRepository.seed({ code: 'HOLA', status: 'DRAFT' });
-    await makePublishSign({ ...repos, eventPublisher: publisher })({ code: 'hola', userId: 1 });
-    assert.deepEqual(publisher.published.map(event => event.type), ['lexicon.SignPublished']);
+    await makePublishSign({ ...repos, eventPublisher: bus })({ code: 'hola', userId: 1 });
+    assert.deepEqual(received, ['lexicon.SignPublished']);
   });
 });

@@ -1,6 +1,6 @@
 import { RequestHandler } from 'express';
 import { Pool } from 'pg';
-import { EventPublisher } from './shared/events/event_publisher';
+import { EventPublisher } from '@traduce/shared';
 import { makePostgresLexiconRepository } from './adapters/outbound/postgres/lexicon_repository';
 import { makePostgresCategoryRepository } from './adapters/outbound/postgres/category_repository';
 import { makeListSigns } from './application/list_signs';

@@ -1,0 +1,241 @@
+# Plataforma completa: gateway + servicios + una base de datos por servicio.
+# Uso:  copia .env.example a .env, rellena los secretos y ejecuta  docker compose up --build
+# Variables obligatorias (sin valor por defecto): JWT_SECRET, POSTGRES_PASSWORD,
+#   MONGO_ROOT_PASSWORD y RABBITMQ_PASSWORD. Usa contraseñas sin caracteres especiales de URL
+#   (@ : / ? #) porque van dentro de MONGO_URL y RABBITMQ_URL.
+# Puertos en el host: solo el gateway (8080). Para depurar, postgres (5433-5437), mongo (27017)
+#   y la UI de rabbitmq (15672) se enlazan unicamente a 127.0.0.1. El AMQP (5672) y los
+#   servicios (3001-3005) no se publican.
+
+x-postgres: &postgres
+  image: postgres:16-alpine
+  restart: unless-stopped
+  environment: &postgres-env
+    POSTGRES_USER: postgres
+    POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env o exportalo}
+
+x-service-env: &service-env
+  JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET (minimo 32 caracteres) en .env o exportalo}
+  RABBITMQ_URL: amqp://${RABBITMQ_USER:-signa}:${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD en .env o exportalo}@rabbitmq:5672
+  DB_USER: postgres
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env o exportalo}
+  DB_PORT: "5432"
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: services/api-gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      PORT: "8080"
+      # Lista blanca CORS (el contenedor corre en produccion: sin valor no se permite ningun origen web).
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8081,http://localhost:19006}
+      JWT_SECRET: ${JWT_SECRET:?Define JWT_SECRET (minimo 32 caracteres) en .env o exportalo}
+      IAM_SERVICE_URL: http://iam-service:3001
+      RECOGNITION_SERVICE_URL: http://recognition-service:3002
+      LEXICON_SERVICE_URL: http://lexicon-service:3003
+      ANALYTICS_SERVICE_URL: http://analytics-service:3004
+      PROFILE_SERVICE_URL: http://profile-service:3005
+    depends_on:
+      - iam-service
+      - lexicon-service
+    restart: unless-stopped
+
+  iam-service:
+    build:
+      context: .
+      dockerfile: services/iam-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3001"
+      DB_HOST: postgres-iam
+      DB_NAME: iam
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+    depends_on:
+      postgres-iam:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  recognition-service:
+    build:
+      context: .
+      dockerfile: services/recognition-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3002"
+      DB_HOST: postgres-recognition
+      DB_NAME: recognition
+      MONGO_URL: mongodb://${MONGO_ROOT_USER:-signa}:${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD en .env o exportalo}@mongo:27017/recognition?authSource=admin
+    depends_on:
+      postgres-recognition:
+        condition: service_healthy
+      mongo:
+        condition: service_started
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  lexicon-service:
+    build:
+      context: .
+      dockerfile: services/lexicon-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3003"
+      DB_HOST: postgres-lexicon
+      DB_NAME: lexicon
+      # LEXICON_MEDIA_BASE_URL: https://cdn.ejemplo.com/lexicon
+    depends_on:
+      postgres-lexicon:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  analytics-service:
+    build:
+      context: .
+      dockerfile: services/analytics-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3004"
+      DB_HOST: postgres-analytics
+      DB_NAME: analytics
+    depends_on:
+      postgres-analytics:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  profile-service:
+    build:
+      context: .
+      dockerfile: services/profile-service/Dockerfile
+    environment:
+      <<: *service-env
+      PORT: "3005"
+      DB_HOST: postgres-profile
+      DB_NAME: profile
+    depends_on:
+      postgres-profile:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    restart: unless-stopped
+
+  postgres-iam:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: iam
+    ports:
+      - "127.0.0.1:5433:5432"
+    volumes:
+      - pg-iam-data:/var/lib/postgresql/data
+      # Esquema de usuarios, RBAC y codigos de un solo uso: se aplica al crear el volumen por primera vez.
+      - ./services/iam-service/db/000_users.sql:/docker-entrypoint-initdb.d/000_users.sql:ro
+      - ./services/iam-service/db/003_iam_roles_permissions.sql:/docker-entrypoint-initdb.d/003_iam_roles_permissions.sql:ro
+      - ./services/iam-service/db/005_auth_email_normalization_user_tokens.sql:/docker-entrypoint-initdb.d/005_auth_email_normalization_user_tokens.sql:ro
+      - ./services/iam-service/db/006_users_status_email_verification.sql:/docker-entrypoint-initdb.d/006_users_status_email_verification.sql:ro
+    healthcheck: &pg-healthcheck
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  postgres-recognition:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: recognition
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - pg-recognition-data:/var/lib/postgresql/data
+      # Esquema (translations, sign_templates): se aplica al crear el volumen por primera vez.
+      - ./services/recognition-service/db/001_translations.sql:/docker-entrypoint-initdb.d/001_translations.sql:ro
+      - ./services/recognition-service/db/002_sign_templates.sql:/docker-entrypoint-initdb.d/002_sign_templates.sql:ro
+    healthcheck: *pg-healthcheck
+
+  postgres-lexicon:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: lexicon
+    ports:
+      - "127.0.0.1:5435:5432"
+    volumes:
+      - pg-lexicon-data:/var/lib/postgresql/data
+      # Esquema y semilla del alfabeto: se aplican al crear el volumen por primera vez.
+      - ./services/lexicon-service/db/003_lexicon.sql:/docker-entrypoint-initdb.d/003_lexicon.sql:ro
+    healthcheck: *pg-healthcheck
+
+  postgres-analytics:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: analytics
+    ports:
+      - "127.0.0.1:5436:5432"
+    volumes:
+      - pg-analytics-data:/var/lib/postgresql/data
+      # Esquema: se aplica al crear el volumen por primera vez.
+      - ./services/analytics-service/db/001_usage_event.sql:/docker-entrypoint-initdb.d/001_usage_event.sql:ro
+    healthcheck: *pg-healthcheck
+
+  postgres-profile:
+    <<: *postgres
+    environment:
+      <<: *postgres-env
+      POSTGRES_DB: profile
+    ports:
+      - "127.0.0.1:5437:5432"
+    volumes:
+      - pg-profile-data:/var/lib/postgresql/data
+      # Esquema y semilla de logros: se aplican al crear el volumen por primera vez.
+      - ./services/profile-service/db/001_profile.sql:/docker-entrypoint-initdb.d/001_profile.sql:ro
+    healthcheck: *pg-healthcheck
+
+  mongo:
+    image: mongo:7
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-signa}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD en .env o exportalo}
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongo-data:/data/db
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    restart: unless-stopped
+    environment:
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-signa}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD en .env o exportalo}
+    ports:
+      # Solo la UI de administracion y solo en local; el AMQP queda en la red interna.
+      - "127.0.0.1:15672:15672"
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    healthcheck:
+      # check_port_connectivity: el listener AMQP abre despues de que "ping" ya responde
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_port_connectivity"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pg-iam-data:
+  pg-recognition-data:
+  pg-lexicon-data:
+  pg-analytics-data:
+  pg-profile-data:
+  mongo-data:
+  rabbitmq-data:

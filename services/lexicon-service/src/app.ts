@@ -1,5 +1,5 @@
 import express, { Express, RequestHandler } from 'express';
-import { errorHandler } from './shared/http/error_handler';
+import { errorHandler } from '@traduce/shared';
 import { makeLexiconModule } from './lexicon.module';
 
 const SERVICE_NAME = 'lexicon-service';

@@ -1,4 +1,4 @@
-import { EventPublisher } from '../../src/shared/events/event_publisher';
+import { EventPublisher } from '@traduce/shared';
 import {
   Category, CategorySummary, Localization, MultimediaResource, NewResource, NewSign, Sign, SignChanges,
   SignFilter, SignStatus,

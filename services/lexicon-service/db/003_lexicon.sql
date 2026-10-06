@@ -55,6 +55,12 @@ FROM (VALUES
 ) AS v(name, description)
 WHERE NOT EXISTS (SELECT 1 FROM public.categories c WHERE lower(c.name) = lower(v.name));
 
+-- Unicidad de nombres sin distinguir mayusculas ('Saludos' = 'saludos'): la
+-- aplica la base, no solo la capa de aplicacion. Si ya hay categorias que solo
+-- difieren en mayusculas, hay que fusionarlas antes de ejecutar este archivo.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_categories_name_lower
+  ON public.categories (lower(name));
+
 -- ── sign_lexicon ────────────────────────────────────────────────────────
 -- Si la tabla ya existe (Liquibase 010 o version anterior) solo se completa.
 CREATE TABLE IF NOT EXISTS public.sign_lexicon (

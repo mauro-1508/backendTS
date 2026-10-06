@@ -1,7 +1,7 @@
 import { test, describe, beforeEach, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
-// Carga la augmentacion global de Express (req.user).
-import '../src/shared/http/auth_middleware';
+// Carga la augmentacion global de Express (req.user) declarada en @traduce/shared.
+import '@traduce/shared';
 import { makeLexiconController } from '../src/adapters/inbound/http/lexicon_controller';
 import { LexiconResult, LexiconService } from '../src/ports/inbound/lexicon_service';
 import {

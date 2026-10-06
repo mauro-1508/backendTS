@@ -23,7 +23,7 @@ Las lecturas aceptan `?lang=ES|EN` (por defecto ES): `word`, `meaning` y `descri
 localización en ese idioma, con respaldo a ES y luego a cualquiera. (`language` sigue siendo la lengua
 de señas, `LSC`.) Las lecturas públicas solo devuelven señas `ACTIVE`.
 
-"ADMIN" = JWT válido **y** rol `ADMIN` según `ROLE_SOURCE` (ver README del servicio). Sin
+"ADMIN" = JWT válido **y** rol `ADMIN` en `user_role` (middleware `requireRole` de `shared/http`). Sin
 rol responde 403 `FORBIDDEN`.
 
 | Método | Ruta | Auth | Qué hace |
