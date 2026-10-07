@@ -1,0 +1,26 @@
+<databaseChangeLog
+    xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="
+        http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <changeSet id="002" author="juan">
+        <createTable tableName="users">
+            <column name="user_id" type="SERIAL">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="name" type="VARCHAR(255)"/>
+            <column name="age" type="INT"/>
+            <column name="email" type="VARCHAR(255)">
+                <constraints unique="true"/>
+            </column>
+            <column name="password" type="VARCHAR(255)"/>
+            <column name="theme" type="BOOLEAN"/>
+            <column name="language" type="VARCHAR(50)"/>
+            <column name="terms_accepted" type="BOOLEAN"/>
+            <column name="terms_accepted_at" type="TIMESTAMP"/>
+        </createTable>
+    </changeSet>
+
+</databaseChangeLog>    

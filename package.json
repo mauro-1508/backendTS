@@ -1,0 +1,19 @@
+{
+  "name": "signa-backend",
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run build -w @traduce/shared && node scripts/run-tests.js",
+    "dev:all": "concurrently -k -n gateway,iam,recognition,lexicon,analytics,profile \"npm run dev -w @traduce/api-gateway\" \"npm run dev -w @traduce/iam-service\" \"npm run dev -w @traduce/recognition-service\" \"npm run dev -w @traduce/lexicon-service\" \"npm run dev -w @traduce/analytics-service\" \"npm run dev -w @traduce/profile-service\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "concurrently": "^10.0.5",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.6.3"
+  },
+  "workspaces": [
+    "packages/*",
+    "services/*"
+  ],
+  "private": true
+}

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+    http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+
+    <changeSet id="004" author="juan">
+        <createTable tableName="user_auth">
+            <column name="auth_id" type="SERIAL">
+                <constraints primaryKey="true"/>
+            </column>
+            <column name="provider" type="VARCHAR(50)"/>
+            <column name="provider_id" type="VARCHAR(255)"/>
+            <column name="email" type="VARCHAR(150)"/>
+            <column name="user_id" type="INT"/>
+        </createTable>
+
+        <addForeignKeyConstraint
+            baseTableName="user_auth"
+            baseColumnNames="user_id"
+            referencedTableName="users"
+            referencedColumnNames="user_id"
+            constraintName="fk_user_auth_user"/>
+    </changeSet>
+
+</databaseChangeLog>
