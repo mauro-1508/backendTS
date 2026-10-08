@@ -159,14 +159,12 @@ async function withFixture(
   let schemaCreated = false;
 
   try {
-    // Verificacion adicional antes de cualquier escritura.
     const identity = await admin.query(
       'SELECT current_database() AS database, current_user AS username',
     );
     assert.equal(identity.rows[0].database, TEST_DATABASE);
     assert.equal(identity.rows[0].username, TEST_USER);
 
-    // schema solo contiene un prefijo constante y caracteres hexadecimales.
     await admin.query(`CREATE SCHEMA "${schema}"`);
     schemaCreated = true;
 
@@ -175,16 +173,13 @@ async function withFixture(
       'utf8',
     );
 
-    // Ejecuta el SQL real solamente dentro del esquema de esta prueba.
     const client = await firstPool.connect();
     try {
       await client.query(sql);
     } finally {
-      // Descarta la conexion incluso si el SQL dejo una transaccion abortada.
       client.release(true);
     }
 
-    // Desactiva los seeds dentro del esquema aislado.
     await firstPool.query('UPDATE achievements SET is_active = FALSE');
     await firstPool.query(
       `INSERT INTO achievements (
@@ -207,7 +202,6 @@ async function withFixture(
 
     await work(fixture);
   } finally {
-    // Cada prueba libera sus barreras antes de llegar aqui.
     await Promise.allSettled(fixture.tasks);
 
     try {
@@ -247,7 +241,6 @@ async function waitForBlockedSecond(
 
     if (result.rows[0].blocked === true) return;
 
-    // El polling observa un estado real; no presupone un orden por tiempo.
     await delay(20);
   }
 
@@ -263,7 +256,7 @@ async function checkState(
   notifications: number,
 ): Promise<void> {
   const result = await fixture.firstPool.query(
-    `SELECT current_count, achieved_at
+    `SELECT current_count, achieved_at, notified_at
      FROM user_achievements
      WHERE user_id = $1 AND achievement_id = $2`,
     [userId, fixture.achievementId],
@@ -272,6 +265,10 @@ async function checkState(
   assert.equal(result.rows.length, 1);
   assert.equal(result.rows[0].current_count, count);
   assert.equal(result.rows[0].achieved_at !== null, unlocked);
+  assert.equal(
+    result.rows[0].notified_at !== null,
+    notifications > 0,
+  );
 
   const processed = await fixture.firstPool.query(
     'SELECT COUNT(*)::integer AS total FROM processed_events',
@@ -309,7 +306,6 @@ async function concurrentCase(options: {
               metric,
             );
 
-          // Pausa despues de leer, manteniendo abierta la transaccion.
           readReached.resolve();
           await within(releaseRead.promise, 'No se libero la barrera.');
           return progress;
@@ -388,14 +384,45 @@ async function concurrentCase(options: {
 describe(
   'Gamification: concurrencia PostgreSQL',
   {
-    // La suite normal puede omitir integracion.
-    // GAMIFICATION_PG_TESTS=1 exige configuracion y ejecucion reales.
     skip: !connectionString && !required
       ? 'Define PROFILE_TEST_DATABASE_URL para ejecutar integracion.'
       : false,
     concurrency: false,
   },
   () => {
+    for (const state of ['absent', 'inactive'] as const) {
+      it(`no registra notified_at con tipo ${state}`, async () => {
+        await withFixture(1, undefined, async fixture => {
+          if (state === 'absent') {
+            await fixture.firstPool.query(
+              `DELETE FROM notification_types
+               WHERE code = 'ACHIEVEMENT_UNLOCKED'`,
+            );
+          } else {
+            await fixture.firstPool.query(
+              `UPDATE notification_types
+               SET is_active = FALSE
+               WHERE code = 'ACHIEVEMENT_UNLOCKED'`,
+            );
+          }
+
+          const record = makeRecordTranslation({
+            unitOfWork: makePostgresUnitOfWork(fixture.firstPool),
+            eventPublisher: fixture.publisher,
+          });
+
+          const unlocked = await track(
+            fixture,
+            record(randomUUID(), 'user-a'),
+          );
+
+          assert.equal(unlocked.length, 1);
+          await checkState(fixture, 'user-a', 1, true, 1, 0);
+          assert.equal(fixture.published.length, 1);
+        });
+      });
+    }
+
     it('conserva ambos incrementos cuando no existe progreso', async () => {
       await concurrentCase({
         target: 3,
@@ -436,10 +463,13 @@ describe(
 
         const failingUow = decorate(fixture.firstPool, repositories => ({
           ...repositories,
-          notifications: {
-            ...repositories.notifications,
-            create: async notification => {
-              await repositories.notifications.create(notification);
+          achievements: {
+            ...repositories.achievements,
+            markNotified: async (userId, achievementId) => {
+              await repositories.achievements.markNotified(
+                userId,
+                achievementId,
+              );
               throw new Error('forced rollback');
             },
           },
@@ -467,7 +497,6 @@ describe(
         }
         assert.deepEqual(fixture.published, []);
 
-        // Otra conexion debe poder adquirir el bloqueo y procesar el mismo UUID.
         const retry = makeRecordTranslation({
           unitOfWork: makePostgresUnitOfWork(fixture.secondPool),
           eventPublisher: fixture.publisher,
@@ -486,7 +515,6 @@ describe(
 
     it('otro usuario puede avanzar mientras el primero esta pausado', async () => {
       await withFixture(3, undefined, async fixture => {
-        // Verifica que estos usuarios no colisionan en la clave del advisory lock.
         const hashes = await fixture.firstPool.query(
           `SELECT hashtext('user-a') <> hashtext('user-b') AS distinct_keys`,
         );
@@ -505,6 +533,7 @@ describe(
                   userId,
                   metric,
                 );
+
               readReached.resolve();
               await within(releaseRead.promise, 'No se libero la barrera.');
               return progress;

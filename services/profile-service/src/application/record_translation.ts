@@ -39,7 +39,17 @@ export const makeRecordTranslation = (deps: { unitOfWork: UnitOfWork; eventPubli
       await repositories.achievements.saveProgress(userId, next);
       if (!isUnlocked(next)) continue;
       unlockedNow.push(next);
-      if (preferences.notificationsEnabled) await notifyUnlock(repositories, userId, next);
+      if (preferences.notificationsEnabled) {
+  const notificationCreated =
+    await notifyUnlock(repositories, userId, next);
+
+  if (notificationCreated) {
+    await repositories.achievements.markNotified(
+      userId,
+      next.achievement.id,
+    );
+  }
+}
     }
     return unlockedNow;
   };

@@ -23,11 +23,14 @@ export interface AchievementRepository {
   findProgressByMetric(userId: string, metric: AchievementMetric): Promise<AchievementProgress[]>;
   /** Todos los logros activos con el avance del usuario. */
   findAllProgress(userId: string): Promise<AchievementProgress[]>;
+  /** Registra la creación efectiva de la notificación del logro. */
+markNotified(userId: string, achievementId: string): Promise<void>;
   saveProgress(userId: string, progress: AchievementProgress): Promise<void>;
 }
 
 export interface NotificationRepository {
-  create(notification: NewNotification): Promise<void>;
+  create(notification: NewNotification): Promise<boolean>;
+  /** Devuelve false si el tipo no existe o está inactivo. */
   list(userId: string, query: NotificationQuery): Promise<NotificationPage>;
   markRead(userId: string, notificationId: string): Promise<Notification | null>;
 }

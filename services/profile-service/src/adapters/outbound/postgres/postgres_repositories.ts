@@ -115,13 +115,39 @@ export const makePostgresAchievementRepository = (db: Queryable): AchievementRep
 
   async saveProgress(userId, progress) {
     await db.query(
-      `INSERT INTO user_achievements (user_id, achievement_id, current_count, achieved_at, notified_at)
-       VALUES ($1, $2, $3, $4, $4)
+      `INSERT INTO user_achievements (
+         user_id, achievement_id, current_count, achieved_at
+       )
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (user_id, achievement_id) DO UPDATE
-         SET current_count = EXCLUDED.current_count, achieved_at = EXCLUDED.achieved_at,
-             notified_at = EXCLUDED.notified_at, updated_at = CURRENT_TIMESTAMP`,
-      [userId, progress.achievement.id, progress.currentCount, progress.achievedAt],
+         SET current_count = EXCLUDED.current_count,
+             achieved_at = EXCLUDED.achieved_at,
+             updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        progress.achievement.id,
+        progress.currentCount,
+        progress.achievedAt,
+      ],
     );
+  },
+
+  async markNotified(userId, achievementId) {
+    const result = await db.query(
+      `UPDATE user_achievements
+       SET notified_at = COALESCE(notified_at, CURRENT_TIMESTAMP),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1
+         AND achievement_id = $2
+         AND achieved_at IS NOT NULL`,
+      [userId, achievementId],
+    );
+
+    if (result.rowCount !== 1) {
+      throw new Error(
+        'No existe un logro desbloqueado para registrar la notificación',
+      );
+    }
   },
 });
 
@@ -144,16 +170,25 @@ const toNotification = (row: Record<string, any>): Notification => ({
 
 export const makePostgresNotificationRepository = (db: Queryable): NotificationRepository => ({
   async create(notification) {
-    await db.query(
+    const result = await db.query(
       `INSERT INTO notifications
-         (user_id, notification_type_id, channel, title, body, reference_type, reference_id, status, sent_at)
-       SELECT $1, notification_type_id, 'IN_APP', $3, $4, $5, $6, 'SENT', CURRENT_TIMESTAMP
-         FROM notification_types WHERE code = $2 AND is_active`,
+         (user_id, notification_type_id, channel, title, body,
+          reference_type, reference_id, status, sent_at)
+       SELECT $1, notification_type_id, 'IN_APP', $3, $4,
+              $5, $6, 'SENT', CURRENT_TIMESTAMP
+       FROM notification_types
+       WHERE code = $2 AND is_active`,
       [
-        notification.userId, notification.typeCode, notification.title, notification.body,
-        notification.referenceType ?? null, notification.referenceId ?? null,
+        notification.userId,
+        notification.typeCode,
+        notification.title,
+        notification.body,
+        notification.referenceType ?? null,
+        notification.referenceId ?? null,
       ],
     );
+
+    return result.rowCount === 1;
   },
 
   async list(userId, { page, limit, unreadOnly }) {

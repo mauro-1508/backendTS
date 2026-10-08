@@ -29,6 +29,71 @@ const setup = (targets: number[] = [1, 3]) => {
 };
 
 describe('registrar traduccion y desbloquear logros', () => {
+  it('marca como notificado solo despues de crear la notificacion', async () => {
+    const { store, record } = setup([1]);
+    const calls: string[] = [];
+
+    const originalCreate = store.repositories.notifications.create;
+    const originalMark = store.repositories.achievements.markNotified;
+
+    store.repositories.notifications.create = async notification => {
+      const created = await originalCreate(notification);
+      calls.push('notification:created');
+      return created;
+    };
+
+    store.repositories.achievements.markNotified =
+      async (userId, achievementId) => {
+        assert.equal(store.notifications.length, 1);
+        calls.push('achievement:notified');
+        await originalMark(userId, achievementId);
+      };
+
+    await record('notification-created', USER);
+
+    assert.deepEqual(calls, [
+      'notification:created',
+      'achievement:notified',
+    ]);
+    assert.equal(
+      store.notifiedAchievements.has(`${USER}:id-T1`),
+      true,
+    );
+
+    await record('another-translation', USER);
+
+    assert.equal(store.notifications.length, 1);
+    assert.equal(calls.length, 2);
+  });
+
+  it('no marca como notificado cuando no se inserta la notificacion', async () => {
+    const { store, record, published } = setup([1]);
+
+    store.repositories.notifications.create = async () => false;
+
+    const unlocked = await record('notification-skipped', USER);
+
+    assert.equal(unlocked.length, 1);
+    assert.equal(store.notifications.length, 0);
+    assert.equal(store.notifiedAchievements.size, 0);
+    assert.deepEqual(published, ['profile.AchievementUnlocked']);
+  });
+
+  it('no marca como notificado cuando las notificaciones estan apagadas', async () => {
+    const { store, record } = setup([1]);
+
+    store.preferencesByUser.set(USER, {
+      uiLanguage: 'ES',
+      theme: 'LIGHT',
+      notificationsEnabled: false,
+    });
+
+    const unlocked = await record('notification-disabled', USER);
+
+    assert.equal(unlocked.length, 1);
+    assert.equal(store.notifications.length, 0);
+    assert.equal(store.notifiedAchievements.size, 0);
+  });
   it('espera el bloqueo del usuario antes de consultar el progreso', async () => {
     const { store, record } = setup([3]);
     const calls: string[] = [];
