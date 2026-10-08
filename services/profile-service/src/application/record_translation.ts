@@ -7,6 +7,8 @@ import { TransactionalRepositories, UnitOfWork } from '../ports/repositories';
 import { processEventOnce } from './process_event_once';
 import { publishQuietly } from './publish_event';
 
+
+
 const TRANSLATIONS_METRIC: AchievementMetric = 'TRANSLATIONS_COMPLETED';
 const TRANSLATION_INCREMENT = 1;
 
@@ -26,6 +28,7 @@ const notifyUnlock = (repositories: TransactionalRepositories, userId: string, u
  */
 export const makeRecordTranslation = (deps: { unitOfWork: UnitOfWork; eventPublisher: EventPublisher }) => {
   const applyTranslation = async (repositories: TransactionalRepositories, userId: string) => {
+    await repositories.gamificationLocks.lockUser(userId);
     const preferences = (await repositories.profiles.findPreferences(userId)) ?? DEFAULT_PREFERENCES;
     const pending = (await repositories.achievements.findProgressByMetric(userId, TRANSLATIONS_METRIC))
       .filter(progress => !isUnlocked(progress));

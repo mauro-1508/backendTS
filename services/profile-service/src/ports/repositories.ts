@@ -37,12 +37,20 @@ export interface ProcessedEventRepository {
   markIfNew(eventId: string): Promise<boolean>;
 }
 
+/** Bloqueos disponibles dentro de la unidad de trabajo. */
+export interface GamificationLocks {
+  /** Serializa las actualizaciones del usuario hasta commit o rollback. */
+  lockUser(userId: string): Promise<void>;
+}
+
+
 /** Repositorios que comparten una misma transaccion. */
 export interface TransactionalRepositories {
   profiles: ProfileRepository;
   achievements: AchievementRepository;
   notifications: NotificationRepository;
   processedEvents: ProcessedEventRepository;
+  gamificationLocks: GamificationLocks;
 }
 
 export interface UnitOfWork {

@@ -56,6 +56,11 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
         return true;
       },
     },
+
+    gamificationLocks: {
+  lockUser: async () => {},
+},
+
   };
   const unitOfWork: UnitOfWork = { run: work => work(repositories) };
 

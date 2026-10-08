@@ -3,7 +3,8 @@ import { AchievementProgress } from '../../../domain/achievement';
 import { Notification } from '../../../domain/notification';
 import { Preferences, Profile } from '../../../domain/preferences';
 import {
-  AchievementRepository, NotificationRepository, ProcessedEventRepository, ProfileRepository,
+  AchievementRepository, GamificationLocks, NotificationRepository,
+  ProcessedEventRepository, ProfileRepository,
   TransactionalRepositories, UnitOfWork,
 } from '../../../ports/repositories';
 
@@ -197,11 +198,28 @@ export const makePostgresProcessedEventRepository = (db: Queryable): ProcessedEv
   },
 });
 
-export const makePostgresRepositories = (db: Queryable): TransactionalRepositories => ({
+const GAMIFICATION_LOCK_NAMESPACE = 714305;
+
+/** Usa el cliente de la transacción para mantener el bloqueo hasta commit o rollback. */
+export const makePostgresGamificationLocks = (
+  db: Queryable,
+): GamificationLocks => ({
+  async lockUser(userId) {
+    await db.query(
+      'SELECT pg_advisory_xact_lock($1::integer, hashtext($2::text))',
+      [GAMIFICATION_LOCK_NAMESPACE, userId],
+    );
+  },
+});
+
+export const makePostgresRepositories = (
+  db: Queryable,
+): TransactionalRepositories => ({
   profiles: makePostgresProfileRepository(db),
   achievements: makePostgresAchievementRepository(db),
   notifications: makePostgresNotificationRepository(db),
   processedEvents: makePostgresProcessedEventRepository(db),
+  gamificationLocks: makePostgresGamificationLocks(db),
 });
 
 /** Cada `run` abre una transaccion: commit si termina bien, rollback si falla. */
@@ -209,7 +227,7 @@ export const makePostgresUnitOfWork = (pool: Pool): UnitOfWork => ({
   async run(work) {
     const client: PoolClient = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
       const result = await work(makePostgresRepositories(client));
       await client.query('COMMIT');
       return result;
