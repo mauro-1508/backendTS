@@ -30,7 +30,13 @@ const withValidUser = <T extends { userId: string }>(
 export const subscribeToEvents = async (subscriber: EventSubscriber, handlers: EventHandlers): Promise<void> => {
   await subscriber.subscribe(
     { queue: USER_REGISTERED_QUEUE, pattern: CONSUMED_EVENTS.UserRegistered },
-    withValidUser<UserRegisteredPayload>((event, payload) => handlers.registerUserProfile(event.eventId, payload)),
+    withValidUser<UserRegisteredPayload>((event, payload) =>
+      handlers.registerUserProfile(event.eventId, {
+        userId: payload.userId,
+        email: payload.email,
+        fullName: payload.name,
+      }),
+    ),
   );
   await subscriber.subscribe(
     { queue: TRANSLATION_PRODUCED_QUEUE, pattern: CONSUMED_EVENTS.TranslationProduced },

@@ -1,3 +1,5 @@
+import type { UserRegistered } from '@traduce/shared';
+
 /** Eventos que profile consume y publica (routing keys `<servicio>.<Evento>`). */
 export const CONSUMED_EVENTS = {
   UserRegistered: 'iam.UserRegistered',
@@ -9,12 +11,10 @@ export const PUBLISHED_EVENTS = {
   PreferencesChanged: 'profile.PreferencesChanged',
 } as const;
 
-export interface UserRegisteredPayload {
+/** Contrato compartido, con el identificador normalizado a texto en Profile. */
+export type UserRegisteredPayload = Omit<UserRegistered, 'userId'> & {
   userId: string;
-  email?: string;
-  fullName?: string;
-  username?: string;
-}
+};
 
 export interface TranslationProducedPayload {
   userId: string;
