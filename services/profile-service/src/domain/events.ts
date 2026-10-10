@@ -16,10 +16,6 @@ export type UserRegisteredPayload = Omit<UserRegistered, 'userId'> & {
   userId: string;
 };
 
-export interface TranslationProducedPayload {
-  userId: string;
-}
-
 export interface AchievementUnlockedPayload {
   userId: string;
   achievementId: string;
