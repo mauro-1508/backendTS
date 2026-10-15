@@ -14,8 +14,15 @@ export interface ProfileRepository {
   createIfAbsent(profile: NewProfile): Promise<void>;
   findProfile(userId: string): Promise<Profile | null>;
   findPreferences(userId: string): Promise<Preferences | null>;
-  /** Aplica el cambio; devuelve null si el usuario no tiene preferencias. */
-  updatePreferences(userId: string, patch: PreferencesPatch): Promise<Preferences | null>;
+  /**
+   * Recibe un patch validado, no vacío y sin valores undefined.
+   * Aplica solo los campos enviados; crea preferencias con defaults si faltan.
+   * Devuelve null si no existe el perfil.
+   */
+  updatePreferences(
+    userId: string,
+    patch: PreferencesPatch,
+  ): Promise<Preferences | null>;
 }
 
 export interface AchievementRepository {

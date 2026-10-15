@@ -1,7 +1,7 @@
 import { AchievementProgress } from '../src/domain/achievement';
 import { NewNotification } from '../src/domain/notification';
 import { DEFAULT_PREFERENCES, Preferences } from '../src/domain/preferences';
-import { TransactionalRepositories, UnitOfWork } from '../src/ports/repositories';
+import {NewProfile,TransactionalRepositories,UnitOfWork,} from '../src/ports/repositories';
 
 export const makeAchievement = (
   code: string,
@@ -27,6 +27,7 @@ export const makeAchievement = (
 export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
   const progressByUser = new Map<string, Map<string, AchievementProgress>>();
   const preferencesByUser = new Map<string, Preferences>();
+    const profilesByUser = new Map<string, NewProfile>();
   const notifications: NewNotification[] = [];
   const notifiedAchievements = new Set<string>();
   const processed = new Set<string>();
@@ -46,17 +47,46 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
     );
 
   const repositories: TransactionalRepositories = {
-    profiles: {
-      createIfAbsent: async ({ userId }) => {
-        if (preferencesByUser.has(userId)) return;
+        profiles: {
+      createIfAbsent: async profile => {
+        if (!profilesByUser.has(profile.userId)) {
+          profilesByUser.set(profile.userId, { ...profile });
+          createdProfiles.push(profile.userId);
+        }
 
-        createdProfiles.push(userId);
-        preferencesByUser.set(userId, { ...DEFAULT_PREFERENCES });
+        if (!preferencesByUser.has(profile.userId)) {
+          preferencesByUser.set(profile.userId, { ...DEFAULT_PREFERENCES });
+        }
       },
-      findProfile: async () => null,
-      findPreferences: async userId =>
-        preferencesByUser.get(userId) ?? null,
-      updatePreferences: async () => null,
+      findProfile: async userId => {
+        const profile = profilesByUser.get(userId);
+        if (!profile) return null;
+
+        return {
+          userId,
+          fullName: profile.fullName ?? '',
+          username: profile.username,
+          email: profile.email,
+          preferences: {
+            ...(preferencesByUser.get(userId) ?? DEFAULT_PREFERENCES),
+          },
+        };
+      },
+      findPreferences: async userId => {
+        const preferences = preferencesByUser.get(userId);
+        return preferences ? { ...preferences } : null;
+      },
+      updatePreferences: async (userId, patch) => {
+        if (!profilesByUser.has(userId)) return null;
+
+        const updated = {
+          ...(preferencesByUser.get(userId) ?? DEFAULT_PREFERENCES),
+          ...patch,
+          updatedAt: new Date().toISOString(),
+        };
+        preferencesByUser.set(userId, updated);
+        return { ...updated };
+      },
     },
 
     achievements: {
@@ -110,6 +140,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
     notifications,
     notifiedAchievements,
     preferencesByUser,
+    profilesByUser,
     createdProfiles,
     progressOf,
   };

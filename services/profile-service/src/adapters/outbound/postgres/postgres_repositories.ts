@@ -65,14 +65,29 @@ export const makePostgresProfileRepository = (db: Queryable): ProfileRepository 
     return rows[0] ? toPreferences(rows[0]) : null;
   },
 
-  async updatePreferences(userId, patch) {
-    const entries = Object.entries(patch) as Array<[keyof typeof COLUMN_BY_PREFERENCE, unknown]>;
-    const assignments = entries.map(([field], index) => `${COLUMN_BY_PREFERENCE[field]} = $${index + 2}`);
+    async updatePreferences(userId, patch) {
+    const entries = Object.entries(patch) as Array<
+      [keyof typeof COLUMN_BY_PREFERENCE, unknown]
+    >;
+    const columns = entries.map(([field]) => COLUMN_BY_PREFERENCE[field]);
+    const placeholders = entries.map(([field], index) =>
+      `$${index + 2}::${field === 'notificationsEnabled' ? 'boolean' : 'text'}`,
+    );
+    const assignments = columns.map(
+      column => `${column} = EXCLUDED.${column}`,
+    );
+
     const { rows } = await db.query(
-      `UPDATE user_preferences SET ${assignments.join(', ')}, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = $1 RETURNING ${PREFERENCES_COLUMNS}`,
+      `INSERT INTO user_preferences (user_id, ${columns.join(', ')})
+       SELECT p.user_id, ${placeholders.join(', ')}
+         FROM user_profiles p
+        WHERE p.user_id = $1
+       ON CONFLICT (user_id) DO UPDATE
+         SET ${assignments.join(', ')}, updated_at = CURRENT_TIMESTAMP
+       RETURNING ${PREFERENCES_COLUMNS}`,
       [userId, ...entries.map(([, value]) => value)],
     );
+
     return rows[0] ? toPreferences(rows[0]) : null;
   },
 });
