@@ -39,3 +39,16 @@ export interface SignWithdrawn {
   lexiconId: number;
   code: string;
 }
+
+/**
+ * Identidad proporcionada por IAM para recuperar su proyección en Profile.
+ * No representa un nuevo registro ni contiene fechas históricas.
+ *
+ * El nombre puede faltar o ser null. La recuperación no inventa un nombre
+ * ni sobrescribe los datos de un perfil que ya existe.
+ */
+export interface IdentityRecovery {
+  userId: number;
+  email: string;
+  name?: string | null;
+}

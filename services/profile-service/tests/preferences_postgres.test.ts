@@ -12,6 +12,9 @@ import {
 } from '../src/adapters/outbound/postgres/postgres_repositories';
 import { makeRegisterUserProfile } from '../src/application/register_user_profile';
 import {
+  makeRecoverUserProfile,
+} from '../src/application/recover_user_profile';
+import {
   DEFAULT_PREFERENCES,
   PreferencesPatch,
 } from '../src/domain/preferences';
@@ -259,6 +262,41 @@ async function concurrentCase(
   }
 }
 
+// La recuperación admite las tres formas de nombre sin inventar valores.
+const recoveryIdentities = [
+  {
+    userId: 7,
+    email: 'ada@example.com',
+    name: 'Ada Lovelace',
+  },
+  {
+    userId: 7,
+    email: 'ada@example.com',
+  },
+  {
+    userId: 7,
+    email: 'ada@example.com',
+    name: null,
+  },
+];
+
+// Captura filas completas para comprobar que la recuperación conserva
+// datos, identificadores y fechas existentes.
+// Cada tabla utiliza sus propias columnas de ordenación.
+async function snapshotRecoveryState(pool: Pool) {
+  const queries = [
+    'SELECT * FROM user_profiles ORDER BY user_id',
+    'SELECT * FROM user_preferences ORDER BY user_id',
+    'SELECT * FROM processed_events ORDER BY event_id',
+    'SELECT * FROM user_achievements ORDER BY user_id, achievement_id',
+    'SELECT * FROM notifications ORDER BY notification_id',
+  ];
+
+  return Promise.all(
+    queries.map(async sql => (await pool.query(sql)).rows),
+  );
+}
+
 describe('preferencias: PostgreSQL real', {
   concurrency: false,
   skip: !connectionString && !required
@@ -496,4 +534,154 @@ describe('preferencias: PostgreSQL real', {
       });
     });
   });
+
+  // Recorre doce escenarios: tres formas de nombre y cuatro estados
+  // de existencia de perfil/preferencias.
+  // Las dos conexiones ejecutan recuperaciones sobre el mismo usuario.
+  it('recupera cada estado parcial con nombre presente, ausente o null',
+    async () => {
+      for (const identity of recoveryIdentities) {
+        for (const existing of ['none', 'profile', 'preferences', 'both']) {
+          await withFixture(async ({ first, second }) => {
+            await first.query(
+              'INSERT INTO processed_events (event_id) VALUES ($1)',
+              [randomUUID()],
+            );
+
+            if (existing === 'profile' || existing === 'both') {
+              await first.query(`
+                INSERT INTO user_profiles
+                  (user_id, email, full_name, username, created_at)
+                VALUES (
+                  '7', NULL, 'Nombre conservado', 'alias',
+                  '2020-01-01T00:00:00Z'
+                )
+              `);
+            }
+
+            if (existing === 'preferences' || existing === 'both') {
+              await first.query(`
+                INSERT INTO user_preferences
+                  (user_id, ui_language, theme,
+                   notifications_enabled, updated_at)
+                VALUES (
+                  '7', 'EN', 'DARK', FALSE,
+                  '2020-01-01T00:00:00Z'
+                )
+              `);
+            }
+
+            const before = await snapshotRecoveryState(first);
+
+            const recover = makeRecoverUserProfile({
+              unitOfWork: makePostgresUnitOfWork(first),
+            });
+            const recoverAgain = makeRecoverUserProfile({
+              unitOfWork: makePostgresUnitOfWork(second),
+            });
+
+            await Promise.all([
+              recover(identity),
+              recoverAgain(identity),
+            ]);
+
+            const after = await snapshotRecoveryState(first);
+
+            assert.equal(after[0].length, 1);
+            assert.equal(after[1].length, 1);
+
+            if (before[0].length) {
+              assert.deepEqual(after[0], before[0]);
+            } else {
+              assert.equal(after[0][0].user_id, '7');
+              assert.equal(after[0][0].email, identity.email);
+              assert.equal(
+                after[0][0].full_name,
+                identity.name ?? null,
+              );
+              assert.equal(after[0][0].username, null);
+            }
+
+            if (before[1].length) {
+              assert.deepEqual(after[1], before[1]);
+            } else {
+              assert.equal(after[1][0].ui_language, 'ES');
+              assert.equal(after[1][0].theme, 'LIGHT');
+              assert.equal(after[1][0].notifications_enabled, true);
+            }
+
+            // La recuperación no procesa eventos ni crea actividad.
+            assert.deepEqual(after.slice(2), before.slice(2));
+
+            // Cambiar la entrada no debe sobrescribir filas existentes,
+            // incluidos sus identificadores, fechas y campos nulos.
+            await recover({
+              userId: 7,
+              email: 'different@example.com',
+              name: 'Otro nombre',
+            });
+            await recover({
+              userId: 7,
+              email: identity.email,
+            });
+            await recover({
+              userId: 7,
+              email: identity.email,
+              name: null,
+            });
+
+            assert.deepEqual(
+              await snapshotRecoveryState(first),
+              after,
+            );
+          });
+        }
+      }
+    },
+  );
+
+  // Fuerza un fallo en preferencias para comprobar que la transacción
+  // tampoco deja creado el perfil. Después retira el fallo y reintenta.
+  it('revierte la creación del perfil si fallan las preferencias',
+    async () => {
+      for (const identity of recoveryIdentities) {
+        await withFixture(async ({ first }) => {
+          await first.query(`
+            ALTER TABLE user_preferences
+            ADD CONSTRAINT reject_recovery_user
+            CHECK (user_id <> '7')
+          `);
+
+          const before = await snapshotRecoveryState(first);
+          const recover = makeRecoverUserProfile({
+            unitOfWork: makePostgresUnitOfWork(first),
+          });
+
+          await assert.rejects(
+            recover(identity),
+            (error: unknown) =>
+              (error as { code?: string }).code === '23514',
+          );
+
+          assert.deepEqual(
+            await snapshotRecoveryState(first),
+            before,
+          );
+
+          await first.query(`
+            ALTER TABLE user_preferences
+            DROP CONSTRAINT reject_recovery_user
+          `);
+
+          await recover(identity);
+
+          const after = await snapshotRecoveryState(first);
+          assert.equal(after[0].length, 1);
+          assert.equal(after[1].length, 1);
+          assert.equal(after[0][0].full_name, identity.name ?? null);
+          assert.deepEqual(after.slice(2), before.slice(2));
+        });
+      }
+    },
+  );
 });
