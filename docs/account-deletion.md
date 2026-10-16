@@ -114,6 +114,6 @@ anteriores. Analytics añade los dos órdenes de save/borrado y observa espera
 real del bloqueo con pg_blocking_pids. Sin URL exclusiva los tests se omiten;
 una omisión no cuenta como integración aprobada.
 
-Ver execution-notes.md para resultados de esta entrega. Pendientes de validación
+Pendientes de validación
 real: concurrencia nueva PG, failover RabbitMQ/colas ausentes, fencing con dos
 relays reales, fallo parcial PG/Mongo y ambas vías de migración.
