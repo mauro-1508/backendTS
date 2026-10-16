@@ -1,5 +1,5 @@
 import type { IdentityRecovery } from '@traduce/shared';
-import { validationError } from '../domain/errors';
+import { accountDeletedError, validationError } from '../domain/errors';
 import type { NewProfile, UnitOfWork } from '../ports/repositories';
 
 const MAX_IAM_USER_ID = 2_147_483_647;
@@ -96,7 +96,16 @@ export const makeRecoverUserProfile = (
       : {}),
   };
 
-  await deps.unitOfWork.run(async ({ profiles }) => {
-    await profiles.createIfAbsent(profile);
-  });
+await deps.unitOfWork.run(async ({ profiles, gamificationLocks }) => {
+  // Espera el mismo turno que utiliza el borrado de esta cuenta.
+  await gamificationLocks.lockUser(profile.userId);
+
+  // Una cuenta eliminada no debe recuperarse desde un archivo antiguo.
+  // El error evita que el importador la cuente como recuperada.
+  if (await profiles.isErased(profile.userId)) {
+    throw accountDeletedError();
+  }
+
+  await profiles.createIfAbsent(profile);
+});
 };
