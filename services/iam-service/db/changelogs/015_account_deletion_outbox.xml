@@ -1,0 +1,15 @@
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+    <changeSet id="015-account-deletion-outbox" author="backend">
+        <!-- No ejecutar sobre un esquema runtime incompleto ni activar cuentas históricas. -->
+        <preConditions onFail="HALT">
+            <tableExists tableName="user_tokens"/>
+            <tableExists tableName="user_roles"/>
+            <tableExists tableName="roles"/>
+            <columnExists tableName="users" columnName="status"/>
+        </preConditions>
+        <sqlFile path="../009_outbox_events.sql" relativeToChangelogFile="true"/>
+        <sqlFile path="../010_outbox_claim_token.sql" relativeToChangelogFile="true"/>
+    </changeSet>
+</databaseChangeLog>

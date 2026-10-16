@@ -155,6 +155,7 @@ services:
       - ./services/iam-service/db/006_users_status_email_verification.sql:/docker-entrypoint-initdb.d/006_users_status_email_verification.sql:ro
       # Outbox de eventos (UserDeleted, ...): se publican con reintentos desde el relay de iam.
       - ./services/iam-service/db/009_outbox_events.sql:/docker-entrypoint-initdb.d/009_outbox_events.sql:ro
+      - ./services/iam-service/db/010_outbox_claim_token.sql:/docker-entrypoint-initdb.d/010_outbox_claim_token.sql:ro
     healthcheck: &pg-healthcheck
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
