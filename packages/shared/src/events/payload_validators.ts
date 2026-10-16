@@ -1,6 +1,9 @@
 import { EventEnvelope, EventHandler } from './event_bus';
 import { SignPublished, SignWithdrawn, TranslationProduced, UserDeleted, UserRegistered } from './contracts';
 
+/** Error permanente: conservar en DLQ; reintentar el mismo payload no lo repara. */
+export class InvalidEventPayloadError extends Error {}
+
 export type PayloadGuard<T> = (payload: unknown) => payload is T;
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -15,7 +18,7 @@ export const isUserRegistered: PayloadGuard<UserRegistered> = (payload): payload
   isRecord(payload) && isId(payload.userId) && isNonEmptyString(payload.email) && isNonEmptyString(payload.name);
 
 export const isUserDeleted: PayloadGuard<UserDeleted> = (payload): payload is UserDeleted =>
-  isRecord(payload) && isId(payload.userId) && isIsoDate(payload.occurredAt);
+  isRecord(payload) && isId(payload.userId) && payload.userId <= 2_147_483_647 && isIsoDate(payload.occurredAt);
 
 export const isTranslationProduced: PayloadGuard<TranslationProduced> = (payload): payload is TranslationProduced =>
   isRecord(payload)
@@ -46,10 +49,12 @@ export const withValidPayload = <T>(
   isValid: PayloadGuard<T>,
   handle: (event: EventEnvelope<T>) => Promise<void>,
   log: (message: string) => void = message => console.error(message),
+  onInvalid: 'discard' | 'reject' = 'discard',
 ): EventHandler =>
   async event => {
     if (!isValid(event.payload)) {
-      log(`[events] payload invalido en ${event.type} (${event.eventId}), se descarta`);
+      log(`[events] payload invalido en ${event.type} (${event.eventId}), ${onInvalid === 'reject' ? 'se rechaza' : 'se descarta'}`);
+      if (onInvalid === 'reject') throw new InvalidEventPayloadError('Payload de eliminación inválido');
       return;
     }
     await handle(event as EventEnvelope<T>);

@@ -1,3 +1,4 @@
+import { InvalidEventPayloadError } from './payload_validators';
 import { exponentialBackoffMs } from './backoff';
 import { EventHandler } from './event_bus';
 
@@ -11,7 +12,7 @@ export interface RetryHandlerOptions {
 
 export const DEFAULT_HANDLER_ATTEMPTS = 5;
 
-const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => setTimeout(resolve, ms));
+const defaultSleep = (ms: number): Promise<void> => new Promise(resolve => { const timer = setTimeout(resolve, ms); timer.unref(); });
 
 /**
  * Reintenta el handler con backoff ante errores pasajeros (BD caida un momento) antes de dejar
@@ -31,9 +32,14 @@ export const withRetry = (handler: EventHandler, options: RetryHandlerOptions = 
         await handler(event);
         return;
       } catch (error) {
+        if (error instanceof InvalidEventPayloadError) throw error;
         if (attempt + 1 >= attempts) {
           log('[events] ALERTA: ' + event.type + ' (' + event.eventId + ') fallo ' + attempts + ' veces; va a la cola de mensajes muertos', error);
           throw error;
+        }
+        // La limpieza válida no se abandona: mensaje sin ACK, redelivery al reiniciar.
+        if (attempts === Infinity && (attempt + 1) % DEFAULT_HANDLER_ATTEMPTS === 0) {
+          log('[events] limpieza pendiente; reintentando ' + event.type, new Error('consumer_retry'));
         }
         await sleep(backoffMs(attempt));
       }

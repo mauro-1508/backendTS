@@ -1,6 +1,8 @@
 import amqp, { Channel, ConfirmChannel, ConsumeMessage } from 'amqplib';
 import { exponentialBackoffMs } from './backoff';
 import { EventBus, EventEnvelope, EventHandler, PublishOptions, Subscription } from './event_bus';
+import { EVENT_TYPES } from './contracts';
+import { USER_DELETED_QUEUES } from './account_deletion_topology';
 import { makeEnvelope } from './make_envelope';
 
 export const EVENTS_EXCHANGE = 'traduce.events';
@@ -68,14 +70,27 @@ export class RabbitMqEventBus implements EventBus {
   /** Resuelve solo cuando el broker confirma el mensaje; si lo rechaza o se cae, rechaza. */
   async publish(type: string, payload: unknown, options: PublishOptions = {}): Promise<void> {
     const channel = await this.channel();
-    const envelope = makeEnvelope(type, payload, options.eventId);
+    if (type === EVENT_TYPES.UserDeleted && options.mandatory) {
+      // mandatory por sí solo solo exige UNA cola: provisionamos las tres antes de enviar.
+      for (const queue of USER_DELETED_QUEUES) {
+        await channel.assertQueue(`${queue}${DEAD_LETTER_QUEUE_SUFFIX}`, { durable: true });
+        await channel.bindQueue(`${queue}${DEAD_LETTER_QUEUE_SUFFIX}`, DEAD_LETTER_EXCHANGE, queue);
+        await channel.assertQueue(queue, {
+          durable: true, deadLetterExchange: DEAD_LETTER_EXCHANGE, deadLetterRoutingKey: queue,
+        });
+        await channel.bindQueue(queue, EVENTS_EXCHANGE, EVENT_TYPES.UserDeleted);
+      }
+    }
+    const envelope = makeEnvelope(type, payload, options.eventId, options.occurredAt);
     const body = Buffer.from(JSON.stringify(envelope));
     const mandatory = options.mandatory === true;
-    channel.publish(EVENTS_EXCHANGE, type, body, {
-      persistent: true, contentType: CONTENT_TYPE, messageId: envelope.eventId, mandatory,
+    const confirmation = new Promise<void>((resolve, reject) => {
+      channel.publish(EVENTS_EXCHANGE, type, body, {
+        persistent: true, contentType: CONTENT_TYPE, messageId: envelope.eventId, mandatory,
+      }, error => error ? reject(error) : resolve());
     });
     try {
-      await this.withTimeout(channel.waitForConfirms(), type);
+      await this.withTimeout(confirmation, type);
       // basic.return llega ANTES que el ack del mismo mensaje: aqui ya sabemos si no tenia ruta.
       if (mandatory && this.returned.has(envelope.eventId)) {
         throw new UnroutableEventError('ninguna cola recibio ' + type + ' (' + envelope.eventId + ')');

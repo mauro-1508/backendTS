@@ -13,6 +13,8 @@ export type EventHandler = (event: EventEnvelope) => Promise<void>;
 export interface PublishOptions {
   /** Id del evento; si falta se genera uno. Permite reintentar el mismo evento (outbox). */
   eventId?: string;
+  /** Fecha original persistida; se conserva al reintentar un outbox. */
+  occurredAt?: string;
   /**
    * Si ninguna cola recibe el mensaje, publish RECHAZA en vez de descartarlo en silencio.
    * Para eventos que no pueden perderse (outbox). Por defecto false: publicar sin consumidores es normal.

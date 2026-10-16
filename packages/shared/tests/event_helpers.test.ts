@@ -161,3 +161,30 @@ describe('withRetry', () => {
     assert.match(logs[0], /ALERTA.*e1.*4 veces/);
   });
 });
+
+test('la limpieza con reintentos persistentes no se abandona tras cinco fallos', async () => {
+  let attempts = 0;
+  const logs: string[] = [];
+  const handler = withRetry(async () => {
+    if (++attempts <= 6) throw new Error('temporal');
+  }, { attempts: Infinity, sleep: async () => {}, log: message => logs.push(message) });
+  await handler({ eventId: 'cleanup', type: 'iam.UserDeleted', occurredAt: '2020-01-01T00:00:00Z', payload: { userId: 7 } });
+  assert.equal(attempts, 7);
+  assert.equal(logs.length, 1);
+});
+
+test('UserDeleted rechaza identificadores fuera del rango entero de IAM', () => {
+  assert.equal(isUserDeleted({ userId: 2_147_483_647, occurredAt: '2020-01-01T00:00:00Z' }), true);
+  assert.equal(isUserDeleted({ userId: 2_147_483_648, occurredAt: '2020-01-01T00:00:00Z' }), false);
+});
+
+test('un payload de eliminación inválido sale a DLQ sin reintentos infinitos', async () => {
+  const { InvalidEventPayloadError } = await import('../src/events/payload_validators');
+  const handler = withRetry(withValidPayload(isUserDeleted, async () => {
+    assert.fail('No debe borrar con un payload inválido');
+  }, () => {}, 'reject'), {
+    attempts: Infinity, sleep: async () => { assert.fail('No debe reintentar un error permanente'); },
+  });
+  await assert.rejects(handler({ eventId: 'invalid', type: 'iam.UserDeleted',
+    occurredAt: '2020-01-01T00:00:00Z', payload: {} }), InvalidEventPayloadError);
+});

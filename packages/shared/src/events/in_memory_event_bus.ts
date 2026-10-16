@@ -7,7 +7,7 @@ export class InMemoryEventBus implements EventBus {
   private readonly subscriptions: Array<{ subscription: Subscription; handler: EventHandler }> = [];
 
   async publish(type: string, payload: unknown, options: PublishOptions = {}): Promise<void> {
-    const event = makeEnvelope(type, payload, options.eventId);
+    const event = makeEnvelope(type, payload, options.eventId, options.occurredAt);
     const targets = this.subscriptions.filter(s => matchesTopic(s.subscription.pattern, type));
     for (const { handler } of targets) {
       await handler(event);
