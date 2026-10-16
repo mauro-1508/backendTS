@@ -1,4 +1,4 @@
-export type UserTokenType = 'EMAIL_VERIFICATION' | 'PASSWORD_RESET';
+export type UserTokenType = 'EMAIL_VERIFICATION' | 'PASSWORD_RESET' | 'ACCOUNT_DELETION';
 
 /** Codigo de un solo uso (guardado como hash) ligado a un usuario y a un proposito. */
 export interface UserToken {
