@@ -10,5 +10,7 @@ export interface UserService {
   getById(userId: number): Promise<User | null>;
   getStats(input: { userId: number }): Promise<UserStats>;
   changePassword(input: { userId: number; currentPassword: string; newPassword: string }): Promise<AccountResult>;
-  deleteAccount(input: { userId: number; password: string }): Promise<AccountResult>;
+  /** Con contraseña se confirma con ella; sin contraseña (Google), con el codigo de sendDeletionCode. */
+  deleteAccount(input: { userId: number; password?: string; code?: string }): Promise<AccountResult>;
+  sendDeletionCode(input: { userId: number }): Promise<AccountResult>;
 }

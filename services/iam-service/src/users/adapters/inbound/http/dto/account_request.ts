@@ -4,4 +4,7 @@ import { z } from 'zod';
 const password = z.string().min(1).max(256);
 
 export const changePasswordBodySchema = z.object({ currentPassword: password, newPassword: z.string().max(256) });
-export const deleteAccountBodySchema = z.object({ password });
+// password para cuentas con contraseña; code (6 digitos, enviado al correo) para cuentas creadas con Google.
+export const deleteAccountBodySchema = z
+  .object({ password: password.optional(), code: z.string().regex(/^\d{6}$/).optional() })
+  .refine((body) => body.password !== undefined || body.code !== undefined);

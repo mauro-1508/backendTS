@@ -10,6 +10,7 @@
 #   existe hay que aplicar a mano las migraciones nuevas (con la plataforma levantada):
 #   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/009_outbox_events.sql
 #   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/010_users_password_nullable.sql
+#   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/011_account_deletion_token.sql
 #   docker compose exec -T postgres-analytics psql -U postgres -d analytics < services/analytics-service/db/002_erased_users.sql
 #   docker compose exec -T postgres-profile   psql -U postgres -d profile   < services/profile-service/db/002_erased_users.sql
 #   docker compose exec -T postgres-recognition psql -U postgres -d recognition < services/recognition-service/db/003_erased_users.sql
@@ -161,6 +162,8 @@ services:
       - ./services/iam-service/db/009_outbox_events.sql:/docker-entrypoint-initdb.d/009_outbox_events.sql:ro
       # Cuentas de Google sin contraseña: password admite NULL.
       - ./services/iam-service/db/010_users_password_nullable.sql:/docker-entrypoint-initdb.d/010_users_password_nullable.sql:ro
+      # Codigo por correo para borrar cuentas sin contraseña (token ACCOUNT_DELETION).
+      - ./services/iam-service/db/011_account_deletion_token.sql:/docker-entrypoint-initdb.d/011_account_deletion_token.sql:ro
     healthcheck: &pg-healthcheck
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

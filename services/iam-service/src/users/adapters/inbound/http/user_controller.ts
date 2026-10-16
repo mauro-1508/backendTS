@@ -34,6 +34,14 @@ export const makeUserController = (userService: UserService) => ({
     }
   },
 
+  sendDeletionCode: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      return res.status(200).json(await userService.sendDeletionCode({ userId: req.user!.userId }));
+    } catch (error) {
+      return handleAccountError(error, res, next);
+    }
+  },
+
   stats: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await userService.getStats({ userId: req.user!.userId });
