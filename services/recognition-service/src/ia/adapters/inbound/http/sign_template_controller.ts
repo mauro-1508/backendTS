@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AccountErasedError } from '../../../../translations/domain/service';
 import { NewSignTemplate } from '../../../domain/entity';
 import { SignTemplateService } from '../../../ports/inbound/sign_template_service';
 import { ImportTemplatesRequestDto } from './dto/import_templates_request';
@@ -38,6 +39,9 @@ export const makeSignTemplateController = (service: SignTemplateService) => ({
       });
       return res.status(201).json(result);
     } catch (error) {
+      if (error instanceof AccountErasedError) {
+        return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });
+      }
       return res.status(400).json({ success: false, message: (error as Error).message });
     }
   },
@@ -48,15 +52,21 @@ export const makeSignTemplateController = (service: SignTemplateService) => ({
       const result = await service.list({ kind: kind as string | undefined, label: label as string | undefined });
       return res.status(200).json(result);
     } catch (error) {
+      if (error instanceof AccountErasedError) {
+        return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });
+      }
       return res.status(400).json({ success: false, message: (error as Error).message });
     }
   },
 
   remove: async (req: Request, res: Response) => {
     try {
-      const result = await service.remove({ templateId: Number(req.params.id) });
+      const result = await service.remove({ templateId: Number(req.params.id), userId: userIdOf(req) });
       return res.status(200).json(result);
     } catch (error) {
+      if (error instanceof AccountErasedError) {
+        return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });
+      }
       return res.status(400).json({ success: false, message: (error as Error).message });
     }
   },

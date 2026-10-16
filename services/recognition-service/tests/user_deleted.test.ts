@@ -67,7 +67,7 @@ describe('recognition: iam.UserDeleted', () => {
     const left = await sampleRepository.list({});
     assert.equal(left.length, 2);
     assert.deepEqual(left.map(s => s.recordedBy), [null, 8]);
-    assert.match(logs[0], /7.*2 traduccion.*1 muestra/);
+    assert.equal(logs[0], '[recognition] limpieza completada: 2 traduccion(es), 1 muestra(s)');
   });
 
   test('es idempotente: repetir el evento no falla ni cambia mas', async () => {
@@ -95,8 +95,8 @@ describe('recognition: iam.UserDeleted', () => {
     const original = console.error;
     console.error = (m: string) => logs.push(m);
     try {
-      for (const userId of [0, -3, '7', null, 1.5]) await handler(validEvent(userId));
-      await handler({ ...validEvent(7), payload: { userId: 7 } });
+      for (const userId of [0, -3, '7', null, 1.5]) await assert.rejects(handler(validEvent(userId)));
+      await assert.rejects(handler({ ...validEvent(7), payload: { userId: 7 } }));
     } finally {
       console.error = original;
     }

@@ -9,7 +9,7 @@ export interface SignTemplateResult {
 export interface SignTemplateService {
   importMany(input: { templates: NewSignTemplate[]; userId: number | null }): Promise<SignTemplateResult>;
   list(input: { kind?: string; label?: string }): Promise<SignTemplateResult>;
-  remove(input: { templateId: number }): Promise<SignTemplateResult>;
+  remove(input: { templateId: number; userId?: number | null }): Promise<SignTemplateResult>;
 }
 
 export type { NewSignTemplate, TemplateKind };
