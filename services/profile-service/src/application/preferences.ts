@@ -1,10 +1,10 @@
 import { EventPublisher } from '@traduce/shared';
-import { notFoundError, validationError } from '../domain/errors';
+import { accountDeletedError, notFoundError, validationError } from '../domain/errors';
 import { PUBLISHED_EVENTS } from '../domain/events';
 import {
   DEFAULT_PREFERENCES, Preferences, PreferencesPatch, THEMES, UI_LANGUAGES,
 } from '../domain/preferences';
-import { ProfileRepository } from '../ports/repositories';
+import { ProfileRepository, UnitOfWork } from '../ports/repositories';
 import { publishQuietly } from './publish_event';
 
 const isOneOf = <T extends string>(allowed: readonly T[], value: unknown): value is T =>
@@ -35,11 +35,40 @@ export const makeGetPreferences = (deps: { profiles: ProfileRepository }) =>
   async (userId: string): Promise<Preferences> =>
     (await deps.profiles.findPreferences(userId)) ?? DEFAULT_PREFERENCES;
 
-export const makeUpdatePreferences = (deps: { profiles: ProfileRepository; eventPublisher: EventPublisher }) =>
+export const makeUpdatePreferences = (deps: {
+  unitOfWork: UnitOfWork;
+  eventPublisher: EventPublisher;
+}) =>
   async (userId: string, body: unknown): Promise<Preferences> => {
     const patch = parsePreferencesPatch(body);
-    const updated = await deps.profiles.updatePreferences(userId, patch);
-    if (!updated) throw notFoundError('Perfil no encontrado');
-    await publishQuietly(deps.eventPublisher, PUBLISHED_EVENTS.PreferencesChanged, { userId, ...patch });
+
+    const updated = await deps.unitOfWork.run(async repositories => {
+      // Coordina el guardado y la reparación de preferencias con el borrado.
+      await repositories.gamificationLocks.lockUser(userId);
+
+      // No permite guardar preferencias de una cuenta ya eliminada.
+      if (await repositories.profiles.isErased(userId)) {
+        throw accountDeletedError();
+      }
+
+      const preferences = await repositories.profiles.updatePreferences(
+        userId,
+        patch,
+      );
+
+      if (!preferences) {
+        throw notFoundError('Perfil no encontrado');
+      }
+
+      return preferences;
+    });
+
+    // Publica el aviso después de confirmar el guardado.
+    await publishQuietly(
+      deps.eventPublisher,
+      PUBLISHED_EVENTS.PreferencesChanged,
+      { userId, ...patch },
+    );
+
     return updated;
   };

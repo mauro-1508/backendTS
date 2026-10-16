@@ -127,8 +127,12 @@ const setup = () => {
       getProfile: makeGetProfile({ profiles }),
       getPreferences: makeGetPreferences({ profiles }),
       updatePreferences: makeUpdatePreferences({
-        profiles,
-        eventPublisher: {
+  // Usa los repositorios de prueba y conserva el seguimiento
+  // de las escrituras realizado por el repositorio "profiles".
+  unitOfWork: {
+    run: work => work({ ...store.repositories, profiles }),
+  },
+  eventPublisher: {
           publish: async (_type, payload) => {
             published.push(payload);
           },

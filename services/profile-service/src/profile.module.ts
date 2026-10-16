@@ -38,7 +38,9 @@ export const makeProfileModule = (deps: {
     getProfile: makeGetProfile({ profiles }),
     getPreferences: makeGetPreferences({ profiles }),
     updatePreferences: makeUpdatePreferences({
-      profiles,
+      // Guarda dentro de una transacción y utiliza el mismo
+      // bloqueo por usuario que la eliminación de la cuenta.
+      unitOfWork,
       eventPublisher: deps.eventPublisher,
     }),
     listAchievements: makeListAchievements({ achievements }),
