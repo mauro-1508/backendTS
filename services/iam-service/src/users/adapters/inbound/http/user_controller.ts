@@ -34,6 +34,14 @@ export const makeUserController = (userService: UserService) => ({
     }
   },
 
+  sendDeletionCode: async (req: Request, res: Response, next: NextFunction) => {
+    try {
+      return res.status(200).json(await userService.sendDeletionCode({ userId: req.user!.userId }));
+    } catch (error) {
+      return handleAccountError(error, res, next);
+    }
+  },
+
   stats: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const data = await userService.getStats({ userId: req.user!.userId });
@@ -54,7 +62,9 @@ export const makeUserController = (userService: UserService) => ({
       }
       return res.status(200).json({
         success: true,
-        data: { user_id: user.userId, name: user.name, email: user.email },
+        // has_password: false en cuentas creadas con Google; el cliente ofrece entonces crear una
+        // contraseña con un codigo al correo en vez de pedir la actual. Nunca se devuelve el hash.
+        data: { user_id: user.userId, name: user.name, email: user.email, has_password: Boolean(user.password) },
       });
     } catch (error) {
       return res.status(400).json({ success: false, message: (error as Error).message });

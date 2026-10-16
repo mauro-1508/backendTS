@@ -51,3 +51,32 @@ export const resolvesMatching = async (promise: Promise<unknown>, expected: Reco
 };
 
 export const flush = () => new Promise<void>(resolve => setImmediate(resolve));
+
+/** Identidad que el verificador falso de Google devuelve para un token de prueba. */
+export interface FakeGoogleIdentity {
+  email: string;
+  name?: string | null;
+  emailVerified?: boolean;
+}
+
+/** "Token" de prueba: la identidad serializada. Solo lo entiende fakeGoogleTokenVerifier. */
+export const googleIdToken = (identity: FakeGoogleIdentity): string => JSON.stringify(identity);
+
+/** Sustituye a Google en los tests de casos de uso: devuelve la identidad codificada en el token. */
+export const fakeGoogleTokenVerifier = {
+  verify: async (idToken: string) => {
+    const { email, name = null, emailVerified = true } = JSON.parse(idToken) as FakeGoogleIdentity;
+    return { email, name, emailVerified };
+  },
+};
+
+/** "Access token" de prueba para fakeFacebookTokenVerifier: la identidad serializada. */
+export const facebookAccessToken = (identity: { email: string | null; name?: string | null }): string => JSON.stringify(identity);
+
+/** Sustituye a la Graph API en los tests: devuelve la identidad codificada en el token. */
+export const fakeFacebookTokenVerifier = {
+  verify: async (accessToken: string) => {
+    const { email, name = null } = JSON.parse(accessToken) as { email: string | null; name?: string | null };
+    return { email, name };
+  },
+};

@@ -18,6 +18,11 @@ export interface GatewayConfig {
   healthTimeoutMs: number;
   /** Origenes con permiso CORS (lista blanca). */
   corsOrigins: string[];
+  /**
+   * Proxies inversos de confianza delante del gateway (p. ej. 1 con Caddy). Con 0 se ignora X-Forwarded-For;
+   * detras de un proxy hace falta para que el rate limit cuente por IP de cliente y no por la del proxy.
+   */
+  trustProxy: number;
 }
 
 const PRODUCTION_ENV = 'production';
@@ -38,6 +43,12 @@ const DEFAULT_SERVICE_URLS: Record<ServiceName, string> = {
 
 /** `IAM_SERVICE_URL`, `RECOGNITION_SERVICE_URL`, ... */
 export const serviceUrlVariable = (service: ServiceName): string => `${service.toUpperCase()}_SERVICE_URL`;
+
+/** Numero de proxies de confianza; cualquier valor no entero o negativo cuenta como 0 (no confiar). */
+export const parseTrustProxy = (raw: string | undefined): number => {
+  const hops = Number(raw);
+  return Number.isInteger(hops) && hops > 0 ? hops : 0;
+};
 
 export const loadGatewayConfig = (env: Env = process.env): GatewayConfig => {
   const read = makeEnvReader(env);
@@ -60,5 +71,6 @@ export const loadGatewayConfig = (env: Env = process.env): GatewayConfig => {
     },
     healthTimeoutMs: Number(read('HEALTH_TIMEOUT_MS')) || DEFAULT_HEALTH_TIMEOUT_MS,
     corsOrigins: resolveCorsOrigins(read('CORS_ORIGINS'), read('NODE_ENV') === PRODUCTION_ENV),
+    trustProxy: parseTrustProxy(read('TRUST_PROXY')),
   };
 };

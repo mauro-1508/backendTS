@@ -5,6 +5,8 @@ import { Mailer } from './ports/outbound/mailer';
 import { PasswordHasher } from './ports/outbound/auth_provider';
 import { RoleAssigner } from './ports/outbound/role_assigner';
 import { RoleReader } from './ports/outbound/role_reader';
+import { GoogleTokenVerifier } from './ports/outbound/google_token_verifier';
+import { FacebookTokenVerifier } from './ports/outbound/facebook_token_verifier';
 import { makeRegister } from './application/register';
 import { makeLogin } from './application/login';
 import { makeForgotPassword } from './application/forgot_password';
@@ -13,6 +15,7 @@ import { makeVerifyEmail } from './application/verify_email';
 import { makeResendVerification } from './application/resend_verification';
 import { makeResetPassword } from './application/reset_password';
 import { makeGoogleLogin } from './application/google_login';
+import { makeFacebookLogin } from './application/facebook_login';
 import { makeAuthRoutes } from './adapters/inbound/http/routes';
 import { AuthService } from './ports/inbound/auth_service';
 
@@ -25,6 +28,8 @@ export interface AuthModuleDeps {
   mailer: Mailer;
   roleAssigner: RoleAssigner;
   roleReader: RoleReader;
+  googleTokenVerifier: GoogleTokenVerifier;
+  facebookTokenVerifier: FacebookTokenVerifier;
 }
 
 // Composicion del dominio auth: recibe los adaptadores ya construidos.
@@ -38,6 +43,7 @@ export const makeAuthModule = (deps: AuthModuleDeps) => {
     resendVerification: makeResendVerification(deps),
     resetPassword: makeResetPassword(deps),
     googleLogin: makeGoogleLogin(deps),
+    facebookLogin: makeFacebookLogin(deps),
   };
 
   return { authService, router: makeAuthRoutes(authService) };

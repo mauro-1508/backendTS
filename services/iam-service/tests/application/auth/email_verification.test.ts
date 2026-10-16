@@ -12,7 +12,10 @@ import { UserToken } from '../../../src/auth/domain/entity';
 import { AuthRepository } from '../../../src/auth/domain/repository';
 import { makeAuthController } from '../../../src/auth/adapters/inbound/http/auth_controller';
 import { makeAuthRoutes } from '../../../src/auth/adapters/inbound/http/routes';
-import { assertMatch, argsOf, fakeRes, flush, rejectsWith, resolvesMatching, RecordingEventPublisher } from '../../helpers/fakes';
+import {
+  assertMatch, argsOf, fakeFacebookTokenVerifier, fakeGoogleTokenVerifier, fakeRes, flush, googleIdToken, rejectsWith, resolvesMatching,
+  RecordingEventPublisher,
+} from '../../helpers/fakes';
 
 type U = {
   userId: number;
@@ -95,11 +98,13 @@ const setup = (users: U[] = []) => {
     userRepository,
     authRepository,
     passwordHasher: hasher,
-    mailer: { sendVerificationCode, sendPasswordResetCode },
+    mailer: { sendVerificationCode, sendPasswordResetCode, sendAccountDeletionCode: async () => undefined },
     roleAssigner: { assignDefaultRole },
     roleReader: { readAccess: async () => ({ roles: ['USER'], permissions: ['translation.create'] }) },
     tokenProvider: { sign: () => 'jwt', verify: () => ({}) as never },
     eventPublisher,
+    googleTokenVerifier: fakeGoogleTokenVerifier,
+    facebookTokenVerifier: fakeFacebookTokenVerifier,
     now: () => clock,
   };
   return {
@@ -330,13 +335,13 @@ describe('pre-account hijacking', () => {
 
 describe('google_login segun estado', () => {
   test('existente INACTIVE: EMAIL_NOT_VERIFIED; BLOCKED: ACCOUNT_BLOCKED', async () => {
-    await rejectsWith(setup([{ ...ana, status: 'INACTIVE' }]).googleLogin({ email: 'Ana@x.com', name: 'Ana' }), { code: 'EMAIL_NOT_VERIFIED', httpStatus: 403 });
-    await rejectsWith(setup([{ ...ana, status: 'BLOCKED' }]).googleLogin({ email: 'ana@x.com', name: 'Ana' }), { code: 'ACCOUNT_BLOCKED', httpStatus: 403 });
+    await rejectsWith(setup([{ ...ana, status: 'INACTIVE' }]).googleLogin({ idToken: googleIdToken({ email: 'Ana@x.com', name: 'Ana' }) }), { code: 'EMAIL_NOT_VERIFIED', httpStatus: 403 });
+    await rejectsWith(setup([{ ...ana, status: 'BLOCKED' }]).googleLogin({ idToken: googleIdToken({ email: 'ana@x.com', name: 'Ana' }) }), { code: 'ACCOUNT_BLOCKED', httpStatus: 403 });
   });
 
   test('cuenta nueva: se crea ACTIVE con emailVerifiedAt y se publica iam.UserRegistered', async () => {
     const ctx = setup();
-    await resolvesMatching(ctx.googleLogin({ email: 'nueva@x.com', name: 'Nueva' }), { data: { token: 'jwt' } });
+    await resolvesMatching(ctx.googleLogin({ idToken: googleIdToken({ email: 'nueva@x.com', name: 'Nueva' }) }), { data: { token: 'jwt' } });
     assertMatch(ctx.db.get('nueva@x.com'), { status: 'ACTIVE' });
     assert.ok(ctx.db.get('nueva@x.com')!.emailVerifiedAt instanceof Date);
     assert.deepEqual(ctx.eventPublisher.published, [
@@ -346,7 +351,7 @@ describe('google_login segun estado', () => {
 
   test('cuenta existente ACTIVE: inicia sesion sin publicar evento', async () => {
     const ctx = setup([{ ...ana, status: 'ACTIVE' }]);
-    await resolvesMatching(ctx.googleLogin({ email: 'ana@x.com', name: 'Ana' }), { data: { token: 'jwt' } });
+    await resolvesMatching(ctx.googleLogin({ idToken: googleIdToken({ email: 'ana@x.com', name: 'Ana' }) }), { data: { token: 'jwt' } });
     assert.equal(ctx.eventPublisher.published.length, 0);
   });
 });
