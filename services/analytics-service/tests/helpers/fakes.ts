@@ -5,13 +5,25 @@ const BOGOTA_OFFSET_MS = -5 * 60 * 60 * 1000;
 const localDay = (date: Date): string => new Date(date.getTime() + BOGOTA_OFFSET_MS).toISOString().slice(0, 10);
 
 /** Repositorio en memoria con la misma semantica que el de Postgres (unico por eventId, dia de Bogota). */
-export const makeInMemoryUsageRepository = (): UsageEventRepository & { events: UsageEvent[] } => {
+export const makeInMemoryUsageRepository = (): UsageEventRepository & { events: UsageEvent[]; erased: Set<string> } => {
   const events: UsageEvent[] = [];
+  const erased = new Set<string>();
   const inRange = ({ from, to }: DateRange) => events.filter(e => localDay(e.createdAt) >= from && localDay(e.createdAt) <= to);
   const count = (list: UsageEvent[], type: string) => list.filter(e => e.eventType === type).length;
 
   return {
     events,
+    erased,
+    async unlinkUser(userId) {
+      erased.add(userId);
+      events.forEach(e => {
+        if (e.referenceType === 'USER' && e.referenceId === userId) { e.referenceType = null; e.referenceId = null; }
+        if (e.userId === userId) { e.userId = null; e.sessionId = null; }
+      });
+    },
+    async isUserErased(userId) {
+      return erased.has(userId);
+    },
     async save(event) {
       if (events.some(e => e.eventId === event.eventId)) return false;
       events.push(event);

@@ -42,7 +42,34 @@ const SECTION_VIEWS = `
   GROUP BY section
   ORDER BY visits DESC, section`;
 
+const MARK_ERASED = 'INSERT INTO erased_users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING';
+const UNLINK_REFERENCES = "UPDATE usage_event SET reference_type = NULL, reference_id = NULL WHERE reference_type = 'USER' AND reference_id = $1";
+// session_id tambien: identifica la sesion de esa persona en iam.
+const UNLINK_USER = 'UPDATE usage_event SET user_id = NULL, session_id = NULL WHERE user_id = $1';
+const IS_ERASED = 'SELECT 1 FROM erased_users WHERE user_id = $1';
+
 export const makePostgresUsageEventRepository = (pool: Pool): UsageEventRepository => ({
+  async unlinkUser(userId: string) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(MARK_ERASED, [userId]);
+      await client.query(UNLINK_REFERENCES, [userId]);
+      await client.query(UNLINK_USER, [userId]);
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
+  },
+
+  async isUserErased(userId: string) {
+    const { rows } = await pool.query(IS_ERASED, [userId]);
+    return rows.length > 0;
+  },
+
   async save(event: UsageEvent) {
     const result = await pool.query(INSERT_EVENT, [
       event.eventId, event.userId, event.sessionId, event.section, event.eventType,
