@@ -35,10 +35,21 @@ export const makeGetPreferences = (deps: { profiles: ProfileRepository }) =>
   async (userId: string): Promise<Preferences> =>
     (await deps.profiles.findPreferences(userId)) ?? DEFAULT_PREFERENCES;
 
+/** Datos del JWT con los que se crea un perfil que falta (el nombre llega solo por iam.UserRegistered). */
+export interface ProfileIdentity {
+  email?: string;
+}
+
 export const makeUpdatePreferences = (deps: { profiles: ProfileRepository; eventPublisher: EventPublisher }) =>
-  async (userId: string, body: unknown): Promise<Preferences> => {
+  async (userId: string, body: unknown, identity: ProfileIdentity = {}): Promise<Preferences> => {
     const patch = parsePreferencesPatch(body);
-    const updated = await deps.profiles.updatePreferences(userId, patch);
+    let updated = await deps.profiles.updatePreferences(userId, patch);
+    if (!updated) {
+      // Cuenta sin perfil: anterior a este servicio o su iam.UserRegistered se perdio. Se crea aqui;
+      // createIfAbsent no recrea cuentas borradas, que siguen respondiendo 404.
+      await deps.profiles.createIfAbsent({ userId, email: identity.email });
+      updated = await deps.profiles.updatePreferences(userId, patch);
+    }
     if (!updated) throw notFoundError('Perfil no encontrado');
     await publishQuietly(deps.eventPublisher, PUBLISHED_EVENTS.PreferencesChanged, { userId, ...patch });
     return updated;
