@@ -21,6 +21,12 @@ services:
       # de desarrollo contra el servidor: CORS_ORIGINS_PROD=https://traducesenas.tech,http://localhost:8081 en .env
       CORS_ORIGINS: ${CORS_ORIGINS_PROD:-https://traducesenas.tech}
 
+  lexicon-service:
+    environment:
+      # Sin esto las URL de medios salen con el host interno (http://lexicon-service:3003/...),
+      # porque el gateway reenvia cambiando el Host. Con el dominio publico el cliente las puede abrir.
+      LEXICON_MEDIA_BASE_URL: https://${DOMAIN:-traducesenas.tech}/api/lexicon/media
+
   web:
     build:
       context: ${FRONTEND_DIR:-../frontendTS}
