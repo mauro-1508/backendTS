@@ -5,6 +5,9 @@ import { resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Pool } from 'pg';
+import { makeEraseUserProfile } from '../src/application/erase_user_profile';
+import { makeUpdatePreferences } from '../src/application/preferences';
+import { ProfileError } from '../src/domain/errors';
 import {
   makePostgresProfileRepository,
   makePostgresRepositories,
@@ -689,4 +692,168 @@ describe('preferencias: PostgreSQL real', {
       }
     },
   );
+});
+describe('eliminación concurrente: PostgreSQL real', {
+  concurrency: false,
+  skip: !connectionString && !required
+    ? 'Define PROFILE_TEST_DATABASE_URL para ejecutar integración'
+    : false,
+}, () => {
+  for (const operation of ['registration', 'recovery', 'preferences'] as const) {
+    for (const deletionFirst of [true, false]) {
+      it(`${operation}: borrado primero=${deletionFirst}`, async () => {
+        await withFixture(async fixture => {
+          // Existe perfil, pero faltan preferencias: también probamos
+          // que su reparación no pueda sobrevivir al borrado.
+          await seedProfile(fixture.first);
+
+          // Otra cuenta debe permanecer intacta.
+          await makeRecoverUserProfile({
+            unitOfWork: makePostgresUnitOfWork(fixture.first),
+          })({
+            userId: 8,
+            email: 'other@example.test',
+            name: 'Otra cuenta',
+          });
+
+          const otherBefore = await fixture.first.query(
+            `SELECT row_to_json(p) AS profile, row_to_json(pr) AS preferences
+               FROM user_profiles p
+               JOIN user_preferences pr USING (user_id)
+              WHERE p.user_id = '8'`,
+          );
+
+          const runOperation = async (unitOfWork: UnitOfWork) => {
+            if (operation === 'registration') {
+              await makeRegisterUserProfile({ unitOfWork })(
+                randomUUID(),
+                { userId: '7', fullName: 'Registro pendiente' },
+              );
+            } else if (operation === 'recovery') {
+              await makeRecoverUserProfile({ unitOfWork })({
+                userId: 7,
+                email: 'recovery@example.test',
+                name: 'Recuperación pendiente',
+              });
+            } else {
+              await makeUpdatePreferences({
+                unitOfWork,
+                // Esta prueba no envía mensajes a otros servicios.
+                eventPublisher: { publish: async () => {} },
+              })('7', { theme: 'DARK' });
+            }
+          };
+
+          const runDeletion = async (unitOfWork: UnitOfWork) => {
+            await makeEraseUserProfile({ unitOfWork })(
+              randomUUID(),
+              '7',
+            );
+          };
+
+          const client = await fixture.first.connect();
+          let transactionOpen = false;
+          let discardClient = false;
+
+          type Outcome =
+            | { ok: true }
+            | { ok: false; error: unknown };
+
+          let pending: Promise<Outcome> | undefined;
+
+          try {
+            await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
+            transactionOpen = true;
+
+            // Mantiene abierta la primera transacción después de ejecutar
+            // el caso de uso. Los bloqueos son los del código de producción.
+            const firstUnitOfWork: UnitOfWork = {
+              run: work => work(makePostgresRepositories(client)),
+            };
+            const secondUnitOfWork = makePostgresUnitOfWork(fixture.second);
+
+            if (deletionFirst) {
+              await runDeletion(firstUnitOfWork);
+            } else {
+              await runOperation(firstUnitOfWork);
+            }
+
+            // Captura inmediatamente el resultado para evitar rechazos
+            // sin manejar mientras observamos el bloqueo.
+            const secondOperation = deletionFirst
+              ? runOperation(secondUnitOfWork)
+              : runDeletion(secondUnitOfWork);
+
+            pending = secondOperation.then(
+              (): Outcome => ({ ok: true }),
+              (error: unknown): Outcome => ({ ok: false, error }),
+            );
+
+            // La segunda conexión debe esperar a la primera.
+            await waitForBlocked(fixture);
+
+            await client.query('COMMIT');
+            transactionOpen = false;
+
+            const outcome = await pending;
+
+            if (deletionFirst && operation !== 'registration') {
+              // Recuperación y preferencias deben rechazar una cuenta borrada.
+              assert.equal(outcome.ok, false);
+              if (outcome.ok) {
+                assert.fail('La operación debía rechazar la cuenta eliminada');
+              }
+              assert.ok(outcome.error instanceof ProfileError);
+              assert.equal(outcome.error.code, 'ACCOUNT_DELETED');
+            } else if (!outcome.ok) {
+              // El registro tardío se ignora; el borrado debe completar.
+              throw outcome.error;
+            }
+          } finally {
+            try {
+              if (transactionOpen) {
+                await client.query('ROLLBACK');
+              }
+            } catch (error) {
+              discardClient = true;
+              throw error;
+            } finally {
+              // Libera el bloqueo antes de esperar la segunda conexión.
+              client.release(discardClient);
+              await pending;
+            }
+          }
+
+          // Ninguna de estas operaciones puede dejar datos recreados.
+          for (const table of [
+            'user_profiles',
+            'user_preferences',
+            'user_achievements',
+            'notifications',
+          ]) {
+            const result = await fixture.first.query(
+              `SELECT COUNT(*)::int AS total FROM ${table}
+                WHERE user_id = $1`,
+              ['7'],
+            );
+            assert.equal(result.rows[0].total, 0, table);
+          }
+
+          const erased = await fixture.first.query(
+            'SELECT user_id FROM erased_users WHERE user_id = $1',
+            ['7'],
+          );
+          assert.deepEqual(erased.rows, [{ user_id: '7' }]);
+
+          const otherAfter = await fixture.first.query(
+            `SELECT row_to_json(p) AS profile, row_to_json(pr) AS preferences
+               FROM user_profiles p
+               JOIN user_preferences pr USING (user_id)
+              WHERE p.user_id = '8'`,
+          );
+          assert.deepEqual(otherAfter.rows, otherBefore.rows);
+        });
+      });
+    }
+  }
 });
