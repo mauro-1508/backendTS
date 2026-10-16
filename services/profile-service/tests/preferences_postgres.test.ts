@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { describe, it } from 'node:test';
 import { setTimeout as delay } from 'node:timers/promises';
 import { Pool } from 'pg';
+import { makeRecordTranslation } from '../src/application/record_translation';
 import { makeEraseUserProfile } from '../src/application/erase_user_profile';
 import { makeUpdatePreferences } from '../src/application/preferences';
 import { ProfileError } from '../src/domain/errors';
@@ -699,7 +700,7 @@ describe('eliminación concurrente: PostgreSQL real', {
     ? 'Define PROFILE_TEST_DATABASE_URL para ejecutar integración'
     : false,
 }, () => {
-  for (const operation of ['registration', 'recovery', 'preferences'] as const) {
+  for (const operation of ['registration', 'recovery', 'preferences', 'translation'] as const) {
     for (const deletionFirst of [true, false]) {
       it(`${operation}: borrado primero=${deletionFirst}`, async () => {
         await withFixture(async fixture => {
@@ -735,6 +736,12 @@ describe('eliminación concurrente: PostgreSQL real', {
                 email: 'recovery@example.test',
                 name: 'Recuperación pendiente',
               });
+            } else if (operation === 'translation') {
+              const unlocked = await makeRecordTranslation({
+                unitOfWork,
+                eventPublisher: { publish: async () => {} },
+              })(randomUUID(), '7');
+              assert.equal(unlocked.length, deletionFirst ? 0 : 1);
             } else {
               await makeUpdatePreferences({
                 unitOfWork,
@@ -797,7 +804,7 @@ describe('eliminación concurrente: PostgreSQL real', {
 
             const outcome = await pending;
 
-            if (deletionFirst && operation !== 'registration') {
+            if (deletionFirst && (operation === 'recovery' || operation === 'preferences')) {
               // Recuperación y preferencias deben rechazar una cuenta borrada.
               assert.equal(outcome.ok, false);
               if (outcome.ok) {

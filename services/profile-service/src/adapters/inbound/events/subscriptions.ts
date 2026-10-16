@@ -61,10 +61,10 @@ export const subscribeToEvents = async (
       );
     }),
   );
-  // iam.UserDeleted usa el contrato compartido (userId numerico validado); un payload invalido se descarta.
+  // iam.UserDeleted usa el contrato compartido (userId numerico validado); un payload inválido se conserva en DLQ.
   await subscriber.subscribe(
     { queue: USER_DELETED_QUEUE, pattern: EVENT_TYPES.UserDeleted },
-    // Errores pasajeros: reintento con backoff antes de .dead (con ALERTA en el log).
-    withRetry(withValidPayload(isUserDeleted, event => handlers.eraseUserProfile(event.eventId, String(event.payload.userId)))),
+    // La limpieza válida permanece pendiente con backoff; no se pierde al agotar cinco intentos.
+    withRetry(withValidPayload(isUserDeleted, event => handlers.eraseUserProfile(event.eventId, String(event.payload.userId)), undefined, 'reject'), { attempts: Infinity }),
   );
 };
