@@ -88,18 +88,31 @@ describe('suscripciones a eventos', () => {
       name: 'Ada Lovelace',
     });
 
-    assert.equal(queries.length, 3);
-    assert.match(queries[0].text, /FROM erased_users/);
-    assert.match(
-      queries[1].text,
-      /INSERT INTO user_profiles \(user_id, email, full_name, username\)/,
+    // Comprueba las inserciones por su contenido, sin depender del número
+    // de consultas previas que protegen contra cuentas eliminadas.
+    const profileInserts = queries.filter(query =>
+      /INSERT INTO user_profiles \(user_id, email, full_name, username\)/
+        .test(query.text),
     );
+    const preferenceInserts = queries.filter(query =>
+      /INSERT INTO user_preferences/.test(query.text),
+    );
+
+    // El registro debe consultar la marca de eliminación.
+    assert.ok(
+      queries.some(query => /FROM erased_users/.test(query.text)),
+    );
+
+    // El nombre publicado por IAM debe llegar intacto al perfil.
+    assert.equal(profileInserts.length, 1);
     assert.deepEqual(
-      queries[1].values,
+      profileInserts[0].values,
       ['7', 'a@b.co', 'Ada Lovelace', null],
     );
-    assert.match(queries[2].text, /INSERT INTO user_preferences/);
-    assert.deepEqual(queries[2].values, ['7']);
+
+    // Las preferencias deben crearse para el mismo usuario.
+    assert.equal(preferenceInserts.length, 1);
+    assert.deepEqual(preferenceInserts[0].values, ['7']);
   });
 
   it('no vuelve a crear el perfil al repetir el mismo eventId', async () => {
