@@ -3,11 +3,12 @@ import {
   createEventBus, loadConfig, makeAuthMiddleware, makeJwtTokenProvider, makePgPool,
 } from '@traduce/shared';
 import { makeIamApp } from '../src/app';
-import { loadGoogleClientIds, loadMailerConfig } from '../src/config';
+import { loadFacebookCredentials, loadGoogleClientIds, loadMailerConfig } from '../src/config';
 import { makePostgresAuthRepository } from '../src/auth/adapters/outbound/postgres/auth_repository';
 import { bcryptPasswordHasher } from '../src/auth/adapters/outbound/security/password';
 import { makeNodemailerMailer, missingMailerSettings } from '../src/auth/adapters/outbound/mailer/mailer';
 import { makeGoogleTokenVerifier } from '../src/auth/adapters/outbound/google/google_token_verifier';
+import { makeFacebookTokenVerifier } from '../src/auth/adapters/outbound/facebook/facebook_token_verifier';
 import { makePostgresUserRepository } from '../src/users/adapters/outbound/postgres/user_repository';
 import { makePostgresAccountRepository } from '../src/users/adapters/outbound/postgres/account_repository';
 import { makePostgresUserStatsRepository } from '../src/users/adapters/outbound/postgres/user_stats_repository';
@@ -28,6 +29,7 @@ const tokenProvider = makeJwtTokenProvider(config.jwt);
 const mailerConfig = loadMailerConfig();
 const mailer = makeNodemailerMailer(mailerConfig);
 const googleClientIds = loadGoogleClientIds();
+const facebookCredentials = loadFacebookCredentials();
 
 const app = makeIamApp({
   userRepository: makePostgresUserRepository(pool),
@@ -40,6 +42,7 @@ const app = makeIamApp({
   eventPublisher: eventBus,
   mailer,
   googleTokenVerifier: makeGoogleTokenVerifier(googleClientIds),
+  facebookTokenVerifier: makeFacebookTokenVerifier(facebookCredentials),
   authMiddleware: makeAuthMiddleware(tokenProvider),
 });
 
@@ -71,6 +74,9 @@ if (missingMail.length > 0) {
 
 if (googleClientIds.length === 0) {
   console.warn('[google] falta GOOGLE_CLIENT_IDS: POST /api/auth/google respondera 503');
+}
+if (!facebookCredentials) {
+  console.warn('[facebook] falta FACEBOOK_APP_ID o FACEBOOK_APP_SECRET: POST /api/auth/facebook respondera 503');
 }
 
 process.on('SIGTERM', () => {

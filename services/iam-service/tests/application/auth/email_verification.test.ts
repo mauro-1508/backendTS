@@ -13,7 +13,7 @@ import { AuthRepository } from '../../../src/auth/domain/repository';
 import { makeAuthController } from '../../../src/auth/adapters/inbound/http/auth_controller';
 import { makeAuthRoutes } from '../../../src/auth/adapters/inbound/http/routes';
 import {
-  assertMatch, argsOf, fakeGoogleTokenVerifier, fakeRes, flush, googleIdToken, rejectsWith, resolvesMatching,
+  assertMatch, argsOf, fakeFacebookTokenVerifier, fakeGoogleTokenVerifier, fakeRes, flush, googleIdToken, rejectsWith, resolvesMatching,
   RecordingEventPublisher,
 } from '../../helpers/fakes';
 
@@ -104,6 +104,7 @@ const setup = (users: U[] = []) => {
     tokenProvider: { sign: () => 'jwt', verify: () => ({}) as never },
     eventPublisher,
     googleTokenVerifier: fakeGoogleTokenVerifier,
+    facebookTokenVerifier: fakeFacebookTokenVerifier,
     now: () => clock,
   };
   return {

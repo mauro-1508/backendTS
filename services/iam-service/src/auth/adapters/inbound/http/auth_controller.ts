@@ -4,6 +4,7 @@ import { AuthService } from '../../../ports/inbound/auth_service';
 import { AuthError, EmailAlreadyExistsError } from '../../../domain/service';
 import { InvalidUserDataError } from '../../../../users/domain/service';
 import {
+  facebookLoginBodySchema,
   forgotPasswordBodySchema,
   googleLoginBodySchema,
   loginBodySchema,
@@ -124,6 +125,16 @@ export const makeAuthController = (authService: AuthService) => {
       if (!body) return;
       try {
         return res.status(200).json(await authService.googleLogin(body));
+      } catch (error) {
+        return handleError(error, res, next);
+      }
+    },
+
+    facebookLogin: async (req: Request, res: Response, next: NextFunction) => {
+      const body = parse(facebookLoginBodySchema, req, res);
+      if (!body) return;
+      try {
+        return res.status(200).json(await authService.facebookLogin(body));
       } catch (error) {
         return handleError(error, res, next);
       }
