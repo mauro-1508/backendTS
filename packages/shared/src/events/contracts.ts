@@ -5,6 +5,7 @@
  */
 export const EVENT_TYPES = {
   UserRegistered: 'iam.UserRegistered',
+  UserDeleted: 'iam.UserDeleted',
   TranslationProduced: 'recognition.TranslationProduced',
   SignPublished: 'lexicon.SignPublished',
   SignWithdrawn: 'lexicon.SignWithdrawn',
@@ -14,6 +15,13 @@ export interface UserRegistered {
   userId: number;
   email: string;
   name: string;
+}
+
+/** Cuenta borrada. Sin PII: cada servicio borra o desliga lo suyo con solo este id. */
+export interface UserDeleted {
+  userId: number;
+  /** ISO 8601 */
+  occurredAt: string;
 }
 
 /** Texto y glosa de una traduccion; nunca el video ni los landmarks. */

@@ -1,5 +1,5 @@
 import { EventEnvelope, EventHandler } from './event_bus';
-import { SignPublished, SignWithdrawn, TranslationProduced, UserRegistered } from './contracts';
+import { SignPublished, SignWithdrawn, TranslationProduced, UserDeleted, UserRegistered } from './contracts';
 
 export type PayloadGuard<T> = (payload: unknown) => payload is T;
 
@@ -13,6 +13,9 @@ const isIsoDate = (value: unknown): value is string => isNonEmptyString(value) &
 
 export const isUserRegistered: PayloadGuard<UserRegistered> = (payload): payload is UserRegistered =>
   isRecord(payload) && isId(payload.userId) && isNonEmptyString(payload.email) && isNonEmptyString(payload.name);
+
+export const isUserDeleted: PayloadGuard<UserDeleted> = (payload): payload is UserDeleted =>
+  isRecord(payload) && isId(payload.userId) && isIsoDate(payload.occurredAt);
 
 export const isTranslationProduced: PayloadGuard<TranslationProduced> = (payload): payload is TranslationProduced =>
   isRecord(payload)
