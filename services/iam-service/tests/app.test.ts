@@ -94,7 +94,17 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
     const { body } = await loginAsAda();
     const me = await get('/api/users/me', body.data.token);
     assert.equal(me.status, 200);
-    assert.deepEqual(((await me.json()) as { data: unknown }).data, { user_id: 10, name: 'Ada', email: 'ada@example.com' });
+    assert.deepEqual(((await me.json()) as { data: unknown }).data, {
+      user_id: 10, name: 'Ada', email: 'ada@example.com', has_password: true,
+    });
+  });
+
+  test('GET /api/users/me de una cuenta creada con Google: has_password false', async () => {
+    const google = await post('/api/auth/google', { idToken: googleIdToken({ email: 'linus@example.com', name: 'Linus' }) });
+    const { data } = (await google.json()) as { data: { token: string } };
+    const me = await get('/api/users/me', data.token);
+    assert.equal(me.status, 200);
+    assert.equal(((await me.json()) as { data: { has_password: boolean } }).data.has_password, false);
   });
 
   test('GET /api/iam/me/access devuelve roles y permisos efectivos', async () => {

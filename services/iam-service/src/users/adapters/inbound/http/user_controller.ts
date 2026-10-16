@@ -54,7 +54,9 @@ export const makeUserController = (userService: UserService) => ({
       }
       return res.status(200).json({
         success: true,
-        data: { user_id: user.userId, name: user.name, email: user.email },
+        // has_password: false en cuentas creadas con Google; el cliente ofrece entonces crear una
+        // contraseña con un codigo al correo en vez de pedir la actual. Nunca se devuelve el hash.
+        data: { user_id: user.userId, name: user.name, email: user.email, has_password: Boolean(user.password) },
       });
     } catch (error) {
       return res.status(400).json({ success: false, message: (error as Error).message });
