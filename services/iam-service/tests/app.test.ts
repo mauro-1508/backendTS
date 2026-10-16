@@ -6,7 +6,7 @@ import { makeAuthMiddleware, makeJwtTokenProvider } from '@traduce/shared';
 import { makeIamApp } from '../src/app';
 import { User } from '../src/users/domain/entity';
 import { makeFakeIamRepository } from './application/iam/fake_iam_repository';
-import { fakeGoogleTokenVerifier, RecordingEventPublisher } from './helpers/fakes';
+import { fakeGoogleTokenVerifier, googleIdToken, RecordingEventPublisher } from './helpers/fakes';
 
 const tokenProvider = makeJwtTokenProvider({ secret: 'secreto-iam', expiresIn: '1h' });
 const JSON_HEADERS = { 'content-type': 'application/json' };
@@ -147,5 +147,33 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
   test('GET /api/users/stats exige stats.read en iam: LINGUIST recibe 403', async () => {
     const { body } = await loginAsAda();
     assert.equal((await get('/api/users/stats', body.data.token)).status, 403);
+  });
+
+  test('POST /api/auth/google con cuenta existente ACTIVE inicia sesion con sus roles', async () => {
+    const response = await post('/api/auth/google', { idToken: googleIdToken({ email: 'Ada@Example.com', name: 'Ada' }) });
+    assert.equal(response.status, 200);
+    const claims = tokenProvider.verify(((await response.json()) as { data: { token: string } }).data.token);
+    assert.equal(claims.userId, 10);
+    assert.deepEqual(claims.roles, ['LINGUIST']);
+  });
+
+  test('POST /api/auth/google con correo nuevo crea la cuenta ACTIVE', async () => {
+    const response = await post('/api/auth/google', { idToken: googleIdToken({ email: 'grace@example.com', name: 'Grace' }) });
+    assert.equal(response.status, 200);
+    assert.equal(users.find((u) => u.email === 'grace@example.com')?.status, 'ACTIVE');
+  });
+
+  test('POST /api/auth/google con correo no verificado por Google responde 401 INVALID_GOOGLE_TOKEN', async () => {
+    const idToken = googleIdToken({ email: 'eve@example.com', name: 'Eve', emailVerified: false });
+    const response = await post('/api/auth/google', { idToken });
+    assert.equal(response.status, 401);
+    assert.equal(((await response.json()) as { code: string }).code, 'INVALID_GOOGLE_TOKEN');
+    assert.equal(users.some((u) => u.email === 'eve@example.com'), false);
+  });
+
+  test('POST /api/auth/google ignora correo y nombre enviados fuera del token', async () => {
+    const response = await post('/api/auth/google', { email: 'ada@example.com', name: 'Ada' });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as { code: string }).code, 'INVALID_BODY');
   });
 });

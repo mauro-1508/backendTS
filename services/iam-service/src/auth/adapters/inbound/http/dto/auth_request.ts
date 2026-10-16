@@ -13,3 +13,5 @@ export const verifyCodeBodySchema = z.object({ email, code });
 export const verifyEmailBodySchema = z.object({ email, code, password: str });
 export const resendVerificationBodySchema = z.object({ email });
 export const resetPasswordBodySchema = z.object({ email, code, newPassword: str });
+// Un ID token de Google ronda 1-2 KB; el tope evita cuerpos enormes.
+export const googleLoginBodySchema = z.object({ idToken: z.string().min(1).max(8192) });
