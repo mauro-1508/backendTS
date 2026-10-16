@@ -1,4 +1,4 @@
-export const UI_LANGUAGES = ['ES', 'EN'] as const;
+export const UI_LANGUAGES = ['ES', 'EN', 'FR', 'PT'] as const;
 export const THEMES = ['LIGHT', 'DARK'] as const;
 
 export type UiLanguage = (typeof UI_LANGUAGES)[number];
