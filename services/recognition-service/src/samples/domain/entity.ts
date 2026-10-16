@@ -5,8 +5,11 @@ export interface GestureSample {
   signCode: string;
   /** Agrupa las repeticiones de una misma sesion de grabacion. */
   captureSessionId: string;
-  /** Usuario (iam-service) que opero la grabacion. */
-  recordedBy: number;
+  /**
+   * Usuario (iam-service) que opero la grabacion. null = su cuenta se borro (iam.UserDeleted): la
+   * muestra se conserva pero ya no enlaza con ninguna cuenta (INV-010).
+   */
+  recordedBy: number | null;
   performedBy: string;
   consentGrantedAt: Date;
   consentTermsVersion: string;

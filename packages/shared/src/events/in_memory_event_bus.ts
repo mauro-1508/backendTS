@@ -1,4 +1,4 @@
-import { EventBus, EventHandler, Subscription } from './event_bus';
+import { EventBus, EventHandler, PublishOptions, Subscription } from './event_bus';
 import { makeEnvelope } from './make_envelope';
 import { matchesTopic } from './topic_matcher';
 
@@ -6,8 +6,8 @@ import { matchesTopic } from './topic_matcher';
 export class InMemoryEventBus implements EventBus {
   private readonly subscriptions: Array<{ subscription: Subscription; handler: EventHandler }> = [];
 
-  async publish(type: string, payload: unknown): Promise<void> {
-    const event = makeEnvelope(type, payload);
+  async publish(type: string, payload: unknown, options: PublishOptions = {}): Promise<void> {
+    const event = makeEnvelope(type, payload, options.eventId);
     const targets = this.subscriptions.filter(s => matchesTopic(s.subscription.pattern, type));
     for (const { handler } of targets) {
       await handler(event);

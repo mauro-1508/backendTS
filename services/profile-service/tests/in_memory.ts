@@ -19,6 +19,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
   const notifications: NewNotification[] = [];
   const processed = new Set<string>();
   const createdProfiles: string[] = [];
+  const erasedUsers = new Set<string>();
 
   const progressOf = (userId: string) => {
     if (!progressByUser.has(userId)) progressByUser.set(userId, new Map());
@@ -30,9 +31,16 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
   const repositories: TransactionalRepositories = {
     profiles: {
       createIfAbsent: async ({ userId }) => {
-        if (preferencesByUser.has(userId)) return;
+        if (preferencesByUser.has(userId) || erasedUsers.has(userId)) return;
         createdProfiles.push(userId);
         preferencesByUser.set(userId, { ...DEFAULT_PREFERENCES });
+      },
+      isErased: async userId => erasedUsers.has(userId),
+      eraseUser: async userId => {
+        erasedUsers.add(userId);
+        preferencesByUser.delete(userId);
+        progressByUser.delete(userId);
+        for (let i = notifications.length - 1; i >= 0; i--) if (notifications[i].userId === userId) notifications.splice(i, 1);
       },
       findProfile: async () => null,
       findPreferences: async userId => preferencesByUser.get(userId) ?? null,
@@ -59,5 +67,5 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
   };
   const unitOfWork: UnitOfWork = { run: work => work(repositories) };
 
-  return { repositories, unitOfWork, notifications, preferencesByUser, createdProfiles, progressOf };
+  return { repositories, unitOfWork, notifications, preferencesByUser, createdProfiles, erasedUsers, progressOf };
 };

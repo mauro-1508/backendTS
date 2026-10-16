@@ -20,7 +20,8 @@ export const makeDeleteAccount = (deps: {
     if (await deps.adminGuard.isLastAdmin(user.userId)) throw new LastAdminAccountError();
 
     // El adaptador vuelve a comprobar bajo bloqueo: cubre la carrera con una revocacion concurrente.
-    // TODO(deuda): emitir UserDeleted cuando exista el bus; lexicon-service guarda created_by/updated_by sin FK.
+    // erase() deja iam.UserDeleted en el outbox (misma transaccion); el relay lo publica al broker.
+    // lexicon-service conserva created_by/updated_by a proposito (autoria, decision del usuario).
     const outcome = await deps.accountRepository.erase(user.userId);
     if (outcome === 'last_admin') throw new LastAdminAccountError();
     if (outcome === 'not_found') throw new AccountNotFoundError();

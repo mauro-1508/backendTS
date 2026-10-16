@@ -11,6 +11,7 @@ import { makeListAchievements } from './application/list_achievements';
 import { makeListNotifications, makeMarkNotificationRead } from './application/notifications';
 import { makeGetPreferences, makeUpdatePreferences } from './application/preferences';
 import { makeRecordTranslation } from './application/record_translation';
+import { makeEraseUserProfile } from './application/erase_user_profile';
 import { makeRegisterUserProfile } from './application/register_user_profile';
 
 /** Composicion: unico lugar donde se eligen las implementaciones concretas. */
@@ -37,6 +38,7 @@ export const makeProfileModule = (deps: {
     routers: makeProfileRoutes({ useCases, authMiddleware: deps.authMiddleware }),
     eventHandlers: {
       registerUserProfile: makeRegisterUserProfile({ unitOfWork }),
+      eraseUserProfile: makeEraseUserProfile({ unitOfWork }),
       recordTranslation: makeRecordTranslation({ unitOfWork, eventPublisher: deps.eventPublisher }),
     },
   };

@@ -12,6 +12,10 @@ export interface NewProfile {
 export interface ProfileRepository {
   /** Crea perfil y preferencias por defecto; si ya existen no hace nada. */
   createIfAbsent(profile: NewProfile): Promise<void>;
+  /** True si el usuario ya fue borrado (iam.UserDeleted): sus eventos tardios no deben recrear datos. */
+  isErased(userId: string): Promise<boolean>;
+  /** Borra perfil, preferencias, notificaciones y logros del usuario y lo registra como borrado. Idempotente. */
+  eraseUser(userId: string): Promise<void>;
   findProfile(userId: string): Promise<Profile | null>;
   findPreferences(userId: string): Promise<Preferences | null>;
   /** Aplica el cambio; devuelve null si el usuario no tiene preferencias. */

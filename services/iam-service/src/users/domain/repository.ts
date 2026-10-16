@@ -7,8 +7,9 @@ export interface AccountRepository {
   /** Guarda el hash nuevo y revoca los codigos de recuperacion pendientes, en una transaccion. */
   changePassword(userId: number, hashedPassword: string): Promise<void>;
   /**
-   * Supresion (Ley 1581): borra de verdad traducciones, tokens, roles y la fila de users; anonimiza
-   * usage_events (user_id NULL). Todo o nada. 'last_admin' si es el unico ADMIN (comprobado bajo bloqueo).
+   * Supresion (Ley 1581): borra de verdad tokens, roles y la fila de users, y deja iam.UserDeleted
+   * en el outbox, todo en una transaccion (todo o nada). El resto de servicios limpia lo suyo al
+   * consumir el evento. 'last_admin' si es el unico ADMIN (comprobado bajo bloqueo).
    */
   erase(userId: number): Promise<EraseOutcome>;
 }

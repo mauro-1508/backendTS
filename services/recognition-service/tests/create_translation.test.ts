@@ -13,6 +13,7 @@ class FakeTranslationRepository implements TranslationRepository {
   }
   async listByUser() { return []; }
   async softDelete() { return null; }
+  async eraseUser() { return 0; }
 }
 
 const validInput = { userId: 5, inputText: 'HOLA', outputText: ' Hola ', type: 'sena_texto' };
