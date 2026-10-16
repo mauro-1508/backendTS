@@ -200,3 +200,15 @@ futuros eventos de registro.
 La entrega durable de eventos, la eliminación coordinada entre
 servicios y el diagnóstico de cuentas inactivas requieren trabajo
 separado.
+## Coordinación con eliminación
+
+La recuperación toma el mismo bloqueo por usuario que la eliminación antes de
+comprobar erased_users. Una cuenta marcada produce ACCOUNT_DELETED y detiene
+la aplicación con resultado partial, sin incrementar confirmed para esa cuenta.
+No ignorar la marca para reanudar un archivo antiguo. Confirmed cuenta llamadas
+completadas; no es una cifra de perfiles recién creados.
+
+La marca solo está disponible cuando Profile recibió UserDeleted. La ventana
+controlada de exportación/importación sigue siendo necesaria frente a una
+eliminación todavía no entregada. Véase account-deletion.md para entrega,
+migraciones, reintentos y límites de las garantías distribuidas.
