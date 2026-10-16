@@ -15,12 +15,13 @@ export interface GatewayDeps {
 }
 
 const HEALTH_PATH = '/health';
-/** Endpoints de /api/auth que se pueden usar para adivinar credenciales o códigos. */
+/** Endpoints de /api/auth que se pueden usar para adivinar credenciales o códigos, o para crear cuentas en masa. */
 const SENSITIVE_AUTH_PATHS = [
   '/api/auth/login',
   '/api/auth/forgot-password',
   '/api/auth/verify-code',
   '/api/auth/reset-password',
+  '/api/auth/google',
 ];
 const RATE_LIMITED_BODY = { success: false, code: 'RATE_LIMITED', message: 'Demasiadas peticiones, intenta más tarde' };
 
