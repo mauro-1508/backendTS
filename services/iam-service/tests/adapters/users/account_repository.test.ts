@@ -7,12 +7,16 @@ const queries: string[] = [];
 let failOn: RegExp | null = null;
 let adminRows: Array<{ user_id: number }> = [];
 let userRows: Array<unknown> = [{}];
+let legacyTable: string | null = null;
+const params: Array<unknown[] | undefined> = [];
 
 const client = {
-  query: mock.fn(async (sql: string) => {
+  query: mock.fn(async (sql: string, p?: unknown[]) => {
     const q = sql.replace(/\s+/g, ' ').trim();
     queries.push(q);
+    params.push(p);
     if (failOn && failOn.test(q)) throw new Error('fallo simulado');
+    if (/to_regclass/.test(q)) return { rows: [{ table_name: legacyTable }] };
     if (/^SELECT 1 FROM public\.users/.test(q)) return { rows: userRows };
     if (/FROM public\.user_roles ur JOIN/.test(q)) return { rows: adminRows };
     return { rows: [], rowCount: 1 };
@@ -24,6 +28,8 @@ const repository = makePostgresAccountRepository(pool);
 
 beforeEach(() => {
   queries.length = 0;
+  params.length = 0;
+  legacyTable = null;
   failOn = null;
   adminRows = [{ user_id: 99 }, { user_id: 100 }];
   userRows = [{}];
@@ -31,19 +37,39 @@ beforeEach(() => {
 });
 
 describe('postgresAccountRepository.erase', () => {
-  test('borra todo en UNA transaccion y anonimiza usage_events', async () => {
+  test('borra lo de iam y deja UserDeleted en el outbox en UNA transaccion', async () => {
     assert.equal(await repository.erase(7), 'erased');
     assert.equal(queries[0], 'BEGIN');
     assert.equal(queries.at(-1), 'COMMIT');
     assert.equal(queries.filter((q) => q === 'BEGIN' || q === 'COMMIT').length, 2);
     const body = queries.join('\n');
-    assert.match(body, /DELETE FROM public\.translations WHERE user_id = \$1/);
+    assert.doesNotMatch(body, /translations|usage_event/);
     assert.match(body, /DELETE FROM public\.user_tokens WHERE user_id = \$1/);
     assert.match(body, /DELETE FROM public\.user_roles WHERE user_id = \$1/);
-    assert.match(body, /UPDATE public\.usage_events SET user_id = NULL WHERE user_id = \$1/);
-    assert.match(body, /reference_type = 'USER' AND reference_id = \$1/);
+    assert.doesNotMatch(body, /DELETE FROM public\.user_role WHERE/);
+    const outboxAt = queries.findIndex((q) => q.startsWith('INSERT INTO public.outbox_events'));
+    assert.ok(outboxAt > 0);
+    const [type, payload] = params[outboxAt] as [string, string];
+    assert.equal(type, 'iam.UserDeleted');
+    const event = JSON.parse(payload);
+    assert.deepEqual(Object.keys(event).sort(), ['occurredAt', 'userId']);
+    assert.equal(event.userId, 7);
     assert.equal(queries.at(-2), 'DELETE FROM public.users WHERE user_id = $1');
+    assert.ok(outboxAt < queries.length - 2);
     assert.equal(client.release.mock.callCount(), 1);
+  });
+
+  test('borra la tabla antigua user_role solo si existe', async () => {
+    legacyTable = 'user_role';
+    await repository.erase(7);
+    assert.match(queries.join('\n'), /DELETE FROM public\.user_role WHERE user_id = \$1/);
+  });
+
+  test('si falla el INSERT del outbox, ROLLBACK: la cuenta no se borra sin evento', async () => {
+    failOn = /^INSERT INTO public\.outbox_events/;
+    await assert.rejects(repository.erase(7), /fallo simulado/);
+    assert.ok(!queries.includes('COMMIT'));
+    assert.doesNotMatch(queries.join('\n'), /DELETE FROM public\.users/);
   });
 
   test('ROLLBACK y error si falla un paso a medias; nunca COMMIT', async () => {

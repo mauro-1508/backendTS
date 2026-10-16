@@ -1,7 +1,8 @@
 import { AccountRepository } from '../../../ports/outbound/account_repository';
 import { Pool } from 'pg';
+import { EVENT_TYPES, UserDeleted } from '@traduce/shared';
 
-type Query = (sql: string, params?: unknown[]) => Promise<{ rows: Array<{ user_id?: number }> }>;
+type Query = (sql: string, params?: unknown[]) => Promise<{ rows: Array<{ user_id?: number; table_name?: string | null }> }>;
 
 // Ejecuta fn dentro de una transaccion: COMMIT si termina, ROLLBACK si lanza o si fn pide abortar.
 const inTransaction = async <T>(pool: Pool, fn: (q: Query) => Promise<{ value: T; commit: boolean }>): Promise<T> => {
@@ -46,15 +47,20 @@ export const makePostgresAccountRepository = (pool: Pool): AccountRepository => 
       const isAdmin = admins.rows.some((r) => r.user_id === userId);
       if (isAdmin && admins.rows.length <= 1) return { value: 'last_admin' as const, commit: false };
 
-      await q('DELETE FROM public.translations WHERE user_id = $1', [userId]);
+      // Solo lo que vive en la BD de iam. Traducciones, muestras, uso y perfil se limpian en sus
+      // servicios al consumir iam.UserDeleted (el outbox garantiza que el evento sale).
       await q('DELETE FROM public.user_tokens WHERE user_id = $1', [userId]);
       await q('DELETE FROM public.user_roles WHERE user_id = $1', [userId]);
-      // Los hechos de uso sobreviven a la persona (HU-USG-004): se desligan, no se borran.
+      // Tabla antigua de 000_users.sql (FK a users sin ON DELETE): en el compose siempre existe;
+      // to_regclass se mantiene por si otra base (p. ej. creada con Liquibase) no la tiene.
+      const legacy = await q("SELECT to_regclass('public.user_role') AS table_name");
+      if (legacy.rows[0]?.table_name) await q('DELETE FROM public.user_role WHERE user_id = $1', [userId]);
+
+      const event: UserDeleted = { userId, occurredAt: new Date().toISOString() };
       await q(
-        `UPDATE public.usage_events SET reference_type = NULL, reference_id = NULL WHERE reference_type = 'USER' AND reference_id = $1`,
-        [userId]
+        'INSERT INTO public.outbox_events (event_id, type, payload) VALUES (gen_random_uuid(), $1, $2::jsonb)',
+        [EVENT_TYPES.UserDeleted, JSON.stringify(event)]
       );
-      await q('UPDATE public.usage_events SET user_id = NULL WHERE user_id = $1', [userId]);
       await q('DELETE FROM public.users WHERE user_id = $1', [userId]);
       return { value: 'erased' as const, commit: true };
     }),

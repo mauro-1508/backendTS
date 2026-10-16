@@ -11,10 +11,16 @@ import { makePostgresUserRepository } from '../src/users/adapters/outbound/postg
 import { makePostgresAccountRepository } from '../src/users/adapters/outbound/postgres/account_repository';
 import { makePostgresUserStatsRepository } from '../src/users/adapters/outbound/postgres/user_stats_repository';
 import { makePostgresIamRepository } from '../src/iam/adapters/outbound/postgres/iam_repository';
+import { makePostgresOutboxRepository } from '../src/shared/adapters/outbound/postgres/outbox_repository';
+import { makeRelayOutbox } from '../src/shared/application/relay_outbox';
+import { outboxRelayMode } from '../src/shared/application/outbox_policy';
+import { startOutboxRelayLoop } from '../src/shared/application/run_outbox_relay';
 
 const IAM_DEFAULT_PORT = 3001;
 
 const config = loadConfig({ prefix: 'IAM', defaultPort: IAM_DEFAULT_PORT });
+// En produccion sin broker falla aqui, antes de aceptar trafico.
+const relayMode = outboxRelayMode({ rabbitmqUrl: config.rabbitmqUrl, nodeEnv: process.env.NODE_ENV });
 const pool = makePgPool(config.db);
 const eventBus = createEventBus(config.rabbitmqUrl);
 const tokenProvider = makeJwtTokenProvider(config.jwt);
@@ -33,6 +39,14 @@ const app = makeIamApp({
   mailer,
   authMiddleware: makeAuthMiddleware(tokenProvider),
 });
+
+// Publica los eventos del outbox (iam.UserDeleted, ...) con confirmacion del broker y reintentos.
+if (relayMode === 'skip') {
+  console.warn('[outbox] WARN: sin RABBITMQ_URL el relay no corre; los eventos (p. ej. iam.UserDeleted) quedan pendientes en outbox_events');
+}
+const outboxRelay = relayMode === 'run'
+  ? startOutboxRelayLoop(makeRelayOutbox({ repository: makePostgresOutboxRepository(pool), publisher: eventBus }))
+  : { stop: () => undefined };
 
 const server = app.listen(config.port, () => {
   console.log(`iam-service escuchando en el puerto ${config.port}`);
@@ -53,6 +67,7 @@ if (missingMail.length > 0) {
 }
 
 process.on('SIGTERM', () => {
+  outboxRelay.stop();
   server.close();
   void eventBus.close();
   void pool.end();
