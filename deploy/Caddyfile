@@ -1,0 +1,29 @@
+# Caddy en produccion: HTTPS automatico (Let's Encrypt) para DOMAIN.
+#   https://DOMAIN/api/*  -> api-gateway:8080 (la ruta /api se conserva)
+#   https://DOMAIN/*      -> web:80 (la app Expo exportada, servida por nginx)
+#   www.DOMAIN            -> redirige a DOMAIN
+# DOMAIN lo define docker-compose.prod.yml (por defecto traducesenas.tech).
+
+{$DOMAIN} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# Caddy añade X-Forwarded-For con la IP del cliente: el gateway confia en 1 proxy (TRUST_PROXY=1).
+	handle /api/* {
+		reverse_proxy api-gateway:8080
+	}
+
+	handle {
+		reverse_proxy web:80
+	}
+}
+
+www.{$DOMAIN} {
+	redir https://{$DOMAIN}{uri} permanent
+}

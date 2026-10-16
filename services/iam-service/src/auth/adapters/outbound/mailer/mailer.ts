@@ -1,7 +1,7 @@
 import nodemailer from 'nodemailer';
 import { Mailer } from '../../../ports/outbound/mailer';
 import { MailerConfig } from '../../../../config';
-import { passwordResetEmail, verificationEmail } from './templates';
+import { accountDeletionEmail, passwordResetEmail, verificationEmail } from './templates';
 
 /** Variables de entorno que faltan para poder enviar correos (vacio = configuracion completa). */
 export const missingMailerSettings = (config: MailerConfig): string[] => [
@@ -26,6 +26,7 @@ export const makeNodemailerMailer = (config: MailerConfig): Mailer & { verify: (
   return {
     sendPasswordResetCode: ({ to, name, code }) => send(to, passwordResetEmail({ name, code })),
     sendVerificationCode: ({ to, name, code }) => send(to, verificationEmail({ name, code })),
+    sendAccountDeletionCode: ({ to, name, code }) => send(to, accountDeletionEmail({ name, code })),
     // Prueba conexion y credenciales con el SMTP sin enviar ningun correo.
     verify: async () => {
       await transporter.verify();

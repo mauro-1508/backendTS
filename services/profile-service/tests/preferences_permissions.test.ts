@@ -154,6 +154,7 @@ const setup = () => {
     router: profile,
     state: store.preferencesByUser,
     profilesByUser: store.profilesByUser,
+    erasedUsers: store.erasedUsers,
     updatedUsers,
     published,
   };
@@ -335,9 +336,10 @@ for (const path of ['/preferences', '/me']) {
       assert.deepEqual(test.published, [{ userId: '7', theme: 'DARK' }]);
     });
 
-    // No se fabrica un perfil desde PATCH, aunque existan preferencias huérfanas.
+    // Una cuenta sin perfil (evento perdido o anterior al servicio) lo recupera
+    // con el correo del token, haya o no preferencias huérfanas.
     for (const orphanPreferences of [false, true]) {
-      it(`sin perfil devuelve 404; preferencias huérfanas=${orphanPreferences}`, async () => {
+      it(`sin perfil lo crea y guarda; preferencias huérfanas=${orphanPreferences}`, async () => {
         const test = setup();
         test.profilesByUser.delete('7');
         if (!orphanPreferences) test.state.delete('7');
@@ -346,16 +348,31 @@ for (const path of ['/preferences', '/me']) {
           theme: 'DARK',
         });
 
-        assert.equal(result.status, 404);
-        assert.equal(test.profilesByUser.has('7'), false);
-        assert.deepEqual(
-          test.state.get('7'),
-          orphanPreferences ? DEFAULT_PREFERENCES : undefined,
-        );
-        assert.deepEqual(test.updatedUsers, []);
-        assert.deepEqual(test.published, []);
+        assert.equal(result.status, 200);
+        assert.equal(test.profilesByUser.get('7')?.email, 'user@example.test');
+        assert.equal(test.state.get('7')?.theme, 'DARK');
+        assert.deepEqual(test.updatedUsers, ['7']);
+        assert.equal(test.published.length, 1);
       });
     }
+
+    // Una cuenta borrada no se recrea desde PATCH.
+    it('cuenta borrada responde 410 y no recrea el perfil', async () => {
+      const test = setup();
+      test.profilesByUser.delete('7');
+      test.state.delete('7');
+      test.erasedUsers.add('7');
+
+      const result = await call(test.router, 'PATCH', path, 'user', {
+        theme: 'DARK',
+      });
+
+      assert.equal(result.status, 410);
+      assert.equal(test.profilesByUser.has('7'), false);
+      assert.equal(test.state.has('7'), false);
+      assert.deepEqual(test.updatedUsers, []);
+      assert.deepEqual(test.published, []);
+    });
 
     // La reparación no permite saltarse autenticación ni autorización.
     // La presencia de notificationsEnabled exige permiso, incluso para false.

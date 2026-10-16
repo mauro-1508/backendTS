@@ -19,6 +19,16 @@ export const passwordResetEmail = ({ name, code }: { name: string; code: string 
   html: codeEmail('Recuperar contraseña', 'tu código de verificación es:', `Hola ${escapeHtml(name)}`, code),
 });
 
+export const accountDeletionEmail = ({ name, code }: { name: string; code: string }) => ({
+  subject: 'Confirma la eliminación de tu cuenta - TraduceSeñas',
+  html: codeEmail(
+    'Eliminar cuenta',
+    'tu código para confirmar la eliminación de tu cuenta es (esta acción no se puede deshacer):',
+    `Hola ${escapeHtml(name)}`,
+    code,
+  ),
+});
+
 export const verificationEmail = ({ code }: { name?: string; code: string }) => ({
   subject: 'Verifica tu correo - TraduceSeñas',
   html: codeEmail('Verificar correo', 'tu código para verificar tu correo es:', 'Hola', code),

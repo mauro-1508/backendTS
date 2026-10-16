@@ -22,6 +22,8 @@ const HTTP_BAD_REQUEST = 400;
 
 /** El JWT trae el id del usuario (el middleware ya garantizo que existe). */
 const userIdOf = (req: Request): string => String(req.user?.userId);
+/** Correo del JWT: sirve para crear el perfil si la cuenta aun no tiene uno. */
+const identityOf = (req: Request) => ({ email: req.user?.email });
 
 const fail = (res: Response, error: unknown) => {
   if (error instanceof ProfileError) {
@@ -49,11 +51,11 @@ export const makeProfileController = (useCases: ProfileUseCases) => ({
 
   getPreferences: handle(async (req, res) => { res.json(await useCases.getPreferences(userIdOf(req))); }),
 
-  updatePreferences: handle(async (req, res) => { res.json(await useCases.updatePreferences(userIdOf(req), req.body)); }),
+  updatePreferences: handle(async (req, res) => { res.json(await useCases.updatePreferences(userIdOf(req), req.body, identityOf(req))); }),
 
   /** PATCH /me cambia las preferencias y devuelve el perfil completo (contrato). */
   updateProfile: handle(async (req, res) => {
-    await useCases.updatePreferences(userIdOf(req), req.body);
+    await useCases.updatePreferences(userIdOf(req), req.body, identityOf(req));
     res.json(await useCases.getProfile(userIdOf(req)));
   }),
 

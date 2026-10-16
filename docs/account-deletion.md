@@ -64,7 +64,7 @@ esto es retención técnica, no prueba de finalización de los consumidores.
 Aplicar por servicio y revisar el destino antes de escribir. Los mounts initdb
 solo actúan sobre volúmenes NUEVOS; no recrear ni borrar volúmenes existentes.
 
-- IAM: 009_outbox_events.sql y después 010_outbox_claim_token.sql.
+- IAM: 009_outbox_events.sql, 010, 011 y después 012_outbox_claim_token.sql.
 - Profile: 002_erased_users.sql.
 - Recognition: 003_erased_users.sql.
 - Analytics: 002_erased_users.sql.
@@ -114,6 +114,6 @@ anteriores. Analytics añade los dos órdenes de save/borrado y observa espera
 real del bloqueo con pg_blocking_pids. Sin URL exclusiva los tests se omiten;
 una omisión no cuenta como integración aprobada.
 
-Ver execution-notes.md para resultados de esta entrega. Pendientes de validación
+Pendientes de validación
 real: concurrencia nueva PG, failover RabbitMQ/colas ausentes, fencing con dos
 relays reales, fallo parcial PG/Mongo y ambas vías de migración.

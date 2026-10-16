@@ -67,4 +67,3 @@ npm test                 # corre los tests de shared y de cada servicio (node:te
 - [Recuperación controlada de identidades](docs/profile-identity-recovery.md).
 - [Eliminación distribuida, migraciones y despliegue](docs/account-deletion.md).
 - [Diagnóstico de cuentas inactivas](docs/inactive-accounts.md).
-- [Resultados y límites de las pruebas](docs/execution-notes.md).
