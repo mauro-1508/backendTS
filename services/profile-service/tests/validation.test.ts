@@ -12,8 +12,14 @@ describe('validacion de entradas', () => {
     );
   });
 
+  it('acepta los cuatro idiomas de la app: ES, EN, FR y PT', () => {
+    for (const uiLanguage of ['ES', 'EN', 'FR', 'PT']) {
+      assert.deepEqual(parsePreferencesPatch({ uiLanguage }), { uiLanguage });
+    }
+  });
+
   it('rechaza valores invalidos y cuerpos vacios con 400', () => {
-    for (const body of [{ theme: 'RED' }, { uiLanguage: 'FR' }, { notificationsEnabled: 'si' }, {}, undefined]) {
+    for (const body of [{ theme: 'RED' }, { uiLanguage: 'DE' }, { uiLanguage: 'fr' }, { notificationsEnabled: 'si' }, {}, undefined]) {
       assert.throws(() => parsePreferencesPatch(body), (e: unknown) => e instanceof ProfileError && e.httpStatus === 400);
     }
   });

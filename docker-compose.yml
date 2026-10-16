@@ -13,6 +13,7 @@
 #   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/011_account_deletion_token.sql
 #   docker compose exec -T postgres-analytics psql -U postgres -d analytics < services/analytics-service/db/002_erased_users.sql
 #   docker compose exec -T postgres-profile   psql -U postgres -d profile   < services/profile-service/db/002_erased_users.sql
+#   docker compose exec -T postgres-profile   psql -U postgres -d profile   < services/profile-service/db/003_ui_languages.sql
 #   docker compose exec -T postgres-recognition psql -U postgres -d recognition < services/recognition-service/db/003_erased_users.sql
 #   (si 009 ya se aplico con una version anterior, volver a ejecutarla: es idempotente y anade las columnas nuevas)
 # Orden de despliegue de iam.UserDeleted: el outbox publica con mandatory=true, asi que un evento sin
@@ -224,6 +225,8 @@ services:
       # Esquema y semilla de logros: se aplican al crear el volumen por primera vez.
       - ./services/profile-service/db/001_profile.sql:/docker-entrypoint-initdb.d/001_profile.sql:ro
       - ./services/profile-service/db/002_erased_users.sql:/docker-entrypoint-initdb.d/002_erased_users.sql:ro
+      # Idioma de la interfaz: ES, EN, FR y PT.
+      - ./services/profile-service/db/003_ui_languages.sql:/docker-entrypoint-initdb.d/003_ui_languages.sql:ro
     healthcheck: *pg-healthcheck
 
   mongo:
