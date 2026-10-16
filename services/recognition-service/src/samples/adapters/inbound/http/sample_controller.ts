@@ -1,4 +1,5 @@
 import { Request, Response } from 'express';
+import { AccountErasedError } from '../../../../translations/domain/service';
 import { InvalidSampleError } from '../../../domain/service';
 import { SampleResult, SampleService } from '../../../ports/inbound/sample_service';
 
@@ -13,6 +14,9 @@ const respond = async (res: Response, status: number, run: () => Promise<SampleR
   try {
     return res.status(status).json(await run());
   } catch (error) {
+    if (error instanceof AccountErasedError) {
+      return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });
+    }
     if (error instanceof InvalidSampleError) {
       return res.status(HTTP_BAD_REQUEST).json({ success: false, code: 'VALIDATION_ERROR', message: error.message });
     }

@@ -60,3 +60,10 @@ Las variables de cada servicio están documentadas en `.env.example`.
 npm run build            # compila shared y todos los servicios
 npm test                 # corre los tests de shared y de cada servicio (node:test)
 ```
+
+## Profile y eliminación de cuentas
+
+- [Estado del dominio Profile](docs/profile-backend.md).
+- [Recuperación controlada de identidades](docs/profile-identity-recovery.md).
+- [Eliminación distribuida, migraciones y despliegue](docs/account-deletion.md).
+- [Diagnóstico de cuentas inactivas](docs/inactive-accounts.md).

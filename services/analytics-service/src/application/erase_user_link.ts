@@ -3,9 +3,9 @@ import { UsageEventRepository } from '../domain/repository';
 
 /**
  * iam.UserDeleted: desliga al usuario de los hechos de uso (se conservan como estadistica
- * anonima) y registra el id como borrado. Idempotente; un payload invalido se descarta con log.
+ * anonima) y registra el id como borrado. Idempotente; un payload inválido se rechaza para conservarlo en DLQ.
  */
 export const makeEraseUserLink = (deps: { repository: UsageEventRepository }): EventHandler =>
   withValidPayload(isUserDeleted, async envelope => {
     await deps.repository.unlinkUser(String(envelope.payload.userId));
-  });
+  }, undefined, 'reject');

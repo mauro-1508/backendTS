@@ -16,7 +16,10 @@ const setup = () => {
       await profiles.createIfAbsent(profile);
     },
   };
-  const update = makeUpdatePreferences({ profiles: spied, eventPublisher: new InMemoryEventBus() });
+  const update = makeUpdatePreferences({
+    unitOfWork: { run: work => work({ ...store.repositories, profiles: spied }) },
+    eventPublisher: new InMemoryEventBus(),
+  });
   return { store, update, created };
 };
 
@@ -37,10 +40,10 @@ describe('updatePreferences con perfil ausente', () => {
     assert.equal(created.length, 0);
   });
 
-  it('cuenta borrada: no se recrea y responde 404', async () => {
+  it('cuenta borrada: no se recrea y responde 410', async () => {
     const { store, update } = setup();
     store.erasedUsers.add('7');
-    await assert.rejects(update('7', { theme: 'DARK' }, { email: 'ana@x.com' }), { httpStatus: 404 });
+    await assert.rejects(update('7', { theme: 'DARK' }, { email: 'ana@x.com' }), { httpStatus: 410 });
     assert.equal(store.preferencesByUser.has('7'), false);
   });
 

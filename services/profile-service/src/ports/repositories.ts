@@ -18,8 +18,15 @@ export interface ProfileRepository {
   eraseUser(userId: string): Promise<void>;
   findProfile(userId: string): Promise<Profile | null>;
   findPreferences(userId: string): Promise<Preferences | null>;
-  /** Aplica el cambio; devuelve null si el usuario no tiene preferencias. */
-  updatePreferences(userId: string, patch: PreferencesPatch): Promise<Preferences | null>;
+  /**
+   * Recibe un patch validado, no vacío y sin valores undefined.
+   * Aplica solo los campos enviados; crea preferencias con defaults si faltan.
+   * Devuelve null si no existe el perfil.
+   */
+  updatePreferences(
+    userId: string,
+    patch: PreferencesPatch,
+  ): Promise<Preferences | null>;
 }
 
 export interface AchievementRepository {
@@ -27,11 +34,14 @@ export interface AchievementRepository {
   findProgressByMetric(userId: string, metric: AchievementMetric): Promise<AchievementProgress[]>;
   /** Todos los logros activos con el avance del usuario. */
   findAllProgress(userId: string): Promise<AchievementProgress[]>;
+  /** Registra la creación efectiva de la notificación del logro. */
+markNotified(userId: string, achievementId: string): Promise<void>;
   saveProgress(userId: string, progress: AchievementProgress): Promise<void>;
 }
 
 export interface NotificationRepository {
-  create(notification: NewNotification): Promise<void>;
+  create(notification: NewNotification): Promise<boolean>;
+  /** Devuelve false si el tipo no existe o está inactivo. */
   list(userId: string, query: NotificationQuery): Promise<NotificationPage>;
   markRead(userId: string, notificationId: string): Promise<Notification | null>;
 }
@@ -41,12 +51,20 @@ export interface ProcessedEventRepository {
   markIfNew(eventId: string): Promise<boolean>;
 }
 
+/** Bloqueos disponibles dentro de la unidad de trabajo. */
+export interface GamificationLocks {
+  /** Serializa las actualizaciones del usuario hasta commit o rollback. */
+  lockUser(userId: string): Promise<void>;
+}
+
+
 /** Repositorios que comparten una misma transaccion. */
 export interface TransactionalRepositories {
   profiles: ProfileRepository;
   achievements: AchievementRepository;
   notifications: NotificationRepository;
   processedEvents: ProcessedEventRepository;
+  gamificationLocks: GamificationLocks;
 }
 
 export interface UnitOfWork {

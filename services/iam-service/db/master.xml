@@ -14,4 +14,5 @@
     <include file="changelogs/013_seed_roles.xml"/>
     <include file="changelogs/014_reset_token_attempts.xml"/>
 
+    <include file="changelogs/015_account_deletion_outbox.xml"/>
 </databaseChangeLog>

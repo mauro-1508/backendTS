@@ -14,3 +14,9 @@ const HTTP_NOT_FOUND = 404;
 
 export const validationError = (message: string) => new ProfileError('VALIDATION_ERROR', message, HTTP_BAD_REQUEST);
 export const notFoundError = (message: string) => new ProfileError('NOT_FOUND', message, HTTP_NOT_FOUND);
+/**
+ * Impide recuperar o modificar una cuenta que ya tiene
+ * una marca local de eliminación.
+ */
+export const accountDeletedError = () =>
+  new ProfileError('ACCOUNT_DELETED', 'La cuenta fue eliminada', 410);

@@ -24,9 +24,13 @@ describe('recognition-service HTTP (sin base de datos)', () => {
   let base: string;
 
   before(async () => {
-    // Las rutas probadas se cortan antes de tocar Postgres: el pool nunca se usa.
+    // Sin Postgres real: la guarda de cuenta activa de las muestras solo abre una
+    // transacción y consulta erased_users, así que basta un cliente que no devuelve filas.
+    const fakePool = {
+      connect: async () => ({ query: async () => ({ rows: [] }), release: () => undefined }),
+    } as unknown as Pool;
     const app = makeRecognitionApp({
-      pool: {} as Pool,
+      pool: fakePool,
       eventPublisher: new InMemoryEventBus(),
       sampleRepository: new InMemorySampleRepository(),
       authMiddleware: makeAuthMiddleware(tokenProvider),

@@ -165,6 +165,8 @@ services:
       - ./services/iam-service/db/010_users_password_nullable.sql:/docker-entrypoint-initdb.d/010_users_password_nullable.sql:ro
       # Codigo por correo para borrar cuentas sin contraseña (token ACCOUNT_DELETION).
       - ./services/iam-service/db/011_account_deletion_token.sql:/docker-entrypoint-initdb.d/011_account_deletion_token.sql:ro
+      # Reserva con token en el outbox: un relay vencido no confirma la reserva de otro.
+      - ./services/iam-service/db/012_outbox_claim_token.sql:/docker-entrypoint-initdb.d/012_outbox_claim_token.sql:ro
     healthcheck: &pg-healthcheck
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s

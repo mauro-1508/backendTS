@@ -56,6 +56,12 @@ export const makePostgresAccountRepository = (pool: Pool): AccountRepository => 
       const legacy = await q("SELECT to_regclass('public.user_role') AS table_name");
       if (legacy.rows[0]?.table_name) await q('DELETE FROM public.user_role WHERE user_id = $1', [userId]);
 
+      // Variantes Liquibase antiguas: estas FK no siempre tienen cascada.
+      for (const table of ['user_auth', 'user_session', 'password_reset_token'] as const) {
+        const exists = await q(`SELECT to_regclass('public.${table}') AS table_name`);
+        if (exists.rows[0]?.table_name) await q(`DELETE FROM public.${table} WHERE user_id = $1`, [userId]);
+      }
+
       const event: UserDeleted = { userId, occurredAt: new Date().toISOString() };
       await q(
         'INSERT INTO public.outbox_events (event_id, type, payload) VALUES (gen_random_uuid(), $1, $2::jsonb)',

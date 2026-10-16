@@ -10,8 +10,8 @@ export const USER_DELETED_QUEUE = 'recognition-service.user-deleted';
 /**
  * iam.UserDeleted: borra las traducciones (Postgres, y registra al usuario como borrado) y desliga
  * al usuario de las muestras (Mongo: recorded_by = null; las muestras se conservan).
- * Los borrados son idempotentes, asi que una reentrega no hace dano. Un payload invalido se
- * descarta con log; un error de base de datos se propaga para que el bus lo mande a la cola muerta.
+ * Los borrados son idempotentes, asi que una reentrega no hace dano. Un payload inválido se
+ * conserva en DLQ; los errores transitorios se reintentan sin confirmar el mensaje.
  */
 export const makeUserDeletedHandler = (deps: {
   eraseTranslations: EraseUserTranslations;
@@ -22,15 +22,15 @@ export const makeUserDeletedHandler = (deps: {
   return withValidPayload(isUserDeleted, async ({ payload }) => {
     const translations = await deps.eraseTranslations(payload.userId);
     const samples = await deps.unlinkSamples(payload.userId);
-    log(`[recognition] cuenta ${payload.userId} borrada: ${translations} traduccion(es) borrada(s), ${samples} muestra(s) desligada(s)`);
-  });
+    log(`[recognition] limpieza completada: ${translations} traduccion(es), ${samples} muestra(s)`);
+  }, undefined, 'reject');
 };
 
 /** No rechaza: si el broker aun no esta arriba reintenta en segundo plano con backoff. */
-/** Errores pasajeros se reintentan con backoff (5 intentos) antes de ir a `.dead`, con ALERTA en el log. */
+/** Los errores transitorios se reintentan sin límite con backoff y alertas periódicas. */
 export const subscribeToUserDeleted = (
   subscriber: EventSubscriber,
   handler: EventHandler,
   retryOptions?: RetryHandlerOptions,
 ): Promise<void> =>
-  subscribeWithRetry(subscriber, { queue: USER_DELETED_QUEUE, pattern: EVENT_TYPES.UserDeleted }, withRetry(handler, retryOptions));
+  subscribeWithRetry(subscriber, { queue: USER_DELETED_QUEUE, pattern: EVENT_TYPES.UserDeleted }, withRetry(handler, { attempts: Infinity, ...retryOptions }));

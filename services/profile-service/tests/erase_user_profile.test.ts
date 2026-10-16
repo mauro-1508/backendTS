@@ -77,9 +77,9 @@ describe('borrado de perfil (iam.UserDeleted)', () => {
     console.error = () => {};
     try {
       await bus.publish('iam.UserDeleted', { userId: 7, occurredAt: '2026-10-02T10:00:00.000Z' });
-      await bus.publish('iam.UserDeleted', { userId: '7', occurredAt: '2026-10-02T10:00:00.000Z' });
-      await bus.publish('iam.UserDeleted', { userId: -1, occurredAt: '2026-10-02T10:00:00.000Z' });
-      await bus.publish('iam.UserDeleted', {});
+      await assert.rejects(bus.publish('iam.UserDeleted', { userId: '7', occurredAt: '2026-10-02T10:00:00.000Z' }));
+      await assert.rejects(bus.publish('iam.UserDeleted', { userId: -1, occurredAt: '2026-10-02T10:00:00.000Z' }));
+      await assert.rejects(bus.publish('iam.UserDeleted', {}));
     } finally {
       console.error = originalError;
     }

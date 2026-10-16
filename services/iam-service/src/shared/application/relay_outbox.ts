@@ -63,19 +63,19 @@ export const makeRelayOutbox = (deps: {
     const events = await repository.claimBatch(batchSize, leaseMs);
     for (const [index, event] of events.entries()) {
       try {
-        await publisher.publish(event.type, event.payload, { eventId: event.eventId, mandatory: true });
-        await repository.markPublished(event.eventId);
+        await publisher.publish(event.type, event.payload, { eventId: event.eventId, mandatory: true, ...(event.occurredAt ? { occurredAt: event.occurredAt } : {}) });
+        await repository.markPublished(event.eventId, event.claimToken);
         result.published++;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
-        const attempts = await repository.markFailed(event.eventId, message, outboxRetryDelayMs(event.attempts, deps.retryBaseMs, deps.retryMaxMs));
+        const attempts = await repository.markFailed(event.eventId, message, outboxRetryDelayMs(event.attempts, deps.retryBaseMs, deps.retryMaxMs), event.claimToken);
         result.failed++;
         // Una sola alerta por evento: justo al alcanzar el umbral (despues sigue reintentando con tope).
         if (attempts === alertAfter) {
           log('[outbox] ALERTA: ' + event.type + ' (' + event.eventId + ') lleva ' + attempts + ' intentos fallidos: ' + message);
         }
         if (error instanceof PublishTimeoutError) {
-          await repository.release(events.slice(index + 1).map(pending => pending.eventId));
+          await repository.release(events.slice(index + 1).map(pending => pending.eventId), event.claimToken);
           break;
         }
       }

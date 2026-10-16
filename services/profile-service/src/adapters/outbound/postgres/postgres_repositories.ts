@@ -3,7 +3,8 @@ import { AchievementProgress } from '../../../domain/achievement';
 import { Notification } from '../../../domain/notification';
 import { Preferences, Profile } from '../../../domain/preferences';
 import {
-  AchievementRepository, NotificationRepository, ProcessedEventRepository, ProfileRepository,
+  AchievementRepository, GamificationLocks, NotificationRepository,
+  ProcessedEventRepository, ProfileRepository,
   TransactionalRepositories, UnitOfWork,
 } from '../../../ports/repositories';
 
@@ -82,14 +83,29 @@ export const makePostgresProfileRepository = (db: Queryable): ProfileRepository 
     return rows[0] ? toPreferences(rows[0]) : null;
   },
 
-  async updatePreferences(userId, patch) {
-    const entries = Object.entries(patch) as Array<[keyof typeof COLUMN_BY_PREFERENCE, unknown]>;
-    const assignments = entries.map(([field], index) => `${COLUMN_BY_PREFERENCE[field]} = $${index + 2}`);
+    async updatePreferences(userId, patch) {
+    const entries = Object.entries(patch) as Array<
+      [keyof typeof COLUMN_BY_PREFERENCE, unknown]
+    >;
+    const columns = entries.map(([field]) => COLUMN_BY_PREFERENCE[field]);
+    const placeholders = entries.map(([field], index) =>
+      `$${index + 2}::${field === 'notificationsEnabled' ? 'boolean' : 'text'}`,
+    );
+    const assignments = columns.map(
+      column => `${column} = EXCLUDED.${column}`,
+    );
+
     const { rows } = await db.query(
-      `UPDATE user_preferences SET ${assignments.join(', ')}, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = $1 RETURNING ${PREFERENCES_COLUMNS}`,
+      `INSERT INTO user_preferences (user_id, ${columns.join(', ')})
+       SELECT p.user_id, ${placeholders.join(', ')}
+         FROM user_profiles p
+        WHERE p.user_id = $1
+       ON CONFLICT (user_id) DO UPDATE
+         SET ${assignments.join(', ')}, updated_at = CURRENT_TIMESTAMP
+       RETURNING ${PREFERENCES_COLUMNS}`,
       [userId, ...entries.map(([, value]) => value)],
     );
+
     return rows[0] ? toPreferences(rows[0]) : null;
   },
   };
@@ -133,13 +149,39 @@ export const makePostgresAchievementRepository = (db: Queryable): AchievementRep
 
   async saveProgress(userId, progress) {
     await db.query(
-      `INSERT INTO user_achievements (user_id, achievement_id, current_count, achieved_at, notified_at)
-       VALUES ($1, $2, $3, $4, $4)
+      `INSERT INTO user_achievements (
+         user_id, achievement_id, current_count, achieved_at
+       )
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (user_id, achievement_id) DO UPDATE
-         SET current_count = EXCLUDED.current_count, achieved_at = EXCLUDED.achieved_at,
-             notified_at = EXCLUDED.notified_at, updated_at = CURRENT_TIMESTAMP`,
-      [userId, progress.achievement.id, progress.currentCount, progress.achievedAt],
+         SET current_count = EXCLUDED.current_count,
+             achieved_at = EXCLUDED.achieved_at,
+             updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        progress.achievement.id,
+        progress.currentCount,
+        progress.achievedAt,
+      ],
     );
+  },
+
+  async markNotified(userId, achievementId) {
+    const result = await db.query(
+      `UPDATE user_achievements
+       SET notified_at = COALESCE(notified_at, CURRENT_TIMESTAMP),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1
+         AND achievement_id = $2
+         AND achieved_at IS NOT NULL`,
+      [userId, achievementId],
+    );
+
+    if (result.rowCount !== 1) {
+      throw new Error(
+        'No existe un logro desbloqueado para registrar la notificación',
+      );
+    }
   },
 });
 
@@ -162,16 +204,25 @@ const toNotification = (row: Record<string, any>): Notification => ({
 
 export const makePostgresNotificationRepository = (db: Queryable): NotificationRepository => ({
   async create(notification) {
-    await db.query(
+    const result = await db.query(
       `INSERT INTO notifications
-         (user_id, notification_type_id, channel, title, body, reference_type, reference_id, status, sent_at)
-       SELECT $1, notification_type_id, 'IN_APP', $3, $4, $5, $6, 'SENT', CURRENT_TIMESTAMP
-         FROM notification_types WHERE code = $2 AND is_active`,
+         (user_id, notification_type_id, channel, title, body,
+          reference_type, reference_id, status, sent_at)
+       SELECT $1, notification_type_id, 'IN_APP', $3, $4,
+              $5, $6, 'SENT', CURRENT_TIMESTAMP
+       FROM notification_types
+       WHERE code = $2 AND is_active`,
       [
-        notification.userId, notification.typeCode, notification.title, notification.body,
-        notification.referenceType ?? null, notification.referenceId ?? null,
+        notification.userId,
+        notification.typeCode,
+        notification.title,
+        notification.body,
+        notification.referenceType ?? null,
+        notification.referenceId ?? null,
       ],
     );
+
+    return result.rowCount === 1;
   },
 
   async list(userId, { page, limit, unreadOnly }) {
@@ -216,11 +267,28 @@ export const makePostgresProcessedEventRepository = (db: Queryable): ProcessedEv
   },
 });
 
-export const makePostgresRepositories = (db: Queryable): TransactionalRepositories => ({
+const GAMIFICATION_LOCK_NAMESPACE = 714305;
+
+/** Usa el cliente de la transacción para mantener el bloqueo hasta commit o rollback. */
+export const makePostgresGamificationLocks = (
+  db: Queryable,
+): GamificationLocks => ({
+  async lockUser(userId) {
+    await db.query(
+      'SELECT pg_advisory_xact_lock($1::integer, hashtext($2::text))',
+      [GAMIFICATION_LOCK_NAMESPACE, userId],
+    );
+  },
+});
+
+export const makePostgresRepositories = (
+  db: Queryable,
+): TransactionalRepositories => ({
   profiles: makePostgresProfileRepository(db),
   achievements: makePostgresAchievementRepository(db),
   notifications: makePostgresNotificationRepository(db),
   processedEvents: makePostgresProcessedEventRepository(db),
+  gamificationLocks: makePostgresGamificationLocks(db),
 });
 
 /** Cada `run` abre una transaccion: commit si termina bien, rollback si falla. */
@@ -228,7 +296,7 @@ export const makePostgresUnitOfWork = (pool: Pool): UnitOfWork => ({
   async run(work) {
     const client: PoolClient = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
       const result = await work(makePostgresRepositories(client));
       await client.query('COMMIT');
       return result;
