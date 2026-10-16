@@ -6,7 +6,9 @@ import { makeAuthMiddleware, makeJwtTokenProvider } from '@traduce/shared';
 import { makeIamApp } from '../src/app';
 import { User } from '../src/users/domain/entity';
 import { makeFakeIamRepository } from './application/iam/fake_iam_repository';
-import { fakeGoogleTokenVerifier, googleIdToken, RecordingEventPublisher } from './helpers/fakes';
+import {
+  facebookAccessToken, fakeFacebookTokenVerifier, fakeGoogleTokenVerifier, googleIdToken, RecordingEventPublisher,
+} from './helpers/fakes';
 
 const tokenProvider = makeJwtTokenProvider({ secret: 'secreto-iam', expiresIn: '1h' });
 const JSON_HEADERS = { 'content-type': 'application/json' };
@@ -48,6 +50,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
       iamRepository: iam.repo,
       mailer: { sendVerificationCode: noMail, sendPasswordResetCode: noMail },
       googleTokenVerifier: fakeGoogleTokenVerifier,
+      facebookTokenVerifier: fakeFacebookTokenVerifier,
       passwordHasher: {
         hash: async (plain) => `h:${plain}`,
         compare: async (plain, hashed) => hashed === `h:${plain}`,
@@ -176,6 +179,27 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
 
   test('POST /api/auth/google ignora correo y nombre enviados fuera del token', async () => {
     const response = await post('/api/auth/google', { email: 'ada@example.com', name: 'Ada' });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as { code: string }).code, 'INVALID_BODY');
+  });
+
+  test('POST /api/auth/facebook con correo nuevo crea la cuenta ACTIVE e inicia sesion', async () => {
+    const response = await post('/api/auth/facebook', { accessToken: facebookAccessToken({ email: 'Linus@Example.com', name: 'Linus' }) });
+    assert.equal(response.status, 200);
+    const { data } = (await response.json()) as { data: { token: string; user: { email: string } } };
+    assert.ok(data.token);
+    assert.equal(data.user.email, 'linus@example.com');
+    assert.equal(users.find((u) => u.email === 'linus@example.com')?.status, 'ACTIVE');
+  });
+
+  test('POST /api/auth/facebook sin correo en Facebook responde 400 FACEBOOK_EMAIL_REQUIRED', async () => {
+    const response = await post('/api/auth/facebook', { accessToken: facebookAccessToken({ email: null, name: 'Sin Correo' }) });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as { code: string }).code, 'FACEBOOK_EMAIL_REQUIRED');
+  });
+
+  test('POST /api/auth/facebook sin accessToken responde 400 INVALID_BODY', async () => {
+    const response = await post('/api/auth/facebook', { email: 'ada@example.com' });
     assert.equal(response.status, 400);
     assert.equal(((await response.json()) as { code: string }).code, 'INVALID_BODY');
   });

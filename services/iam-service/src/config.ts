@@ -1,4 +1,5 @@
 import { Env, makeEnvReader } from '@traduce/shared';
+import { FacebookAppCredentials } from './auth/adapters/outbound/facebook/facebook_token_verifier';
 
 export interface MailerConfig {
   service: string;
@@ -22,4 +23,15 @@ export const loadMailerConfig = (env: Env = process.env): MailerConfig => {
 export const loadGoogleClientIds = (env: Env = process.env): string[] => {
   const read = makeEnvReader(env, ENV_PREFIX);
   return (read('GOOGLE_CLIENT_IDS') ?? '').split(',').map((id) => id.trim()).filter(Boolean);
+};
+
+/**
+ * App ID y App Secret de Facebook (developers.facebook.com). El secreto solo vive aqui, nunca en el frontend.
+ * Si falta alguno = POST /auth/facebook responde 503 FACEBOOK_NOT_CONFIGURED.
+ */
+export const loadFacebookCredentials = (env: Env = process.env): FacebookAppCredentials | null => {
+  const read = makeEnvReader(env, ENV_PREFIX);
+  const appId = read('FACEBOOK_APP_ID')?.trim();
+  const appSecret = read('FACEBOOK_APP_SECRET')?.trim();
+  return appId && appSecret ? { appId, appSecret } : null;
 };

@@ -69,3 +69,14 @@ export const fakeGoogleTokenVerifier = {
     return { email, name, emailVerified };
   },
 };
+
+/** "Access token" de prueba para fakeFacebookTokenVerifier: la identidad serializada. */
+export const facebookAccessToken = (identity: { email: string | null; name?: string | null }): string => JSON.stringify(identity);
+
+/** Sustituye a la Graph API en los tests: devuelve la identidad codificada en el token. */
+export const fakeFacebookTokenVerifier = {
+  verify: async (accessToken: string) => {
+    const { email, name = null } = JSON.parse(accessToken) as { email: string | null; name?: string | null };
+    return { email, name };
+  },
+};
