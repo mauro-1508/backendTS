@@ -44,7 +44,13 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
       },
       findProfile: async () => null,
       findPreferences: async userId => preferencesByUser.get(userId) ?? null,
-      updatePreferences: async () => null,
+      updatePreferences: async (userId, patch) => {
+        const current = preferencesByUser.get(userId);
+        if (!current) return null;
+        const next = { ...current, ...patch };
+        preferencesByUser.set(userId, next);
+        return next;
+      },
     },
     achievements: {
       findProgressByMetric: async (userId, metric) =>
