@@ -23,6 +23,7 @@ const SENSITIVE_AUTH_PATHS = [
   '/api/auth/verify-code',
   '/api/auth/reset-password',
   '/api/auth/google',
+  '/api/auth/facebook',
 ];
 const RATE_LIMITED_BODY = { success: false, code: 'RATE_LIMITED', message: 'Demasiadas peticiones, intenta más tarde' };
 
