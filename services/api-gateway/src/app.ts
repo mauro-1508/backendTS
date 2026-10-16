@@ -9,7 +9,8 @@ import { makeOptionalAuth } from './optional_auth';
 import { makeServiceProxies } from './proxies';
 
 export interface GatewayDeps {
-  config: Pick<GatewayConfig, 'serviceUrls' | 'rateLimit' | 'authRateLimit' | 'healthTimeoutMs' | 'corsOrigins'>;
+  config: Pick<GatewayConfig, 'serviceUrls' | 'rateLimit' | 'authRateLimit' | 'healthTimeoutMs' | 'corsOrigins'>
+    & Partial<Pick<GatewayConfig, 'trustProxy'>>;
   tokenProvider: TokenProvider;
   fetchFn?: FetchLike;
 }
@@ -34,6 +35,8 @@ const makeLimiter = ({ windowMs, maxRequests }: RateLimitConfig) => rateLimit({
 
 export const makeGatewayApp = ({ config, tokenProvider, fetchFn = fetch }: GatewayDeps): Express => {
   const app = express();
+  // Solo se confia en X-Forwarded-For si hay un proxy propio delante: si no, cualquiera podria falsear su IP.
+  if (config.trustProxy) app.set('trust proxy', config.trustProxy);
 
   app.use(cors(makeCorsOptions(config.corsOrigins)));
   app.get(HEALTH_PATH, makeHealthHandler({
