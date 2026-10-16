@@ -98,7 +98,7 @@ const setup = (users: U[] = []) => {
     userRepository,
     authRepository,
     passwordHasher: hasher,
-    mailer: { sendVerificationCode, sendPasswordResetCode },
+    mailer: { sendVerificationCode, sendPasswordResetCode, sendAccountDeletionCode: async () => undefined },
     roleAssigner: { assignDefaultRole },
     roleReader: { readAccess: async () => ({ roles: ['USER'], permissions: ['translation.create'] }) },
     tokenProvider: { sign: () => 'jwt', verify: () => ({}) as never },

@@ -11,7 +11,7 @@ import {
 // Emision y envio del codigo de verificacion: aqui solo hay que dejarlos pasar.
 const verificationDeps = {
   authRepository: { issueTokenIfAllowed: async () => 'issued' } as never,
-  mailer: { sendVerificationCode: async () => undefined, sendPasswordResetCode: async () => undefined },
+  mailer: { sendVerificationCode: async () => undefined, sendPasswordResetCode: async () => undefined, sendAccountDeletionCode: async () => undefined },
 };
 const newUserRepository = (extra: object = {}) =>
   ({

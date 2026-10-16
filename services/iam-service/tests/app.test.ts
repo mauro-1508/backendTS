@@ -48,7 +48,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
       accountRepository: { changePassword: async () => undefined, erase: async () => 'erased' },
       userStatsRepository: { getStats: async () => ({ totalUsers: 1, activeAccounts: 1 }) },
       iamRepository: iam.repo,
-      mailer: { sendVerificationCode: noMail, sendPasswordResetCode: noMail },
+      mailer: { sendVerificationCode: noMail, sendPasswordResetCode: noMail, sendAccountDeletionCode: noMail },
       googleTokenVerifier: fakeGoogleTokenVerifier,
       facebookTokenVerifier: fakeFacebookTokenVerifier,
       passwordHasher: {
