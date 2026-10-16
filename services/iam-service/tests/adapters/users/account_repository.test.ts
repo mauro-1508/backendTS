@@ -16,7 +16,7 @@ const client = {
     queries.push(q);
     params.push(p);
     if (failOn && failOn.test(q)) throw new Error('fallo simulado');
-    if (/to_regclass/.test(q)) return { rows: [{ table_name: legacyTable }] };
+    if (/to_regclass/.test(q)) return { rows: [{ table_name: legacyTable && q.includes(`'public.${legacyTable}'`) ? legacyTable : null }] };
     if (/^SELECT 1 FROM public\.users/.test(q)) return { rows: userRows };
     if (/FROM public\.user_roles ur JOIN/.test(q)) return { rows: adminRows };
     return { rows: [], rowCount: 1 };
@@ -123,3 +123,12 @@ describe('postgresAccountRepository.changePassword', () => {
     assert.ok(!queries.includes('COMMIT'));
   });
 });
+
+for (const table of ['user_auth', 'user_session', 'password_reset_token']) {
+  test(`erase elimina la dependencia legacy ${table} cuando existe`, async () => {
+    legacyTable = table;
+    await repository.erase(7);
+    assert.ok(queries.includes(`DELETE FROM public.${table} WHERE user_id = $1`));
+    assert.equal(queries.at(-1), 'COMMIT');
+  });
+}
