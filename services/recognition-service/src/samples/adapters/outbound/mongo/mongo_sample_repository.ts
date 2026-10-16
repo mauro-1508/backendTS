@@ -10,7 +10,7 @@ export interface SampleDocument extends Document {
   _id: string;
   sign_code: string;
   capture_session_id: string;
-  recorded_by: number;
+  recorded_by: number | null;
   performed_by: string;
   consent_granted_at: Date;
   consent_terms_version: string;
@@ -24,7 +24,7 @@ const toSample = (doc: SampleDocument): GestureSample => ({
   sampleId: doc._id,
   signCode: doc.sign_code,
   captureSessionId: doc.capture_session_id,
-  recordedBy: doc.recorded_by,
+  recordedBy: doc.recorded_by ?? null,
   performedBy: doc.performed_by,
   consentGrantedAt: doc.consent_granted_at,
   consentTermsVersion: doc.consent_terms_version,
@@ -56,10 +56,16 @@ export const makeMongoSampleRepository = (collection: Collection<SampleDocument>
     const docs = await collection.find(signCode ? { sign_code: signCode } : {}).sort({ created_at: -1 }).toArray();
     return docs.map(toSample);
   },
+
+  unlinkRecorder: async userId => {
+    const result = await collection.updateMany({ recorded_by: userId }, { $set: { recorded_by: null } });
+    return result.modifiedCount;
+  },
 });
 
 /** Indices de la coleccion (06-data/domains/06-ai.md); createIndex es idempotente. */
 export const ensureSampleIndexes = async (collection: Collection<SampleDocument>): Promise<void> => {
   await collection.createIndex({ sign_code: 1 }, { name: 'idx_samples_sign' });
   await collection.createIndex({ capture_session_id: 1 }, { name: 'idx_samples_session' });
+  await collection.createIndex({ recorded_by: 1 }, { name: 'idx_samples_recorder' });
 };
