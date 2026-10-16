@@ -14,6 +14,10 @@ import { publishUserRegistered } from './publish_registered';
 
 const MAX_NAME_LENGTH = 120;
 
+/** Misma forma que devuelve /auth/login: el cliente guarda la sesion con estos datos. */
+const sessionUser = (user: { userId: number; name: string; email: string }) =>
+  ({ user_id: user.userId, name: user.name, email: user.email });
+
 export const makeGoogleLogin = (deps: {
   userRepository: UserRepository;
   googleTokenVerifier: GoogleTokenVerifier;
@@ -36,7 +40,7 @@ export const makeGoogleLogin = (deps: {
       if (existingUser.status === 'BLOCKED') throw new AccountBlockedError();
       if (existingUser.status !== 'ACTIVE') throw new EmailNotVerifiedError();
       const token = await signSession(deps, existingUser);
-      return { success: true, message: 'Inicio de sesión exitoso', data: { token } };
+      return { success: true, message: 'Inicio de sesión exitoso', data: { token, user: sessionUser(existingUser) } };
     }
 
     const newUser = await deps.userRepository.create({ email, name, password: null, status: 'ACTIVE', emailVerifiedAt: new Date() });
@@ -51,5 +55,5 @@ export const makeGoogleLogin = (deps: {
     await publishUserRegistered(deps.eventPublisher, newUser);
     const token = await signSession(deps, newUser);
 
-    return { success: true, message: 'Cuenta creada y sesión iniciada', data: { token } };
+    return { success: true, message: 'Cuenta creada y sesión iniciada', data: { token, user: sessionUser(newUser) } };
   };

@@ -105,7 +105,7 @@ describe('google_login asigna rol a cuentas nuevas', () => {
     const { googleLogin, eventPublisher } = build(assign, false);
     const result = await googleLogin({ idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
     assert.deepEqual(argsOf(assign), [42]);
-    assert.deepEqual(result.data, { token: 'tok' });
+    assert.deepEqual(result.data, { token: 'tok', user: { user_id: 42, name: 'Ana', email: 'a@b.com' } });
     assert.deepEqual(eventPublisher.published, [
       { type: 'iam.UserRegistered', payload: { userId: 42, email: 'a@b.com', name: 'Ana' } },
     ]);

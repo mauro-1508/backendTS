@@ -152,9 +152,12 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
   test('POST /api/auth/google con cuenta existente ACTIVE inicia sesion con sus roles', async () => {
     const response = await post('/api/auth/google', { idToken: googleIdToken({ email: 'Ada@Example.com', name: 'Ada' }) });
     assert.equal(response.status, 200);
-    const claims = tokenProvider.verify(((await response.json()) as { data: { token: string } }).data.token);
+    const { data } = (await response.json()) as { data: { token: string; user: unknown } };
+    const claims = tokenProvider.verify(data.token);
     assert.equal(claims.userId, 10);
     assert.deepEqual(claims.roles, ['LINGUIST']);
+    // Misma forma que /auth/login: el cliente guarda la sesion con estos datos.
+    assert.deepEqual(data.user, { user_id: 10, name: 'Ada', email: 'ada@example.com' });
   });
 
   test('POST /api/auth/google con correo nuevo crea la cuenta ACTIVE', async () => {
