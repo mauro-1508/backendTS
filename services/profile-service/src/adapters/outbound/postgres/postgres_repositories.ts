@@ -29,14 +29,32 @@ const COLUMN_BY_PREFERENCE = {
   notificationsEnabled: 'notifications_enabled',
 } as const;
 
-export const makePostgresProfileRepository = (db: Queryable): ProfileRepository => ({
+export const makePostgresProfileRepository = (db: Queryable): ProfileRepository => {
+  const isErased = async (userId: string): Promise<boolean> => {
+    const { rows } = await db.query('SELECT 1 FROM erased_users WHERE user_id = $1', [userId]);
+    return rows.length > 0;
+  };
+
+  return {
   async createIfAbsent({ userId, email, fullName, username }) {
+    // Un UserRegistered tardio de una cuenta ya borrada no recrea su perfil.
+    if (await isErased(userId)) return;
     await db.query(
       `INSERT INTO user_profiles (user_id, email, full_name, username) VALUES ($1, $2, $3, $4)
        ON CONFLICT (user_id) DO NOTHING`,
       [userId, email ?? null, fullName ?? null, username ?? null],
     );
     await db.query('INSERT INTO user_preferences (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
+  },
+
+  isErased,
+
+  async eraseUser(userId) {
+    await db.query('DELETE FROM user_achievements WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM user_preferences WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM user_profiles WHERE user_id = $1', [userId]);
+    await db.query('INSERT INTO erased_users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
   },
 
   async findProfile(userId): Promise<Profile | null> {
@@ -74,7 +92,8 @@ export const makePostgresProfileRepository = (db: Queryable): ProfileRepository 
     );
     return rows[0] ? toPreferences(rows[0]) : null;
   },
-});
+  };
+};
 
 const ACHIEVEMENT_PROGRESS_SELECT = `
   SELECT a.achievement_id, a.code, a.name, a.description, a.metric, a.target_count, a.points,

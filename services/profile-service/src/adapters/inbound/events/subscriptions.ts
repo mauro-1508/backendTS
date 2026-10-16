@@ -1,9 +1,10 @@
-import { EventEnvelope, EventSubscriber } from '@traduce/shared';
+import { EVENT_TYPES, EventEnvelope, EventSubscriber, isUserDeleted, withRetry, withValidPayload } from '@traduce/shared';
 import { CONSUMED_EVENTS, TranslationProducedPayload, UserRegisteredPayload } from '../../../domain/events';
 import { makeProfileModule } from '../../../profile.module';
 
 const USER_REGISTERED_QUEUE = 'profile-service.user-registered';
 const TRANSLATION_PRODUCED_QUEUE = 'profile-service.translation-produced';
+export const USER_DELETED_QUEUE = 'profile-service.user-deleted';
 
 type EventHandlers = ReturnType<typeof makeProfileModule>['eventHandlers'];
 
@@ -37,5 +38,11 @@ export const subscribeToEvents = async (subscriber: EventSubscriber, handlers: E
     withValidUser<TranslationProducedPayload>(async (event, payload) => {
       await handlers.recordTranslation(event.eventId, payload.userId);
     }),
+  );
+  // iam.UserDeleted usa el contrato compartido (userId numerico validado); un payload invalido se descarta.
+  await subscriber.subscribe(
+    { queue: USER_DELETED_QUEUE, pattern: EVENT_TYPES.UserDeleted },
+    // Errores pasajeros: reintento con backoff antes de .dead (con ALERTA en el log).
+    withRetry(withValidPayload(isUserDeleted, event => handlers.eraseUserProfile(event.eventId, String(event.payload.userId)))),
   );
 };
