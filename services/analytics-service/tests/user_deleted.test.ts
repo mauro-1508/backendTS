@@ -70,7 +70,7 @@ describe('analytics: iam.UserDeleted', () => {
     const logged: string[] = [];
     console.error = (m: string) => { logged.push(m); };
     try {
-      for (const userId of [0, -1, '5', null, 2.5]) await makeEraseUserLink({ repository })(deleted(userId));
+      for (const userId of [0, -1, '5', null, 2.5]) await assert.rejects(makeEraseUserLink({ repository })(deleted(userId)));
     } finally {
       console.error = original;
     }

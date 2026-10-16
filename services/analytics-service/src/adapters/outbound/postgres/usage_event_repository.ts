@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { AccountErasedError } from '../../../domain/rules';
 import { DailyUsage, DateRange, SectionVisits, TopSign, UsageEvent, UsageSummary } from '../../../domain/entity';
 import { UsageEventRepository } from '../../../domain/repository';
 
@@ -46,6 +47,8 @@ const MARK_ERASED = 'INSERT INTO erased_users (user_id) VALUES ($1) ON CONFLICT 
 const UNLINK_REFERENCES = "UPDATE usage_event SET reference_type = NULL, reference_id = NULL WHERE reference_type = 'USER' AND reference_id = $1";
 // session_id tambien: identifica la sesion de esa persona en iam.
 const UNLINK_USER = 'UPDATE usage_event SET user_id = NULL, session_id = NULL WHERE user_id = $1';
+// La misma clave serializa save y unlinkUser, también cuando aún no hay filas.
+const LOCK_USER = "SELECT pg_advisory_xact_lock(714306, hashtext($1::text))";
 const IS_ERASED = 'SELECT 1 FROM erased_users WHERE user_id = $1';
 
 export const makePostgresUsageEventRepository = (pool: Pool): UsageEventRepository => ({
@@ -53,6 +56,7 @@ export const makePostgresUsageEventRepository = (pool: Pool): UsageEventReposito
     const client = await pool.connect();
     try {
       await client.query('BEGIN');
+      await client.query(LOCK_USER, [userId]);
       await client.query(MARK_ERASED, [userId]);
       await client.query(UNLINK_REFERENCES, [userId]);
       await client.query(UNLINK_USER, [userId]);
@@ -71,11 +75,38 @@ export const makePostgresUsageEventRepository = (pool: Pool): UsageEventReposito
   },
 
   async save(event: UsageEvent) {
-    const result = await pool.query(INSERT_EVENT, [
-      event.eventId, event.userId, event.sessionId, event.section, event.eventType,
-      event.referenceType, event.referenceId, event.signCodes, event.createdAt,
-    ]);
-    return (result.rowCount ?? 0) > 0;
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const referenceUser = event.referenceType === 'USER' ? event.referenceId : null;
+      // Orden estable si un evento referencia otra cuenta: evita bloqueos cruzados.
+      const ids = [...new Set([event.userId, referenceUser].filter((id): id is string => id !== null))].sort();
+      const erased = new Set<string>();
+      for (const id of ids) {
+        await client.query(LOCK_USER, [id]);
+        if ((await client.query(IS_ERASED, [id])).rows.length) erased.add(id);
+      }
+      const userErased = event.userId !== null && erased.has(event.userId);
+      if (userErased && event.eventType === 'USER_REGISTERED') {
+        await client.query('COMMIT');
+        return false;
+      }
+      if (userErased && event.eventType !== 'TRANSLATION_COMPLETED') throw new AccountErasedError();
+      const referenceErased = referenceUser !== null && erased.has(referenceUser);
+      const result = await client.query(INSERT_EVENT, [
+        event.eventId, userErased ? null : event.userId,
+        userErased ? null : event.sessionId, event.section, event.eventType,
+        referenceErased ? null : event.referenceType,
+        referenceErased ? null : event.referenceId, event.signCodes, event.createdAt,
+      ]);
+      await client.query('COMMIT');
+      return (result.rowCount ?? 0) > 0;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   async summary({ from, to }: DateRange): Promise<UsageSummary> {

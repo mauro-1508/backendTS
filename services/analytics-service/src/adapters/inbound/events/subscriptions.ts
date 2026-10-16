@@ -31,8 +31,8 @@ export const subscribeToDomainEvents = async (deps: {
     subscribeWithRetry(
       subscriber,
       { queue: USER_DELETED_QUEUE, pattern: EVENT_TYPES.UserDeleted },
-      // Errores pasajeros: reintento con backoff antes de .dead (con ALERTA en el log).
-      withRetry(makeEraseUserLink({ repository })),
+      // La limpieza válida permanece pendiente con backoff; no se pierde al agotar cinco intentos.
+      withRetry(makeEraseUserLink({ repository }), { attempts: Infinity }),
     ),
   ]);
 };
