@@ -1,0 +1,49 @@
+# Produccion (VPS): Caddy con HTTPS delante del gateway y de la web. Se suma a docker-compose.yml sin cambiarlo.
+#
+# Requisitos en el servidor:
+#   - El repo del Frontend clonado junto a este (por defecto ../frontendTS; otra ruta: FRONTEND_DIR en .env).
+#   - El dominio (DOMAIN, por defecto traducesenas.tech) y www.DOMAIN apuntando a la IP del servidor.
+#   - Puertos 80 y 443 abiertos (tambien en el firewall del panel del proveedor): Let's Encrypt valida por ahi.
+#
+# Uso (desde la raiz de este repo):
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --build
+#
+# Con este archivo el gateway deja de publicarse en el puerto 8080: todo entra por 443 (y 80 redirige a 443).
+# Los APK que apunten a http://IP:8080 dejan de funcionar; hay que generarlos con https://DOMAIN/api.
+
+services:
+  api-gateway:
+    ports: !reset []
+    environment:
+      # Caddy es el unico proxy delante: el rate limit cuenta por IP de cliente (X-Forwarded-For).
+      TRUST_PROXY: "1"
+      # La web se sirve en el mismo dominio que la API (sin CORS) y la app nativa no usa CORS. Para usar la web
+      # de desarrollo contra el servidor: CORS_ORIGINS_PROD=https://traducesenas.tech,http://localhost:8081 en .env
+      CORS_ORIGINS: ${CORS_ORIGINS_PROD:-https://traducesenas.tech}
+
+  web:
+    build:
+      context: ${FRONTEND_DIR:-../frontendTS}
+    restart: unless-stopped
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    environment:
+      DOMAIN: ${DOMAIN:-traducesenas.tech}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificados y claves de Let's Encrypt: si se borran, Caddy los vuelve a pedir (hay limite semanal).
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - api-gateway
+      - web
+
+volumes:
+  caddy-data:
+  caddy-config:
