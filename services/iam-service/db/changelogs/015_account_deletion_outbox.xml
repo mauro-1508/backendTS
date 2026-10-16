@@ -10,6 +10,6 @@
             <columnExists tableName="users" columnName="status"/>
         </preConditions>
         <sqlFile path="../009_outbox_events.sql" relativeToChangelogFile="true"/>
-        <sqlFile path="../010_outbox_claim_token.sql" relativeToChangelogFile="true"/>
+        <sqlFile path="../012_outbox_claim_token.sql" relativeToChangelogFile="true"/>
     </changeSet>
 </databaseChangeLog>

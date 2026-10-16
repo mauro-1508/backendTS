@@ -64,7 +64,7 @@ esto es retención técnica, no prueba de finalización de los consumidores.
 Aplicar por servicio y revisar el destino antes de escribir. Los mounts initdb
 solo actúan sobre volúmenes NUEVOS; no recrear ni borrar volúmenes existentes.
 
-- IAM: 009_outbox_events.sql y después 010_outbox_claim_token.sql.
+- IAM: 009_outbox_events.sql, 010, 011 y después 012_outbox_claim_token.sql.
 - Profile: 002_erased_users.sql.
 - Recognition: 003_erased_users.sql.
 - Analytics: 002_erased_users.sql.
