@@ -23,7 +23,7 @@ export const makeIngestTranslationProduced = (deps: { repository: UsageEventRepo
     const { payload } = envelope;
     const event: UsageEvent = {
       ...baseOf(envelope),
-      userId: idOrNull(payload.userId),
+      userId: await linkableUserId(deps.repository, payload.userId),
       section: 'TRANSLATION',
       eventType: 'TRANSLATION_COMPLETED',
       referenceType: 'TRANSLATION',
@@ -33,9 +33,17 @@ export const makeIngestTranslationProduced = (deps: { repository: UsageEventRepo
     await deps.repository.save(event);
   });
 
+/** Un usuario ya borrado no vuelve a ligarse a hechos de uso que lleguen tarde. */
+const linkableUserId = async (repository: UsageEventRepository, userId: number | null): Promise<string | null> => {
+  const id = idOrNull(userId);
+  return id !== null && (await repository.isUserErased(id)) ? null : id;
+};
+
 export const makeIngestUserRegistered = (deps: { repository: UsageEventRepository }): EventHandler =>
   withValidPayload(isUserRegistered, async envelope => {
     const userId = String(envelope.payload.userId);
+    // UserRegistered tardio (llega despues de UserDeleted): no se recrea nada de esa persona.
+    if (await deps.repository.isUserErased(userId)) return;
     const event: UsageEvent = {
       ...baseOf(envelope),
       userId,

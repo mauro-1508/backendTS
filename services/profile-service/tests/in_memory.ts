@@ -32,6 +32,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
   const notifiedAchievements = new Set<string>();
   const processed = new Set<string>();
   const createdProfiles: string[] = [];
+  const erasedUsers = new Set<string>();
 
   const progressOf = (userId: string) => {
     if (!progressByUser.has(userId)) {
@@ -49,6 +50,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
   const repositories: TransactionalRepositories = {
         profiles: {
       createIfAbsent: async profile => {
+        if (erasedUsers.has(profile.userId)) return;
         if (!profilesByUser.has(profile.userId)) {
           profilesByUser.set(profile.userId, { ...profile });
           createdProfiles.push(profile.userId);
@@ -56,6 +58,19 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
 
         if (!preferencesByUser.has(profile.userId)) {
           preferencesByUser.set(profile.userId, { ...DEFAULT_PREFERENCES });
+        }
+      },
+      isErased: async userId => erasedUsers.has(userId),
+      eraseUser: async userId => {
+        erasedUsers.add(userId);
+        profilesByUser.delete(userId);
+        preferencesByUser.delete(userId);
+        progressByUser.delete(userId);
+        for (const key of notifiedAchievements) {
+          if (key.startsWith(`${userId}:`)) notifiedAchievements.delete(key);
+        }
+        for (let i = notifications.length - 1; i >= 0; i--) {
+          if (notifications[i].userId === userId) notifications.splice(i, 1);
         }
       },
       findProfile: async userId => {
@@ -142,6 +157,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
     preferencesByUser,
     profilesByUser,
     createdProfiles,
+    erasedUsers,
     progressOf,
   };
 };

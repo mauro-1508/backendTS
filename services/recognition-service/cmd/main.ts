@@ -6,6 +6,10 @@ import {
 import { makeRecognitionApp } from '../src/app';
 import { loadRecognitionConfig } from '../src/config';
 import { subscribeToLexiconEvents } from '../src/events/lexicon_events_subscriber';
+import { makeUserDeletedHandler, subscribeToUserDeleted } from '../src/events/user_deleted_subscriber';
+import { makePostgresTranslationRepository } from '../src/translations/adapters/outbound/postgres/translation_repository';
+import { makeEraseUserTranslations } from '../src/translations/application/erase_user_translations';
+import { makeUnlinkUserSamples } from '../src/samples/application/unlink_user_samples';
 import { InMemorySampleRepository } from '../src/samples/adapters/outbound/memory/in_memory_sample_repository';
 import {
   ensureSampleIndexes, GESTURE_SAMPLES_COLLECTION, makeMongoSampleRepository, SampleDocument,
@@ -34,10 +38,11 @@ const makeSampleRepository = async (): Promise<SampleRepository> => {
 };
 
 const start = async () => {
+  const sampleRepository = await makeSampleRepository();
   const app = makeRecognitionApp({
     pool,
     eventPublisher: eventBus,
-    sampleRepository: await makeSampleRepository(),
+    sampleRepository,
     authMiddleware: makeAuthMiddleware(tokenProvider),
     requireAdmin: requireRole(ADMIN_ROLE),
   });
@@ -47,6 +52,10 @@ const start = async () => {
   });
   // El broker puede tardar en estar arriba: subscribeWithRetry reintenta sin bloquear el arranque.
   void subscribeToLexiconEvents(eventBus);
+  void subscribeToUserDeleted(eventBus, makeUserDeletedHandler({
+    eraseTranslations: makeEraseUserTranslations({ translationRepository: makePostgresTranslationRepository(pool) }),
+    unlinkSamples: makeUnlinkUserSamples({ sampleRepository }),
+  }));
 
   process.on('SIGTERM', () => {
     server.close();

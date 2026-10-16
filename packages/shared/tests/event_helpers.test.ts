@@ -4,8 +4,9 @@ import { exponentialBackoffMs } from '../src/events/backoff';
 import { EventEnvelope, EventPublisher } from '../src/events/event_bus';
 import { InMemoryEventBus } from '../src/events/in_memory_event_bus';
 import {
-  isSignPublished, isSignWithdrawn, isTranslationProduced, isUserRegistered, withValidPayload,
+  isSignPublished, isSignWithdrawn, isTranslationProduced, isUserDeleted, isUserRegistered, withValidPayload,
 } from '../src/events/payload_validators';
+import { withRetry } from '../src/events/retry_handler';
 import { publishQuietly } from '../src/events/publish_quietly';
 import { subscribeWithRetry } from '../src/events/subscribe_with_retry';
 
@@ -38,6 +39,17 @@ describe('validadores de payload', () => {
     assert.equal(isSignPublished({ ...published, categoryId: 'x' }), false);
     assert.equal(isSignWithdrawn({ lexiconId: 1, code: 'A' }), true);
     assert.equal(isSignWithdrawn({ code: 'A' }), false);
+  });
+});
+
+describe('UserDeleted', () => {
+  test('exige userId entero positivo y fecha ISO', () => {
+    const ok = { userId: 5, occurredAt: '2026-10-01T10:00:00.000Z' };
+    assert.equal(isUserDeleted(ok), true);
+    for (const userId of [0, -1, 1.5, '5', null, undefined]) assert.equal(isUserDeleted({ ...ok, userId }), false);
+    assert.equal(isUserDeleted({ userId: 5 }), false);
+    assert.equal(isUserDeleted({ ...ok, occurredAt: 'ayer' }), false);
+    assert.equal(isUserDeleted(null), false);
   });
 });
 
@@ -120,5 +132,32 @@ describe('subscribeWithRetry', () => {
       sleep: async () => { slept = true; },
     });
     assert.equal(slept, false);
+  });
+});
+
+describe('withRetry', () => {
+  const event: EventEnvelope = { eventId: 'e1', type: 'iam.UserDeleted', occurredAt: '2026-10-01T10:00:00.000Z', payload: {} };
+
+  test('reintenta con backoff y termina si un intento funciona', async () => {
+    let calls = 0;
+    const waits: number[] = [];
+    const handler = withRetry(async () => { if (++calls < 3) throw new Error('db'); }, {
+      sleep: async ms => { waits.push(ms); }, backoffMs: attempt => (attempt + 1) * 10,
+    });
+    await handler(event);
+    assert.equal(calls, 3);
+    assert.deepEqual(waits, [10, 20]);
+  });
+
+  test('tras agotar los intentos loguea ALERTA y relanza (para ir a .dead)', async () => {
+    const logs: string[] = [];
+    let calls = 0;
+    const handler = withRetry(async () => { calls++; throw new Error('db caida'); }, {
+      attempts: 4, sleep: async () => {}, log: m => logs.push(m),
+    });
+    await assert.rejects(handler(event), /db caida/);
+    assert.equal(calls, 4);
+    assert.equal(logs.length, 1);
+    assert.match(logs[0], /ALERTA.*e1.*4 veces/);
   });
 });

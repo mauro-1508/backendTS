@@ -32,6 +32,7 @@ describe('suscripciones a eventos', () => {
     const registered: NewProfile[] = [];
 
     await subscribeToEvents(bus, {
+      eraseUserProfile: async () => {},
       registerUserProfile: async (_eventId, profile) => {
         registered.push(profile);
       },
@@ -74,6 +75,7 @@ describe('suscripciones a eventos', () => {
     store.repositories.profiles = makePostgresProfileRepository(db);
 
     await subscribeToEvents(bus, {
+      eraseUserProfile: async () => {},
       registerUserProfile: makeRegisterUserProfile({
         unitOfWork: store.unitOfWork,
       }),
@@ -86,17 +88,18 @@ describe('suscripciones a eventos', () => {
       name: 'Ada Lovelace',
     });
 
-    assert.equal(queries.length, 2);
+    assert.equal(queries.length, 3);
+    assert.match(queries[0].text, /FROM erased_users/);
     assert.match(
-      queries[0].text,
+      queries[1].text,
       /INSERT INTO user_profiles \(user_id, email, full_name, username\)/,
     );
     assert.deepEqual(
-      queries[0].values,
+      queries[1].values,
       ['7', 'a@b.co', 'Ada Lovelace', null],
     );
-    assert.match(queries[1].text, /INSERT INTO user_preferences/);
-    assert.deepEqual(queries[1].values, ['7']);
+    assert.match(queries[2].text, /INSERT INTO user_preferences/);
+    assert.deepEqual(queries[2].values, ['7']);
   });
 
   it('no vuelve a crear el perfil al repetir el mismo eventId', async () => {
@@ -131,6 +134,7 @@ describe('suscripciones a eventos', () => {
         subscriptions.set(subscription.pattern, handler);
       },
     }, {
+      eraseUserProfile: async () => {},
       registerUserProfile: async () => {},
       recordTranslation: async (eventId, userId) => {
         calls.push({ eventId, userId });
@@ -161,6 +165,7 @@ describe('suscripciones a eventos', () => {
     let calls = 0;
 
     await subscribeToEvents(bus, {
+      eraseUserProfile: async () => {},
       registerUserProfile: async () => {},
       recordTranslation: async () => {
         calls += 1;
@@ -207,6 +212,7 @@ describe('suscripciones a eventos', () => {
     ];
 
     await subscribeToEvents(bus, {
+      eraseUserProfile: async () => {},
       registerUserProfile: async () => {},
       recordTranslation: async (_eventId, userId) => {
         translatedBy.push(userId);
@@ -232,6 +238,7 @@ describe('suscripciones a eventos', () => {
     const expectedError = new Error('fallo al guardar progreso');
 
     await subscribeToEvents(bus, {
+      eraseUserProfile: async () => {},
       registerUserProfile: async () => {},
       recordTranslation: async () => {
         throw expectedError;

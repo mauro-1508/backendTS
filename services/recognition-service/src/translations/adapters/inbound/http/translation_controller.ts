@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { AccountErasedError } from '../../../domain/service';
 import { PermissionDeniedError } from '../../../domain/stats';
 import { TranslationService } from '../../../ports/inbound/translation_service';
 
@@ -13,6 +14,10 @@ export const makeTranslationController = (translationService: TranslationService
       const result = await translationService.create({ userId, inputText, outputText, type, confidence, source });
       return res.status(201).json(result);
     } catch (error) {
+      // Cuenta borrada con un JWT todavia vigente: el token ya no corresponde a ninguna cuenta (401).
+      if (error instanceof AccountErasedError) {
+        return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });
+      }
       return res.status(400).json({ success: false, message: (error as Error).message });
     }
   },

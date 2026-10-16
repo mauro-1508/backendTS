@@ -98,6 +98,11 @@ async function withFixture(
       );
       assert.equal(active.rows[0].schema, schema);
       await client.query(sql);
+      // La proyección también necesita la marca de cuentas eliminadas.
+      await client.query(await readFile(
+        resolve(__dirname, '../db/002_erased_users.sql'),
+        'utf8',
+      ));
     } finally {
       // Destruye la conexión por si la migración falló con una transacción abierta.
       client.release(true);

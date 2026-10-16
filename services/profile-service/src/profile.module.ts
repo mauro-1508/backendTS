@@ -19,6 +19,7 @@ import {
   makeUpdatePreferences,
 } from './application/preferences';
 import { makeRecordTranslation } from './application/record_translation';
+import { makeEraseUserProfile } from './application/erase_user_profile';
 import { makeRegisterUserProfile } from './application/register_user_profile';
 import { makeRecoverUserProfile } from './application/recover_user_profile';
 
@@ -52,6 +53,7 @@ export const makeProfileModule = (deps: {
     }),
     eventHandlers: {
       registerUserProfile: makeRegisterUserProfile({ unitOfWork }),
+      eraseUserProfile: makeEraseUserProfile({ unitOfWork }),
       recordTranslation: makeRecordTranslation({
         unitOfWork,
         eventPublisher: deps.eventPublisher,

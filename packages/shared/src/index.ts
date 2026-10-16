@@ -17,6 +17,7 @@ export * from './events/payload_validators';
 export * from './events/publish_quietly';
 export * from './events/backoff';
 export * from './events/subscribe_with_retry';
+export * from './events/retry_handler';
 // Contrato y utilidades para la recuperación controlada de perfiles.
 export * from './recovery/identity_file';
 export * from './recovery/command_support';

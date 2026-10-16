@@ -29,6 +29,8 @@ const notifyUnlock = (repositories: TransactionalRepositories, userId: string, u
 export const makeRecordTranslation = (deps: { unitOfWork: UnitOfWork; eventPublisher: EventPublisher }) => {
   const applyTranslation = async (repositories: TransactionalRepositories, userId: string) => {
     await repositories.gamificationLocks.lockUser(userId);
+    // Una traduccion tardia de una cuenta borrada no recrea logros ni notificaciones.
+    if (await repositories.profiles.isErased(userId)) return [];
     const preferences = (await repositories.profiles.findPreferences(userId)) ?? DEFAULT_PREFERENCES;
     const pending = (await repositories.achievements.findProgressByMetric(userId, TRANSLATIONS_METRIC))
       .filter(progress => !isUnlocked(progress));

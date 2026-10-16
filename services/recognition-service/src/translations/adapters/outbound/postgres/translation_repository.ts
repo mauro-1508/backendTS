@@ -1,5 +1,6 @@
 import { Pool } from 'pg';
 import { TranslationRepository } from '../../../ports/outbound/translation_repository';
+import { AccountErasedError } from '../../../domain/service';
 import { NewTranslation, Translation, TranslationType } from '../../../domain/entity';
 
 
@@ -28,17 +29,34 @@ const toTranslation = (row: TranslationRow): Translation => ({
   createdAt: row.created_at,
 });
 
+/** Serializa creacion y supresion del mismo usuario: o la traduccion existe antes y se borra, o ve erased_users. */
+const LOCK_USER = "SELECT pg_advisory_xact_lock(hashtext('erased_user'), $1::int)";
+
 export const makePostgresTranslationRepository = (pool: Pool): TranslationRepository => ({
   create: async ({ userId, inputText, outputText, type, confidence, source }: NewTranslation) => {
-    const { rows } = await pool.query<TranslationRow>(
-      `INSERT INTO public.translations
-         (user_id, input_text, output_text, type, confidence, source)
-       VALUES ($1, $2, $3, $4, $5, $6)
-       RETURNING translation_id, user_id, input_text, output_text, type,
-                 confidence, source, is_deleted, created_at`,
-      [userId ?? null, inputText, outputText, type, confidence ?? null, source ?? null]
-    );
-    return toTranslation(rows[0]);
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      if (userId != null) await client.query(LOCK_USER, [userId]);
+      // INSERT condicional: si el usuario esta en erased_users no se inserta nada.
+      const { rows } = await client.query<TranslationRow>(
+        `INSERT INTO public.translations
+           (user_id, input_text, output_text, type, confidence, source)
+         SELECT $1::int, $2, $3, $4, $5, $6
+         WHERE $1::int IS NULL OR NOT EXISTS (SELECT 1 FROM public.erased_users WHERE user_id = $1::int)
+         RETURNING translation_id, user_id, input_text, output_text, type,
+                   confidence, source, is_deleted, created_at`,
+        [userId ?? null, inputText, outputText, type, confidence ?? null, source ?? null]
+      );
+      await client.query('COMMIT');
+      if (!rows[0]) throw new AccountErasedError();
+      return toTranslation(rows[0]);
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   listByUser: async ({ userId, limit, offset }) => {
@@ -52,6 +70,23 @@ export const makePostgresTranslationRepository = (pool: Pool): TranslationReposi
       [userId, limit, offset]
     );
     return rows.map(toTranslation);
+  },
+
+  eraseUser: async userId => {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(LOCK_USER, [userId]);
+      await client.query('INSERT INTO public.erased_users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
+      const result = await client.query('DELETE FROM public.translations WHERE user_id = $1', [userId]);
+      await client.query('COMMIT');
+      return result.rowCount ?? 0;
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => undefined);
+      throw error;
+    } finally {
+      client.release();
+    }
   },
 
   softDelete: async ({ translationId, userId }) => {
