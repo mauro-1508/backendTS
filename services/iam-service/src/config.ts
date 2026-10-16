@@ -14,3 +14,12 @@ export const loadMailerConfig = (env: Env = process.env): MailerConfig => {
   const read = makeEnvReader(env, ENV_PREFIX);
   return { service: MAIL_SERVICE, user: read('EMAIL_USER'), pass: read('EMAIL_PASS') };
 };
+
+/**
+ * Client IDs de OAuth de Google (web, Android, iOS) separados por comas: son la audiencia que debe tener el ID token.
+ * Vacio = POST /auth/google responde 503 GOOGLE_NOT_CONFIGURED.
+ */
+export const loadGoogleClientIds = (env: Env = process.env): string[] => {
+  const read = makeEnvReader(env, ENV_PREFIX);
+  return (read('GOOGLE_CLIENT_IDS') ?? '').split(',').map((id) => id.trim()).filter(Boolean);
+};

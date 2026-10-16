@@ -5,6 +5,7 @@ import { Mailer } from './ports/outbound/mailer';
 import { PasswordHasher } from './ports/outbound/auth_provider';
 import { RoleAssigner } from './ports/outbound/role_assigner';
 import { RoleReader } from './ports/outbound/role_reader';
+import { GoogleTokenVerifier } from './ports/outbound/google_token_verifier';
 import { makeRegister } from './application/register';
 import { makeLogin } from './application/login';
 import { makeForgotPassword } from './application/forgot_password';
@@ -25,6 +26,7 @@ export interface AuthModuleDeps {
   mailer: Mailer;
   roleAssigner: RoleAssigner;
   roleReader: RoleReader;
+  googleTokenVerifier: GoogleTokenVerifier;
 }
 
 // Composicion del dominio auth: recibe los adaptadores ya construidos.

@@ -51,6 +51,16 @@ export class AccountBlockedError extends AuthError {
     super('Cuenta bloqueada', 'ACCOUNT_BLOCKED', 403);
   }
 }
+export class InvalidGoogleTokenError extends AuthError {
+  constructor() {
+    super('Token de Google inválido', 'INVALID_GOOGLE_TOKEN', 401);
+  }
+}
+export class GoogleNotConfiguredError extends AuthError {
+  constructor() {
+    super('Inicio de sesión con Google no disponible', 'GOOGLE_NOT_CONFIGURED', 503);
+  }
+}
 /** Fallo interno al crear la cuenta (p. ej. asignar rol): sin detalle al cliente, termina en 500. */
 export class RegistrationFailedError extends Error {
   constructor() {

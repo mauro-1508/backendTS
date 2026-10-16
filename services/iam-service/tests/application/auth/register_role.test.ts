@@ -4,7 +4,9 @@ import { makeRegister } from '../../../src/auth/application/register';
 import { makeGoogleLogin } from '../../../src/auth/application/google_login';
 import { makeLogin } from '../../../src/auth/application/login';
 import { RegistrationFailedError } from '../../../src/auth/domain/service';
-import { argsOf, failingEventPublisher, RecordingEventPublisher } from '../../helpers/fakes';
+import {
+  argsOf, failingEventPublisher, fakeGoogleTokenVerifier, googleIdToken, RecordingEventPublisher,
+} from '../../helpers/fakes';
 
 // Emision y envio del codigo de verificacion: aqui solo hay que dejarlos pasar.
 const verificationDeps = {
@@ -85,6 +87,7 @@ describe('google_login asigna rol a cuentas nuevas', () => {
     const deleteById = mock.fn(async (_id: number) => undefined as void);
     const eventPublisher = new RecordingEventPublisher();
     const googleLogin = makeGoogleLogin({
+      googleTokenVerifier: fakeGoogleTokenVerifier,
       userRepository: newUserRepository({
         findByEmail: async () => (existing ? { userId: 5, email: 'a@b.com', status: 'ACTIVE' } : null),
         deleteById,
@@ -100,9 +103,9 @@ describe('google_login asigna rol a cuentas nuevas', () => {
   test('cuenta nueva: asigna rol, devuelve token y publica iam.UserRegistered', async () => {
     const assign = mock.fn(async (_id: number) => undefined as void);
     const { googleLogin, eventPublisher } = build(assign, false);
-    const result = await googleLogin({ email: 'a@b.com', name: 'Ana' });
+    const result = await googleLogin({ idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
     assert.deepEqual(argsOf(assign), [42]);
-    assert.deepEqual(result.data, { token: 'tok' });
+    assert.deepEqual(result.data, { token: 'tok', user: { user_id: 42, name: 'Ana', email: 'a@b.com' } });
     assert.deepEqual(eventPublisher.published, [
       { type: 'iam.UserRegistered', payload: { userId: 42, email: 'a@b.com', name: 'Ana' } },
     ]);
@@ -111,7 +114,7 @@ describe('google_login asigna rol a cuentas nuevas', () => {
   test('cuenta existente: no asigna rol ni publica evento', async () => {
     const assign = mock.fn(async (_id: number) => undefined as void);
     const { googleLogin, eventPublisher } = build(assign, true);
-    await googleLogin({ email: 'a@b.com', name: 'Ana' });
+    await googleLogin({ idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
     assert.equal(assign.mock.callCount(), 0);
     assert.equal(eventPublisher.published.length, 0);
   });
@@ -120,7 +123,7 @@ describe('google_login asigna rol a cuentas nuevas', () => {
     const { googleLogin, deleteById, eventPublisher } = build(async () => {
       throw new Error('boom');
     }, false);
-    await assert.rejects(googleLogin({ email: 'a@b.com', name: 'Ana' }), RegistrationFailedError);
+    await assert.rejects(googleLogin({ idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) }), RegistrationFailedError);
     assert.deepEqual(argsOf(deleteById), [42]);
     assert.equal(eventPublisher.published.length, 0);
   });
@@ -147,13 +150,14 @@ describe('el JWT de sesion lleva roles y permisos', () => {
   test('google_login (cuenta nueva) tambien firma con roles y permisos', async () => {
     const sign = mock.fn((_claims: unknown) => 'tok');
     const googleLogin = makeGoogleLogin({
+      googleTokenVerifier: fakeGoogleTokenVerifier,
       userRepository: newUserRepository(),
       tokenProvider: { sign, verify: () => ({}) as never },
       roleAssigner: { assignDefaultRole: async () => undefined },
       roleReader: { readAccess: async () => access },
       eventPublisher: new RecordingEventPublisher(),
     });
-    await googleLogin({ email: 'a@b.com', name: 'Ana' });
+    await googleLogin({ idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
     assert.deepEqual(argsOf(sign), [{ userId: 42, email: 'a@b.com', roles: access.roles, permissions: access.permissions }]);
   });
 });

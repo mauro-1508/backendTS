@@ -13,6 +13,7 @@ export const makeAuthRoutes = (authService: AuthService) => {
   router.post('/verify-email', authController.verifyEmail);
   router.post('/resend-verification', authController.resendVerification);
   router.post('/reset-password', authController.resetPassword);
+  router.post('/google', authController.googleLogin);
 
   return router;
 };

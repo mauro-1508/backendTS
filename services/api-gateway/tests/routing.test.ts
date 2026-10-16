@@ -213,6 +213,7 @@ describe('api-gateway', () => {
         }
         assert.deepEqual(statuses, [200, 200, 429]);
         assert.equal((await fetch(`${urlOf(app)}/api/auth/forgot-password`, { method: 'POST' })).status, 429);
+        assert.equal((await fetch(`${urlOf(app)}/api/auth/google`, { method: 'POST' })).status, 429);
       } finally {
         await close(app);
       }
