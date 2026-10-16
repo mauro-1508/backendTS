@@ -2,26 +2,34 @@ import { EventPublisher } from '@traduce/shared';
 import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { normalizeEmail } from '../../users/domain/service';
 import { TokenProvider } from '../ports/outbound/auth_provider';
+import { GoogleTokenVerifier } from '../ports/outbound/google_token_verifier';
 import { AuthResult, GoogleLoginInput } from '../ports/inbound/auth_service';
-import { AccountBlockedError, EmailNotVerifiedError, RegistrationFailedError, ValidationError } from '../domain/service';
+import {
+  AccountBlockedError, EmailNotVerifiedError, InvalidGoogleTokenError, RegistrationFailedError,
+} from '../domain/service';
 import { RoleAssigner } from '../ports/outbound/role_assigner';
 import { RoleReader } from '../ports/outbound/role_reader';
 import { signSession } from './sign_session';
 import { publishUserRegistered } from './publish_registered';
 
+const MAX_NAME_LENGTH = 120;
+
 export const makeGoogleLogin = (deps: {
   userRepository: UserRepository;
+  googleTokenVerifier: GoogleTokenVerifier;
   tokenProvider: TokenProvider;
   roleAssigner: RoleAssigner;
   roleReader: RoleReader;
   eventPublisher: EventPublisher;
 }) =>
-  async ({ email: rawEmail, name }: GoogleLoginInput): Promise<AuthResult> => {
-    if (!rawEmail || !name) {
-      throw new ValidationError('Email y nombre son obligatorios');
-    }
+  async ({ idToken }: GoogleLoginInput): Promise<AuthResult> => {
+    // Solo se usan datos del token verificado por Google, nunca los que mande el cliente.
+    const identity = await deps.googleTokenVerifier.verify(idToken);
+    if (!identity.emailVerified) throw new InvalidGoogleTokenError();
 
-    const email = normalizeEmail(rawEmail);
+    const email = normalizeEmail(identity.email);
+    const name = (identity.name || email.split('@')[0]).slice(0, MAX_NAME_LENGTH);
+
     const existingUser = await deps.userRepository.findByEmail(email);
     if (existingUser) {
       // Sin correo verificado (o bloqueada) tampoco hay sesion por Google: evita el secuestro previo de cuentas.

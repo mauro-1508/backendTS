@@ -10,8 +10,8 @@ export interface LoginInput {
 }
 
 export interface GoogleLoginInput {
-  email: string;
-  name: string;
+  /** ID token que Google entrega al cliente; el backend lo verifica, nunca confia en correo o nombre enviados aparte. */
+  idToken: string;
 }
 
 export interface AuthResult {

@@ -6,7 +6,7 @@ import { makeAuthMiddleware, makeJwtTokenProvider } from '@traduce/shared';
 import { makeIamApp } from '../src/app';
 import { User } from '../src/users/domain/entity';
 import { makeFakeIamRepository } from './application/iam/fake_iam_repository';
-import { RecordingEventPublisher } from './helpers/fakes';
+import { fakeGoogleTokenVerifier, RecordingEventPublisher } from './helpers/fakes';
 
 const tokenProvider = makeJwtTokenProvider({ secret: 'secreto-iam', expiresIn: '1h' });
 const JSON_HEADERS = { 'content-type': 'application/json' };
@@ -47,6 +47,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
       userStatsRepository: { getStats: async () => ({ totalUsers: 1, activeAccounts: 1 }) },
       iamRepository: iam.repo,
       mailer: { sendVerificationCode: noMail, sendPasswordResetCode: noMail },
+      googleTokenVerifier: fakeGoogleTokenVerifier,
       passwordHasher: {
         hash: async (plain) => `h:${plain}`,
         compare: async (plain, hashed) => hashed === `h:${plain}`,
