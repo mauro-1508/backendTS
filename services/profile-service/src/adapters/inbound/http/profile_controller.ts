@@ -59,7 +59,15 @@ export const makeProfileController = (useCases: ProfileUseCases) => ({
     res.json(await useCases.getProfile(userIdOf(req)));
   }),
 
-  listAchievements: handle(async (req, res) => { res.json({ data: await useCases.listAchievements(userIdOf(req)) }); }),
+  listAchievements: handle(async (req, res) => {
+    const requested = req.query.catalogVersion;
+    if (requested !== undefined && requested !== '1' && requested !== '2') {
+      return res.status(HTTP_BAD_REQUEST).json({ success: false, code: 'VALIDATION_ERROR', message: 'catalogVersion debe ser 1 o 2' });
+    }
+    const version = requested === '2' ? 2 : 1;
+    const data = await useCases.listAchievements(userIdOf(req), version);
+    return res.json(version === 2 ? { data, meta: { catalogVersion: 2 } } : { data });
+  }),
 
   listNotifications: handle(async (req, res) => {
     const query = parseNotificationQuery(req.query);
