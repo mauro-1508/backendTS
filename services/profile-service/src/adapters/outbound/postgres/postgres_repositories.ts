@@ -113,11 +113,12 @@ export const makePostgresProfileRepository = (db: Queryable): ProfileRepository 
 
 const ACHIEVEMENT_PROGRESS_SELECT = `
   SELECT a.achievement_id, a.code, a.name, a.description, a.metric, a.target_count, a.points,
-         a.icon_reference, a.is_secret, a.is_active,
+         a.icon_reference, a.is_secret, a.is_active, a.collection, a.availability,
+         a.category, a.level, a.localizations,
          COALESCE(ua.current_count, 0) AS current_count, ua.achieved_at
     FROM achievements a
     LEFT JOIN user_achievements ua ON ua.achievement_id = a.achievement_id AND ua.user_id = $1
-   WHERE a.is_active`;
+`;
 
 const toProgress = (row: Record<string, any>): AchievementProgress => ({
   achievement: {
@@ -130,7 +131,13 @@ const toProgress = (row: Record<string, any>): AchievementProgress => ({
     points: row.points,
     iconReference: row.icon_reference ?? undefined,
     isSecret: row.is_secret,
-    isActive: row.is_active,
+    // Effective v2 publication; the stored flag remains closed to the old API.
+    isActive: row.collection === 'catalog' || row.is_active,
+    collection: row.collection,
+    availability: row.availability,
+    category: row.category,
+    level: row.level,
+    localizations: row.localizations,
   },
   currentCount: row.current_count,
   achievedAt: iso(row.achieved_at) ?? null,
@@ -138,12 +145,16 @@ const toProgress = (row: Record<string, any>): AchievementProgress => ({
 
 export const makePostgresAchievementRepository = (db: Queryable): AchievementRepository => ({
   async findProgressByMetric(userId, metric) {
-    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} AND a.metric = $2 ORDER BY a.target_count`, [userId, metric]);
+    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE (a.is_active OR a.collection = 'catalog') AND a.metric = $2 AND a.availability = 'available' ORDER BY a.target_count`, [userId, metric]);
     return rows.map(toProgress);
   },
 
-  async findAllProgress(userId) {
-    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} ORDER BY a.metric, a.target_count`, [userId]);
+  async findAllProgress(userId, catalogVersion = 1) {
+    // is_active is the legacy publication gate. Never expose new metrics/nulls to v1.
+    const visibility = catalogVersion === 2
+      ? "(a.is_active OR a.collection = 'catalog')"
+      : "a.is_active AND a.collection = 'legacy'";
+    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE ${visibility} ORDER BY a.collection, a.display_order, a.metric, a.target_count`, [userId]);
     return rows.map(toProgress);
   },
 
