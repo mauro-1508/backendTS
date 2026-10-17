@@ -33,7 +33,7 @@ export const makeRecordTranslation = (deps: { unitOfWork: UnitOfWork; eventPubli
     if (await repositories.profiles.isErased(userId)) return [];
     const preferences = (await repositories.profiles.findPreferences(userId)) ?? DEFAULT_PREFERENCES;
     const pending = (await repositories.achievements.findProgressByMetric(userId, TRANSLATIONS_METRIC))
-      .filter(progress => !isUnlocked(progress));
+      .filter(progress => progress.achievement.availability !== 'upcoming' && !isUnlocked(progress));
     const unlockedNow: AchievementProgress[] = [];
 
     for (const progress of pending) {
