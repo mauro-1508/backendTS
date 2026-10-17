@@ -32,8 +32,8 @@ export interface ProfileRepository {
 export interface AchievementRepository {
   /** Logros activos de la metrica con el avance del usuario (0 si aun no tiene fila). */
   findProgressByMetric(userId: string, metric: AchievementMetric): Promise<AchievementProgress[]>;
-  /** Todos los logros activos con el avance del usuario. */
-  findAllProgress(userId: string): Promise<AchievementProgress[]>;
+  /** v1 preserves the published legacy catalogue; v2 also publishes the new collection. */
+  findAllProgress(userId: string, catalogVersion?: 1 | 2): Promise<AchievementProgress[]>;
   /** Registra la creación efectiva de la notificación del logro. */
 markNotified(userId: string, achievementId: string): Promise<void>;
   saveProgress(userId: string, progress: AchievementProgress): Promise<void>;

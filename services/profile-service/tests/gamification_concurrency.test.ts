@@ -176,6 +176,7 @@ async function withFixture(
     const client = await firstPool.connect();
     try {
       await client.query(sql);
+      await client.query(await readFile(resolve(__dirname, '../db/004_achievement_catalog.sql'), 'utf8'));
       // La proyección también necesita la marca de cuentas eliminadas.
       await client.query(await readFile(
         resolve(__dirname, '../db/002_erased_users.sql'),

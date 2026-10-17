@@ -22,6 +22,20 @@ La entrega entre servicios, migraciones y límites de finalización están en
 [account-deletion.md](account-deletion.md). No declarar el dominio terminado
 solo porque compila o pasan repositorios simulados.
 
-Siguen separados: diagnóstico reproducible de cuenta inactiva, ocultar logros
-y contador al administrador, definición de avisos administrativos/eventos/push,
+Siguen separados: diagnóstico reproducible de cuenta inactiva,
+definición de avisos administrativos/eventos/push,
 validación integrada y acuerdos del equipo sobre consentimiento y autorías.
+
+## Catálogo de logros
+
+La ampliación, contrato de disponibilidad, preservación de los tres logros
+anteriores y orden de despliegue están en [achievement-catalog.md](achievement-catalog.md).
+
+La publicación es optativa por versión: GET /api/achievements conserva v1 (tres
+logros medidos); catalogVersion=2 publica el catálogo ampliado. Aplicar 004 con
+psql sobre volúmenes existentes ANTES del backend nuevo; el frontend puede
+actualizarse antes o después. El montaje initdb no migra una base existente.
+Los comandos, matriz de compatibilidad y rollback están en la documentación enlazada.
+
+La corrección se validó en PostgreSQL 16.15 aislado (incluida reejecución por psql):
+123 pruebas backend aprobadas, sin omisiones. No se ejecutó contra bases reales.
