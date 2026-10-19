@@ -22,7 +22,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { dtwDistance, gestureConfidence, MAX_GESTURE_DISTANCE, MIN_WORD_CONFIDENCE } from '../domain/motion_template';
+import { dtwDistance, gestureConfidence, MAX_GESTURE_DISTANCE, MIN_WORD_CONFIDENCE } from '../src/ia/domain/motion_template';
 import { loadRep0Samples, pickHandForSign, Rep0Sample, toLiveQueryFrames, toTemplateFrames } from './lsc54-rep0';
 
 const args = process.argv.slice(2);

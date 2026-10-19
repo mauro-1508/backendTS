@@ -1,4 +1,4 @@
-import { MOTION_DIM, STATIC_DIM } from '../../ia/domain/entity';
+import { MOTION_DIM, STATIC_DIM } from '../../common/domain/landmarks';
 import { NewGestureSample } from './entity';
 
 export class InvalidSampleError extends Error {}

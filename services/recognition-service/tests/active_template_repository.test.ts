@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
 import { Pool } from 'pg';
-import { AccountErasedError } from '../src/translations/domain/service';
+import { AccountErasedError } from '../src/common/domain/errors';
 import { makePostgresSignTemplateRepository } from '../src/ia/adapters/outbound/postgres/sign_template_repository';
 
 for (const erased of [true, false]) {

@@ -2,7 +2,6 @@ import { EVENT_TYPES, EventPublisher, publishQuietly, TranslationProduced } from
 import { TranslationRepository } from '../ports/outbound/translation_repository';
 import { translationDomainService } from '../domain/service';
 import { Translation, TranslationType } from '../domain/entity';
-import { TranslationResult } from '../ports/inbound/translation_service';
 
 const toEventPayload = (translation: Translation): TranslationProduced => ({
   translationId: translation.translationId,
@@ -23,7 +22,7 @@ export const makeCreateTranslation = (deps: {
     type: string;
     confidence?: number | null;
     source?: string | null;
-  }): Promise<TranslationResult> => {
+  }): Promise<Translation> => {
     translationDomainService.ensureIsValid(input);
 
     const created = await deps.translationRepository.create({
@@ -37,6 +36,6 @@ export const makeCreateTranslation = (deps: {
     // La traduccion ya esta guardada: un fallo del bus no debe tumbar la peticion.
     await publishQuietly(deps.eventPublisher, EVENT_TYPES.TranslationProduced, toEventPayload(created));
 
-    return { success: true, message: 'Traduccion guardada', data: created };
+    return created;
   };
 };

@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { makeActiveSampleRepository } from '../accounts/active_sample_repository';
+import { makeGuardedSampleRepository } from './adapters/outbound/guarded_sample_repository';
 import { RequestHandler } from 'express';
 import { SampleRepository } from './ports/outbound/sample_repository';
 import { makeRegisterSample } from './application/register_sample';
@@ -13,7 +13,7 @@ export const makeSamplesModule = (deps: {
   authMiddleware: RequestHandler;
   requireAdmin: RequestHandler;
 }) => {
-  const repoDeps = { sampleRepository: makeActiveSampleRepository(deps.pool, deps.sampleRepository) };
+  const repoDeps = { sampleRepository: makeGuardedSampleRepository(deps.pool, deps.sampleRepository) };
   const sampleService: SampleService = {
     register: makeRegisterSample(repoDeps),
     list: makeListSamples(repoDeps),
