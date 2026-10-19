@@ -2,6 +2,7 @@ import express, { Express, RequestHandler } from 'express';
 import { Pool } from 'pg';
 import { EventPublisher, errorHandler } from '@traduce/shared';
 import { makeTranslationsModule } from './translations/translations.module';
+import { makePostgresTranslationRepository } from './translations/adapters/outbound/postgres/translation_repository';
 import { makeIaModule } from './ia/ia.module';
 import { makeSamplesModule } from './samples/samples.module';
 import { SampleRepository } from './samples/ports/outbound/sample_repository';
@@ -33,7 +34,10 @@ export const makeRecognitionApp = (deps: RecognitionAppDeps): Express => {
     res.json({ status: 'ok', service: SERVICE_NAME });
   });
 
-  app.use(TRANSLATIONS_ROUTE, makeTranslationsModule(deps).router);
+  app.use(TRANSLATIONS_ROUTE, makeTranslationsModule({
+    ...deps,
+    translationRepository: deps.translationRepository ?? makePostgresTranslationRepository(deps.pool),
+  }).router);
   app.use(SIGN_TEMPLATES_ROUTES, makeIaModule(deps).router);
   app.use(SAMPLES_ROUTE, makeSamplesModule(deps).router);
   app.use(errorHandler);

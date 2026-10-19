@@ -1,5 +1,4 @@
-import { EraseUserTranslations } from '../../translations/application/erase_user_translations';
-import { UnlinkUserSamples } from '../../samples/application/unlink_user_samples';
+import { EraseUserTranslations, UnlinkUserSamples } from '../ports/outbound/account_data_erasers';
 
 /**
  * Supresion de cuenta: borra las traducciones (Postgres, y registra al usuario como borrado) y desliga

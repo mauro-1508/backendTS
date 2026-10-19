@@ -1,9 +1,6 @@
 export const TEMPLATE_KINDS = ['static', 'motion'] as const;
 export type TemplateKind = (typeof TEMPLATE_KINDS)[number];
 
-// Constantes compartidas con samples: viven en common; se re-exportan para motion_template y training.
-export { MOTION_DIM, SEQ_LEN, STATIC_DIM } from '../../common/domain/landmarks';
-
 export interface SignTemplate {
   templateId: number;
   label: string;

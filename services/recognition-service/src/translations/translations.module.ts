@@ -1,7 +1,6 @@
 import { Pool } from 'pg';
 import { RequestHandler } from 'express';
 import { EventPublisher } from '@traduce/shared';
-import { makePostgresTranslationRepository } from './adapters/outbound/postgres/translation_repository';
 import { makePostgresTranslationStatsRepository } from './adapters/outbound/postgres/translation_stats_repository';
 import { makePostgresMyStatsRepository } from './adapters/outbound/postgres/my_stats_repository';
 import { makeCreateTranslation } from './application/create_translation';
@@ -17,10 +16,9 @@ export const makeTranslationsModule = (deps: {
   pool: Pool;
   eventPublisher: EventPublisher;
   authMiddleware: RequestHandler;
-  /** Repositorio compartido con otros modulos; si falta se crea uno de Postgres. */
-  translationRepository?: TranslationRepository;
+  translationRepository: TranslationRepository;
 }) => {
-  const translationRepository = deps.translationRepository ?? makePostgresTranslationRepository(deps.pool);
+  const { translationRepository } = deps;
   const translationService: TranslationService = {
     create: makeCreateTranslation({ translationRepository, eventPublisher: deps.eventPublisher }),
     list: makeListTranslations({ translationRepository }),

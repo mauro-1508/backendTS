@@ -1,24 +1,17 @@
-import { Express, RequestHandler } from 'express';
-import { Pool } from 'pg';
+import { Express } from 'express';
 import { EventPublisher, EventSubscriber } from '@traduce/shared';
-import { makeRecognitionApp } from './app';
+import { makeRecognitionApp, RecognitionAppDeps } from './app';
 import { makeAccountsModule } from './accounts/accounts.module';
 import { subscribeToUserDeleted } from './accounts/adapters/inbound/events/user_deleted_subscriber';
 import { subscribeToLexiconEvents } from './ia/adapters/inbound/events/lexicon_events_subscriber';
-import { SampleRepository } from './samples/ports/outbound/sample_repository';
 import { makeUnlinkUserSamples } from './samples/application/unlink_user_samples';
 import { makePostgresTranslationRepository } from './translations/adapters/outbound/postgres/translation_repository';
 import { makeEraseUserTranslations } from './translations/application/erase_user_translations';
 
 /** Composición: único lugar donde se eligen las implementaciones concretas y se comparten entre módulos. */
-export const makeRecognitionModule = (deps: {
-  pool: Pool;
-  eventBus: EventPublisher & EventSubscriber;
-  sampleRepository: SampleRepository;
-  authMiddleware: RequestHandler;
-  /** Exige rol ADMIN; va despues de authMiddleware. */
-  requireAdmin: RequestHandler;
-}): { app: Express; subscribe: () => void } => {
+export const makeRecognitionModule = (
+  deps: Omit<RecognitionAppDeps, 'eventPublisher' | 'translationRepository'> & { eventBus: EventPublisher & EventSubscriber },
+): { app: Express; subscribe: () => void } => {
   // Un solo repositorio de traducciones: lo usan las rutas HTTP y la limpieza de cuenta.
   const translationRepository = makePostgresTranslationRepository(deps.pool);
 

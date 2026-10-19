@@ -1,4 +1,5 @@
-import { MOTION_DIM, NewSignTemplate, SEQ_LEN, STATIC_DIM, TEMPLATE_KINDS, TemplateKind } from './entity';
+import { MOTION_DIM, SEQ_LEN, STATIC_DIM } from '../../common/domain/landmarks';
+import { NewSignTemplate, TEMPLATE_KINDS, TemplateKind } from './entity';
 
 export class InvalidSignTemplateError extends Error {}
 
