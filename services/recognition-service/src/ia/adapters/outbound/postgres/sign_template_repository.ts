@@ -1,4 +1,5 @@
 import { Pool } from 'pg';
+import { withActiveAccount } from '../../../../common/adapters/outbound/postgres/active_account';
 import { SignTemplateRepository } from '../../../ports/outbound/sign_template_repository';
 import { NewSignTemplate, SignTemplate, TemplateKind } from '../../../domain/entity';
 
@@ -25,9 +26,9 @@ const toTemplate = (row: SignTemplateRow): SignTemplate => ({
 const RETURNING = 'template_id, label, kind, features, source, created_by, created_at';
 
 export const makePostgresSignTemplateRepository = (pool: Pool): SignTemplateRepository => ({
-  createMany: async (templates: NewSignTemplate[], createdBy: number | null) => {
+  createMany: async (templates: NewSignTemplate[], createdBy: number | null) => withActiveAccount(pool, createdBy, async client => {
     // Una sola sentencia con UNNEST: los lotes del dataset son de cientos de filas.
-    const { rows } = await pool.query<SignTemplateRow>(
+    const { rows } = await client.query<SignTemplateRow>(
       `INSERT INTO public.sign_templates (label, kind, features, source, created_by)
        SELECT t.label, t.kind, t.features, t.source, $5::int
        FROM UNNEST($1::varchar[], $2::varchar[], $3::jsonb[], $4::varchar[])
@@ -42,7 +43,7 @@ export const makePostgresSignTemplateRepository = (pool: Pool): SignTemplateRepo
       ]
     );
     return rows.map(toTemplate);
-  },
+  }),
 
   list: async ({ kind, label }) => {
     const { rows } = await pool.query<SignTemplateRow>(
@@ -56,11 +57,11 @@ export const makePostgresSignTemplateRepository = (pool: Pool): SignTemplateRepo
     return rows.map(toTemplate);
   },
 
-  remove: async (templateId: number) => {
-    const { rows } = await pool.query<{ template_id: number }>(
+  remove: async (templateId: number, userId: number | null = null) => withActiveAccount(pool, userId, async client => {
+    const { rows } = await client.query<{ template_id: number }>(
       `DELETE FROM public.sign_templates WHERE template_id = $1 RETURNING template_id`,
       [templateId]
     );
     return rows[0] ? { templateId: rows[0].template_id } : null;
-  },
+  }),
 });

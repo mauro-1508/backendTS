@@ -5,6 +5,7 @@ import { makeAuthMiddleware } from '@traduce/shared';
 import { makeUserRoutes } from '../../../src/users/adapters/inbound/http/routes';
 import { makeChangePassword } from '../../../src/users/application/change_password';
 import { makeDeleteAccount } from '../../../src/users/application/delete_account';
+import { makeSendDeletionCode } from '../../../src/users/application/send_deletion_code';
 import { UserService } from '../../../src/users/ports/inbound/user_service';
 import { User } from '../../../src/users/domain/entity';
 import { bcryptPasswordHasher } from '../../../src/users/adapters/outbound/security/password';
@@ -37,9 +38,11 @@ const call = (router: unknown, method: string, url: string, headers: Record<stri
 const OLD = 'Clave.Vieja1';
 const NEW = 'Clave.Nueva2';
 
-const build = async (opts: { lastAdmin?: boolean; eraseFails?: boolean } = {}) => {
+const DELETION_CODE = '123456';
+
+const build = async (opts: { lastAdmin?: boolean; eraseFails?: boolean; noPassword?: boolean } = {}) => {
   const user: User = {
-    userId: 7, name: 'Ana', email: 'a@b.c', password: await bcryptPasswordHasher.hash(OLD), status: 'ACTIVE',
+    userId: 7, name: 'Ana', email: 'a@b.c', password: opts.noPassword ? null : await bcryptPasswordHasher.hash(OLD), status: 'ACTIVE',
     emailVerifiedAt: null, termsAccepted: true, termsAcceptedAt: null, createdAt: new Date(),
   };
   const deps = {
@@ -58,10 +61,15 @@ const build = async (opts: { lastAdmin?: boolean; eraseFails?: boolean } = {}) =
       }),
     },
     passwordHasher: bcryptPasswordHasher,
+    deletionCodes: {
+      send: mock.fn(async (_u: { userId: number; email: string; name: string }) => 'issued' as const),
+      check: mock.fn(async (_id: number, code: string) => code === DELETION_CODE),
+    },
   };
   const userService = {
     changePassword: makeChangePassword(deps),
     deleteAccount: makeDeleteAccount({ ...deps, adminGuard: { isLastAdmin: async () => !!opts.lastAdmin } }),
+    sendDeletionCode: makeSendDeletionCode(deps),
   } as unknown as UserService;
   return { router: makeUserRoutes({ userService, authMiddleware }), deps };
 };
@@ -148,5 +156,52 @@ describe('DELETE /users/me', () => {
   test('un fallo interno al borrar llega al errorHandler (next), no a un 200', async () => {
     const { router } = await build({ eraseFails: true });
     await assert.rejects(call(router, 'DELETE', '/me', bearer, { password: OLD }), /boom/);
+  });
+});
+
+describe('cuenta sin contraseña (Google): borrado con código al correo', () => {
+  test('POST /me/delete-code envía el código al correo de la cuenta', async () => {
+    const { router, deps } = await build({ noPassword: true });
+    const r = await call(router, 'POST', '/me/delete-code', bearer);
+    assert.equal(r.status, 200);
+    assertMatch(argsOf(deps.deletionCodes.send)[0], { userId: 7, email: 'a@b.c', name: 'Ana' });
+  });
+
+  test('POST /me/delete-code en una cuenta con contraseña: 409 HAS_PASSWORD sin enviar nada', async () => {
+    const { router, deps } = await build();
+    const r = await call(router, 'POST', '/me/delete-code', bearer);
+    assert.equal(r.status, 409);
+    assert.equal(r.body.code, 'HAS_PASSWORD');
+    assert.equal(deps.deletionCodes.send.mock.callCount(), 0);
+  });
+
+  test('DELETE /me con el código correcto borra la cuenta', async () => {
+    const { router, deps } = await build({ noPassword: true });
+    const r = await call(router, 'DELETE', '/me', bearer, { code: DELETION_CODE });
+    assert.equal(r.status, 200);
+    assert.deepEqual(argsOf(deps.accountRepository.erase), [7]);
+  });
+
+  test('DELETE /me con un código incorrecto: 400 INVALID_CODE sin borrar', async () => {
+    const { router, deps } = await build({ noPassword: true });
+    const r = await call(router, 'DELETE', '/me', bearer, { code: '654321' });
+    assert.equal(r.status, 400);
+    assert.equal(r.body.code, 'INVALID_CODE');
+    assert.equal(deps.accountRepository.erase.mock.callCount(), 0);
+  });
+
+  test('DELETE /me con un código mal formado: 400 VALIDATION_ERROR', async () => {
+    const { router } = await build({ noPassword: true });
+    for (const code of ['12345', '1234567', '12a456']) {
+      assert.equal((await call(router, 'DELETE', '/me', bearer, { code })).status, 400);
+    }
+  });
+
+  test('una cuenta con contraseña no se borra con un código', async () => {
+    const { router, deps } = await build();
+    const r = await call(router, 'DELETE', '/me', bearer, { code: DELETION_CODE });
+    assert.equal(r.status, 403);
+    assert.equal(r.body.code, 'INVALID_PASSWORD');
+    assert.equal(deps.accountRepository.erase.mock.callCount(), 0);
   });
 });

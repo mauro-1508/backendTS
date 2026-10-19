@@ -1,10 +1,10 @@
 import { EventPublisher } from '@traduce/shared';
-import { notFoundError, validationError } from '../domain/errors';
+import { accountDeletedError, notFoundError, validationError } from '../domain/errors';
 import { PUBLISHED_EVENTS } from '../domain/events';
 import {
   DEFAULT_PREFERENCES, Preferences, PreferencesPatch, THEMES, UI_LANGUAGES,
 } from '../domain/preferences';
-import { ProfileRepository } from '../ports/repositories';
+import { ProfileRepository, UnitOfWork } from '../ports/repositories';
 import { publishQuietly } from './publish_event';
 
 const isOneOf = <T extends string>(allowed: readonly T[], value: unknown): value is T =>
@@ -35,11 +35,39 @@ export const makeGetPreferences = (deps: { profiles: ProfileRepository }) =>
   async (userId: string): Promise<Preferences> =>
     (await deps.profiles.findPreferences(userId)) ?? DEFAULT_PREFERENCES;
 
-export const makeUpdatePreferences = (deps: { profiles: ProfileRepository; eventPublisher: EventPublisher }) =>
-  async (userId: string, body: unknown): Promise<Preferences> => {
+/** Datos del JWT con los que se crea un perfil que falta (el nombre llega solo por iam.UserRegistered). */
+export interface ProfileIdentity {
+  email?: string;
+}
+
+export const makeUpdatePreferences = (deps: {
+  unitOfWork: UnitOfWork;
+  eventPublisher: EventPublisher;
+}) =>
+  async (userId: string, body: unknown, identity: ProfileIdentity = {}): Promise<Preferences> => {
     const patch = parsePreferencesPatch(body);
-    const updated = await deps.profiles.updatePreferences(userId, patch);
-    if (!updated) throw notFoundError('Perfil no encontrado');
-    await publishQuietly(deps.eventPublisher, PUBLISHED_EVENTS.PreferencesChanged, { userId, ...patch });
+
+    const updated = await deps.unitOfWork.run(async repositories => {
+      await repositories.gamificationLocks.lockUser(userId);
+      if (await repositories.profiles.isErased(userId)) {
+        throw accountDeletedError();
+      }
+      let preferences = await repositories.profiles.updatePreferences(userId, patch);
+      if (!preferences) {
+        await repositories.profiles.createIfAbsent({ userId, email: identity.email });
+        preferences = await repositories.profiles.updatePreferences(userId, patch);
+      }
+      if (!preferences) {
+        throw notFoundError('Perfil no encontrado');
+      }
+      return preferences;
+    });
+
+    await publishQuietly(
+      deps.eventPublisher,
+      PUBLISHED_EVENTS.PreferencesChanged,
+      { userId, ...patch },
+    );
+
     return updated;
   };

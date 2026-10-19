@@ -30,6 +30,27 @@ export class AccountNotFoundError extends AccountError {
     super('Usuario no encontrado', 'USER_NOT_FOUND', 404);
   }
 }
+/** Borrado de una cuenta sin contraseña con un codigo incorrecto, caducado, agotado o inexistente. */
+export class InvalidDeletionCodeError extends AccountError {
+  constructor() {
+    super('Código incorrecto o vencido', 'INVALID_CODE', 400);
+  }
+}
+/** Las cuentas con contraseña confirman el borrado con ella, no con un codigo al correo. */
+export class PasswordAccountError extends AccountError {
+  constructor() {
+    super('Tu cuenta tiene contraseña: confirma con ella', 'HAS_PASSWORD', 409);
+  }
+}
+export class DeletionCodeLimitError extends AccountError {
+  constructor(reason: 'cooldown' | 'hourly_limit') {
+    super(
+      reason === 'cooldown' ? 'Espera un minuto antes de pedir otro código' : 'Demasiados códigos en la última hora',
+      reason === 'cooldown' ? 'CODE_COOLDOWN' : 'CODE_LIMIT',
+      429,
+    );
+  }
+}
 
 export const MIN_PASSWORD_LENGTH = 8;
 /** bcrypt ignora lo que pasa de 72 bytes: se rechaza en vez de truncar en silencio. */

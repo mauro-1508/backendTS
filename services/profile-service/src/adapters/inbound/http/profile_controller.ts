@@ -22,6 +22,8 @@ const HTTP_BAD_REQUEST = 400;
 
 /** El JWT trae el id del usuario (el middleware ya garantizo que existe). */
 const userIdOf = (req: Request): string => String(req.user?.userId);
+/** Correo del JWT: sirve para crear el perfil si la cuenta aun no tiene uno. */
+const identityOf = (req: Request) => ({ email: req.user?.email });
 
 const fail = (res: Response, error: unknown) => {
   if (error instanceof ProfileError) {
@@ -49,15 +51,23 @@ export const makeProfileController = (useCases: ProfileUseCases) => ({
 
   getPreferences: handle(async (req, res) => { res.json(await useCases.getPreferences(userIdOf(req))); }),
 
-  updatePreferences: handle(async (req, res) => { res.json(await useCases.updatePreferences(userIdOf(req), req.body)); }),
+  updatePreferences: handle(async (req, res) => { res.json(await useCases.updatePreferences(userIdOf(req), req.body, identityOf(req))); }),
 
   /** PATCH /me cambia las preferencias y devuelve el perfil completo (contrato). */
   updateProfile: handle(async (req, res) => {
-    await useCases.updatePreferences(userIdOf(req), req.body);
+    await useCases.updatePreferences(userIdOf(req), req.body, identityOf(req));
     res.json(await useCases.getProfile(userIdOf(req)));
   }),
 
-  listAchievements: handle(async (req, res) => { res.json({ data: await useCases.listAchievements(userIdOf(req)) }); }),
+  listAchievements: handle(async (req, res) => {
+    const requested = req.query.catalogVersion;
+    if (requested !== undefined && requested !== '1' && requested !== '2') {
+      return res.status(HTTP_BAD_REQUEST).json({ success: false, code: 'VALIDATION_ERROR', message: 'catalogVersion debe ser 1 o 2' });
+    }
+    const version = requested === '2' ? 2 : 1;
+    const data = await useCases.listAchievements(userIdOf(req), version);
+    return res.json(version === 2 ? { data, meta: { catalogVersion: 2 } } : { data });
+  }),
 
   listNotifications: handle(async (req, res) => {
     const query = parseNotificationQuery(req.query);

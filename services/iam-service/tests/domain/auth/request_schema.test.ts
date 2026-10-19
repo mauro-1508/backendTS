@@ -146,7 +146,7 @@ describe('register con correo duplicado', () => {
       passwordHasher: { hash: async () => 'h', compare: async () => true },
       roleAssigner: { assignDefaultRole: async () => undefined },
       authRepository: {} as never,
-      mailer: { sendVerificationCode: async () => undefined, sendPasswordResetCode: async () => undefined },
+      mailer: { sendVerificationCode: async () => undefined, sendPasswordResetCode: async () => undefined, sendAccountDeletionCode: async () => undefined },
       eventPublisher: new RecordingEventPublisher(),
     });
     await assert.rejects(register({ name: 'Ana', email: ' ANA@x.com', password: 'Abcdef1!x' }), EmailAlreadyExistsError);

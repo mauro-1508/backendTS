@@ -184,12 +184,12 @@ Otros mensajes:
 ### Paso 5 — Revisar el avance cuando quieras
 
 ```bash
-node -e "const s=require('./src/domains/ia/training/datasets/lsc54/rep0/state.json'); console.log('muestras:', s.workers.reduce((a,w)=>a+w.samples,0))"
+node -e "const s=require('./services/recognition-service/training/datasets/lsc54/rep0/state.json'); console.log('muestras:', s.workers.reduce((a,w)=>a+w.samples,0))"
 ```
 
 ### Paso 6 — Entregar los datos
 
-Los datos quedan en `src/domains/ia/training/datasets/lsc54/rep0/`:
+Los datos quedan en `services/recognition-service/training/datasets/lsc54/rep0/`:
 `worker-00.jsonl`, `worker-01.jsonl`, `worker-02.jsonl`, `worker-03.jsonl` y `state.json`.
 
 **Mándalos todos, incluido `state.json`**: ahí está por dónde iba cada trabajador, y sin él
@@ -197,10 +197,10 @@ no se puede retomar ni saber qué falta.
 
 ```bash
 # Windows (PowerShell)
-Compress-Archive -Path src/domains/ia/training/datasets/lsc54/rep0 -DestinationPath rep0-slice2.zip
+Compress-Archive -Path services/recognition-service/training/datasets/lsc54/rep0 -DestinationPath rep0-slice2.zip
 
 # Linux / macOS
-cd src/domains/ia/training/datasets/lsc54 && tar -czf ~/rep0-slice2.tar.gz rep0
+cd services/recognition-service/training/datasets/lsc54 && tar -czf ~/rep0-slice2.tar.gz rep0
 ```
 
 Pásalo por Drive o WeTransfer. **No lo subas a git**: esa carpeta está en `.gitignore` a
@@ -270,7 +270,7 @@ Quiero que:
      npm run ia:measure-lsc54
    explicándome el resultado en español sencillo, sin jerga.
 5. Cuando termine, me armes el comprimido de
-   src/domains/ia/training/datasets/lsc54/rep0/ (incluyendo state.json)
+   services/recognition-service/training/datasets/lsc54/rep0/ (incluyendo state.json)
    para mandarlo por Drive.
 
 Reglas: trabajar en ramas, nunca sobre main ni develop; commits pequeños sin

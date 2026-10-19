@@ -78,7 +78,7 @@ describe('handlers de eventos', () => {
     assert.equal(logged.length, 4);
   });
 
-  test('suscribe ambos eventos y recibe lo publicado en el bus', async () => {
+  test('suscribe los eventos y recibe lo publicado en el bus', async () => {
     const repository = makeInMemoryUsageRepository();
     const bus = new InMemoryEventBus();
     await subscribeToDomainEvents({ subscriber: bus, repository });
@@ -92,6 +92,6 @@ describe('handlers de eventos', () => {
     const queues: string[] = [];
     const subscriber = { subscribe: async ({ queue }: { queue: string }) => { queues.push(queue); } };
     await subscribeToDomainEvents({ subscriber, repository: makeInMemoryUsageRepository() });
-    assert.equal(new Set(queues).size, 2);
+    assert.equal(new Set(queues).size, 3);
   });
 });

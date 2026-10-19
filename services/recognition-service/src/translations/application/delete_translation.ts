@@ -1,8 +1,7 @@
 import { TranslationRepository } from '../ports/outbound/translation_repository';
-import { TranslationResult } from '../ports/inbound/translation_service';
 
 export const makeDeleteTranslation = (deps: { translationRepository: TranslationRepository }) =>
-  async ({ translationId, userId }: { translationId: number; userId: number }): Promise<TranslationResult> => {
+  async ({ translationId, userId }: { translationId: number; userId: number }): Promise<{ translationId: number }> => {
     if (!translationId || !userId) {
       throw new Error('translationId y userId son obligatorios');
     }
@@ -10,5 +9,5 @@ export const makeDeleteTranslation = (deps: { translationRepository: Translation
     if (!result) {
       throw new Error('Traduccion no encontrada');
     }
-    return { success: true, message: 'Traduccion eliminada', data: result };
+    return result;
   };

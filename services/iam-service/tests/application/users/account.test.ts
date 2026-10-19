@@ -18,6 +18,8 @@ import { resolvesMatching } from '../../helpers/fakes';
 const OLD = 'Clave.Vieja1';
 const NEW = 'Clave.Nueva2';
 
+const VALID_CODE = '123456';
+
 const build = async (overrides: Partial<User> = {}) => {
   const user: User = {
     userId: 7,
@@ -41,7 +43,14 @@ const build = async (overrides: Partial<User> = {}) => {
   const changePassword = mock.fn(async (_id: number, hash: string) => void (user.password = hash));
   const erase = mock.fn(async (_id: number): Promise<'erased' | 'last_admin' | 'not_found'> => 'erased');
   const accountRepository: AccountRepository = { changePassword, erase };
-  return { user, userRepository, accountRepository, changePassword, erase, passwordHasher: bcryptPasswordHasher };
+  // Codigos de borrado falsos: el valido es VALID_CODE; send simula el resultado de auth.
+  let sendResult: 'issued' | 'cooldown' | 'hourly_limit' = 'issued';
+  const deletionCodes = {
+    send: mock.fn(async (_u: { userId: number; email: string; name: string }) => sendResult),
+    check: mock.fn(async (_id: number, code: string) => code === VALID_CODE),
+  };
+  const setSendResult = (r: typeof sendResult) => { sendResult = r; };
+  return { user, userRepository, accountRepository, changePassword, erase, passwordHasher: bcryptPasswordHasher, deletionCodes, setSendResult };
 };
 
 describe('reglas de la contraseña nueva', () => {

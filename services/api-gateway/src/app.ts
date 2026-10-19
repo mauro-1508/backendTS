@@ -7,20 +7,24 @@ import { GatewayConfig, RateLimitConfig } from './config';
 import { FetchLike, makeHealthHandler } from './health';
 import { makeOptionalAuth } from './optional_auth';
 import { makeServiceProxies } from './proxies';
+import { UNKNOWN_VERSION } from './version';
 
 export interface GatewayDeps {
-  config: Pick<GatewayConfig, 'serviceUrls' | 'rateLimit' | 'authRateLimit' | 'healthTimeoutMs' | 'corsOrigins'>;
+  config: Pick<GatewayConfig, 'serviceUrls' | 'rateLimit' | 'authRateLimit' | 'healthTimeoutMs' | 'corsOrigins'>
+    & Partial<Pick<GatewayConfig, 'trustProxy' | 'version'>>;
   tokenProvider: TokenProvider;
   fetchFn?: FetchLike;
 }
 
 const HEALTH_PATH = '/health';
-/** Endpoints de /api/auth que se pueden usar para adivinar credenciales o códigos. */
+/** Endpoints de /api/auth que se pueden usar para adivinar credenciales o códigos, o para crear cuentas en masa. */
 const SENSITIVE_AUTH_PATHS = [
   '/api/auth/login',
   '/api/auth/forgot-password',
   '/api/auth/verify-code',
   '/api/auth/reset-password',
+  '/api/auth/google',
+  '/api/auth/facebook',
 ];
 const RATE_LIMITED_BODY = { success: false, code: 'RATE_LIMITED', message: 'Demasiadas peticiones, intenta más tarde' };
 
@@ -34,10 +38,13 @@ const makeLimiter = ({ windowMs, maxRequests }: RateLimitConfig) => rateLimit({
 
 export const makeGatewayApp = ({ config, tokenProvider, fetchFn = fetch }: GatewayDeps): Express => {
   const app = express();
+  // Solo se confia en X-Forwarded-For si hay un proxy propio delante: si no, cualquiera podria falsear su IP.
+  if (config.trustProxy) app.set('trust proxy', config.trustProxy);
 
   app.use(cors(makeCorsOptions(config.corsOrigins)));
   app.get(HEALTH_PATH, makeHealthHandler({
     serviceUrls: config.serviceUrls, timeoutMs: config.healthTimeoutMs, fetchFn,
+    version: config.version ?? UNKNOWN_VERSION,
   }));
 
   app.use(SENSITIVE_AUTH_PATHS, makeLimiter(config.authRateLimit));

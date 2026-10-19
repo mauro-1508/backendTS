@@ -13,6 +13,15 @@ export class AnalyticsValidationError extends AnalyticsError {
   readonly httpStatus = 400;
 }
 
+/** La cuenta ya fue borrada (iam.UserDeleted): un JWT aun vigente no debe registrar hechos nuevos. */
+export class AccountErasedError extends AnalyticsError {
+  readonly code = 'ACCOUNT_DELETED';
+  readonly httpStatus = 401;
+  constructor() {
+    super('La cuenta fue eliminada');
+  }
+}
+
 export const DEFAULT_TOP_SIGNS_LIMIT = 10;
 export const MAX_TOP_SIGNS_LIMIT = 100;
 /** Eventos que un cliente puede registrar; el resto solo los producen otros servicios. */
@@ -52,6 +61,13 @@ const oneOf = <T extends string>(allowed: readonly T[], field: string, value: un
 export const parseSection = (value: unknown): UsageSection => oneOf(USAGE_SECTIONS, 'section', value);
 export const parseClientEventType = (value: unknown): UsageEventType => oneOf(CLIENT_EVENT_TYPES, 'eventType', value);
 export const parseReferenceType = (value: unknown): ReferenceType => oneOf(REFERENCE_TYPES, 'referenceType', value);
+/**
+ * Un cliente no puede referenciar 'USER': ese tipo solo lo escribe el consumidor de iam.UserRegistered
+ * (referenceId = id numerico de la cuenta) y el borrado de cuenta lo desliga. referenceId del cliente
+ * ademas debe ser un UUID, asi que nunca podria ser el id de usuario.
+ */
+export const CLIENT_REFERENCE_TYPES: readonly ReferenceType[] = REFERENCE_TYPES.filter(type => type !== 'USER');
+export const parseClientReferenceType = (value: unknown): ReferenceType => oneOf(CLIENT_REFERENCE_TYPES, 'referenceType', value);
 
 export const parseUuid = (field: string, value: unknown): string => {
   if (typeof value === 'string' && UUID_PATTERN.test(value)) return value;

@@ -3,7 +3,8 @@ import { AchievementProgress } from '../../../domain/achievement';
 import { Notification } from '../../../domain/notification';
 import { Preferences, Profile } from '../../../domain/preferences';
 import {
-  AchievementRepository, NotificationRepository, ProcessedEventRepository, ProfileRepository,
+  AchievementRepository, GamificationLocks, NotificationRepository,
+  ProcessedEventRepository, ProfileRepository,
   TransactionalRepositories, UnitOfWork,
 } from '../../../ports/repositories';
 
@@ -29,14 +30,32 @@ const COLUMN_BY_PREFERENCE = {
   notificationsEnabled: 'notifications_enabled',
 } as const;
 
-export const makePostgresProfileRepository = (db: Queryable): ProfileRepository => ({
+export const makePostgresProfileRepository = (db: Queryable): ProfileRepository => {
+  const isErased = async (userId: string): Promise<boolean> => {
+    const { rows } = await db.query('SELECT 1 FROM erased_users WHERE user_id = $1', [userId]);
+    return rows.length > 0;
+  };
+
+  return {
   async createIfAbsent({ userId, email, fullName, username }) {
+    // Un UserRegistered tardio de una cuenta ya borrada no recrea su perfil.
+    if (await isErased(userId)) return;
     await db.query(
       `INSERT INTO user_profiles (user_id, email, full_name, username) VALUES ($1, $2, $3, $4)
        ON CONFLICT (user_id) DO NOTHING`,
       [userId, email ?? null, fullName ?? null, username ?? null],
     );
     await db.query('INSERT INTO user_preferences (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
+  },
+
+  isErased,
+
+  async eraseUser(userId) {
+    await db.query('DELETE FROM user_achievements WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM user_preferences WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM user_profiles WHERE user_id = $1', [userId]);
+    await db.query('INSERT INTO erased_users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
   },
 
   async findProfile(userId): Promise<Profile | null> {
@@ -64,25 +83,42 @@ export const makePostgresProfileRepository = (db: Queryable): ProfileRepository 
     return rows[0] ? toPreferences(rows[0]) : null;
   },
 
-  async updatePreferences(userId, patch) {
-    const entries = Object.entries(patch) as Array<[keyof typeof COLUMN_BY_PREFERENCE, unknown]>;
-    const assignments = entries.map(([field], index) => `${COLUMN_BY_PREFERENCE[field]} = $${index + 2}`);
+    async updatePreferences(userId, patch) {
+    const entries = Object.entries(patch) as Array<
+      [keyof typeof COLUMN_BY_PREFERENCE, unknown]
+    >;
+    const columns = entries.map(([field]) => COLUMN_BY_PREFERENCE[field]);
+    const placeholders = entries.map(([field], index) =>
+      `$${index + 2}::${field === 'notificationsEnabled' ? 'boolean' : 'text'}`,
+    );
+    const assignments = columns.map(
+      column => `${column} = EXCLUDED.${column}`,
+    );
+
     const { rows } = await db.query(
-      `UPDATE user_preferences SET ${assignments.join(', ')}, updated_at = CURRENT_TIMESTAMP
-        WHERE user_id = $1 RETURNING ${PREFERENCES_COLUMNS}`,
+      `INSERT INTO user_preferences (user_id, ${columns.join(', ')})
+       SELECT p.user_id, ${placeholders.join(', ')}
+         FROM user_profiles p
+        WHERE p.user_id = $1
+       ON CONFLICT (user_id) DO UPDATE
+         SET ${assignments.join(', ')}, updated_at = CURRENT_TIMESTAMP
+       RETURNING ${PREFERENCES_COLUMNS}`,
       [userId, ...entries.map(([, value]) => value)],
     );
+
     return rows[0] ? toPreferences(rows[0]) : null;
   },
-});
+  };
+};
 
 const ACHIEVEMENT_PROGRESS_SELECT = `
   SELECT a.achievement_id, a.code, a.name, a.description, a.metric, a.target_count, a.points,
-         a.icon_reference, a.is_secret, a.is_active,
+         a.icon_reference, a.is_secret, a.is_active, a.collection, a.availability,
+         a.category, a.level, a.localizations,
          COALESCE(ua.current_count, 0) AS current_count, ua.achieved_at
     FROM achievements a
     LEFT JOIN user_achievements ua ON ua.achievement_id = a.achievement_id AND ua.user_id = $1
-   WHERE a.is_active`;
+`;
 
 const toProgress = (row: Record<string, any>): AchievementProgress => ({
   achievement: {
@@ -95,7 +131,13 @@ const toProgress = (row: Record<string, any>): AchievementProgress => ({
     points: row.points,
     iconReference: row.icon_reference ?? undefined,
     isSecret: row.is_secret,
-    isActive: row.is_active,
+    // Effective v2 publication; the stored flag remains closed to the old API.
+    isActive: row.collection === 'catalog' || row.is_active,
+    collection: row.collection,
+    availability: row.availability,
+    category: row.category,
+    level: row.level,
+    localizations: row.localizations,
   },
   currentCount: row.current_count,
   achievedAt: iso(row.achieved_at) ?? null,
@@ -103,24 +145,54 @@ const toProgress = (row: Record<string, any>): AchievementProgress => ({
 
 export const makePostgresAchievementRepository = (db: Queryable): AchievementRepository => ({
   async findProgressByMetric(userId, metric) {
-    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} AND a.metric = $2 ORDER BY a.target_count`, [userId, metric]);
+    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE (a.is_active OR a.collection = 'catalog') AND a.metric = $2 AND a.availability = 'available' ORDER BY a.target_count`, [userId, metric]);
     return rows.map(toProgress);
   },
 
-  async findAllProgress(userId) {
-    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} ORDER BY a.metric, a.target_count`, [userId]);
+  async findAllProgress(userId, catalogVersion = 1) {
+    // is_active is the legacy publication gate. Never expose new metrics/nulls to v1.
+    const visibility = catalogVersion === 2
+      ? "(a.is_active OR a.collection = 'catalog')"
+      : "a.is_active AND a.collection = 'legacy'";
+    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE ${visibility} ORDER BY a.collection, a.display_order, a.metric, a.target_count`, [userId]);
     return rows.map(toProgress);
   },
 
   async saveProgress(userId, progress) {
     await db.query(
-      `INSERT INTO user_achievements (user_id, achievement_id, current_count, achieved_at, notified_at)
-       VALUES ($1, $2, $3, $4, $4)
+      `INSERT INTO user_achievements (
+         user_id, achievement_id, current_count, achieved_at
+       )
+       VALUES ($1, $2, $3, $4)
        ON CONFLICT (user_id, achievement_id) DO UPDATE
-         SET current_count = EXCLUDED.current_count, achieved_at = EXCLUDED.achieved_at,
-             notified_at = EXCLUDED.notified_at, updated_at = CURRENT_TIMESTAMP`,
-      [userId, progress.achievement.id, progress.currentCount, progress.achievedAt],
+         SET current_count = EXCLUDED.current_count,
+             achieved_at = EXCLUDED.achieved_at,
+             updated_at = CURRENT_TIMESTAMP`,
+      [
+        userId,
+        progress.achievement.id,
+        progress.currentCount,
+        progress.achievedAt,
+      ],
     );
+  },
+
+  async markNotified(userId, achievementId) {
+    const result = await db.query(
+      `UPDATE user_achievements
+       SET notified_at = COALESCE(notified_at, CURRENT_TIMESTAMP),
+           updated_at = CURRENT_TIMESTAMP
+       WHERE user_id = $1
+         AND achievement_id = $2
+         AND achieved_at IS NOT NULL`,
+      [userId, achievementId],
+    );
+
+    if (result.rowCount !== 1) {
+      throw new Error(
+        'No existe un logro desbloqueado para registrar la notificación',
+      );
+    }
   },
 });
 
@@ -143,16 +215,25 @@ const toNotification = (row: Record<string, any>): Notification => ({
 
 export const makePostgresNotificationRepository = (db: Queryable): NotificationRepository => ({
   async create(notification) {
-    await db.query(
+    const result = await db.query(
       `INSERT INTO notifications
-         (user_id, notification_type_id, channel, title, body, reference_type, reference_id, status, sent_at)
-       SELECT $1, notification_type_id, 'IN_APP', $3, $4, $5, $6, 'SENT', CURRENT_TIMESTAMP
-         FROM notification_types WHERE code = $2 AND is_active`,
+         (user_id, notification_type_id, channel, title, body,
+          reference_type, reference_id, status, sent_at)
+       SELECT $1, notification_type_id, 'IN_APP', $3, $4,
+              $5, $6, 'SENT', CURRENT_TIMESTAMP
+       FROM notification_types
+       WHERE code = $2 AND is_active`,
       [
-        notification.userId, notification.typeCode, notification.title, notification.body,
-        notification.referenceType ?? null, notification.referenceId ?? null,
+        notification.userId,
+        notification.typeCode,
+        notification.title,
+        notification.body,
+        notification.referenceType ?? null,
+        notification.referenceId ?? null,
       ],
     );
+
+    return result.rowCount === 1;
   },
 
   async list(userId, { page, limit, unreadOnly }) {
@@ -197,11 +278,28 @@ export const makePostgresProcessedEventRepository = (db: Queryable): ProcessedEv
   },
 });
 
-export const makePostgresRepositories = (db: Queryable): TransactionalRepositories => ({
+const GAMIFICATION_LOCK_NAMESPACE = 714305;
+
+/** Usa el cliente de la transacción para mantener el bloqueo hasta commit o rollback. */
+export const makePostgresGamificationLocks = (
+  db: Queryable,
+): GamificationLocks => ({
+  async lockUser(userId) {
+    await db.query(
+      'SELECT pg_advisory_xact_lock($1::integer, hashtext($2::text))',
+      [GAMIFICATION_LOCK_NAMESPACE, userId],
+    );
+  },
+});
+
+export const makePostgresRepositories = (
+  db: Queryable,
+): TransactionalRepositories => ({
   profiles: makePostgresProfileRepository(db),
   achievements: makePostgresAchievementRepository(db),
   notifications: makePostgresNotificationRepository(db),
   processedEvents: makePostgresProcessedEventRepository(db),
+  gamificationLocks: makePostgresGamificationLocks(db),
 });
 
 /** Cada `run` abre una transaccion: commit si termina bien, rollback si falla. */
@@ -209,7 +307,7 @@ export const makePostgresUnitOfWork = (pool: Pool): UnitOfWork => ({
   async run(work) {
     const client: PoolClient = await pool.connect();
     try {
-      await client.query('BEGIN');
+      await client.query('BEGIN ISOLATION LEVEL READ COMMITTED');
       const result = await work(makePostgresRepositories(client));
       await client.query('COMMIT');
       return result;

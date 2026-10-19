@@ -51,6 +51,31 @@ export class AccountBlockedError extends AuthError {
     super('Cuenta bloqueada', 'ACCOUNT_BLOCKED', 403);
   }
 }
+export class InvalidGoogleTokenError extends AuthError {
+  constructor() {
+    super('Token de Google inválido', 'INVALID_GOOGLE_TOKEN', 401);
+  }
+}
+export class GoogleNotConfiguredError extends AuthError {
+  constructor() {
+    super('Inicio de sesión con Google no disponible', 'GOOGLE_NOT_CONFIGURED', 503);
+  }
+}
+export class InvalidFacebookTokenError extends AuthError {
+  constructor() {
+    super('Token de Facebook inválido', 'INVALID_FACEBOOK_TOKEN', 401);
+  }
+}
+export class FacebookNotConfiguredError extends AuthError {
+  constructor() {
+    super('Inicio de sesión con Facebook no disponible', 'FACEBOOK_NOT_CONFIGURED', 503);
+  }
+}
+export class FacebookEmailRequiredError extends AuthError {
+  constructor() {
+    super('Tu cuenta de Facebook no comparte un correo', 'FACEBOOK_EMAIL_REQUIRED');
+  }
+}
 /** Fallo interno al crear la cuenta (p. ej. asignar rol): sin detalle al cliente, termina en 500. */
 export class RegistrationFailedError extends Error {
   constructor() {

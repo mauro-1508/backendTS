@@ -10,8 +10,13 @@ export interface LoginInput {
 }
 
 export interface GoogleLoginInput {
-  email: string;
-  name: string;
+  /** ID token que Google entrega al cliente; el backend lo verifica, nunca confia en correo o nombre enviados aparte. */
+  idToken: string;
+}
+
+export interface FacebookLoginInput {
+  /** Access token que Facebook entrega al cliente; el backend lo valida con la Graph API. */
+  accessToken: string;
 }
 
 export interface AuthResult {
@@ -29,4 +34,5 @@ export interface AuthService {
   verifyCode(input: { email: string; code: string }): Promise<AuthResult>;
   resetPassword(input: { email: string; code: string; newPassword: string }): Promise<AuthResult>;
   googleLogin(input: GoogleLoginInput): Promise<AuthResult>;
+  facebookLogin(input: FacebookLoginInput): Promise<AuthResult>;
 }

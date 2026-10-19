@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
+import { AccountErasedError } from '../../../../common/domain/errors';
 import { InvalidSampleError } from '../../../domain/service';
-import { SampleResult, SampleService } from '../../../ports/inbound/sample_service';
+import { SampleService } from '../../../ports/inbound/sample_service';
 
 const HTTP_CREATED = 201;
 const HTTP_OK = 200;
@@ -9,10 +10,13 @@ const HTTP_INTERNAL_ERROR = 500;
 
 const userIdOf = (req: Request): number => (req.user as { userId: number }).userId;
 
-const respond = async (res: Response, status: number, run: () => Promise<SampleResult>) => {
+const respond = async (res: Response, status: number, run: () => Promise<unknown>) => {
   try {
     return res.status(status).json(await run());
   } catch (error) {
+    if (error instanceof AccountErasedError) {
+      return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });
+    }
     if (error instanceof InvalidSampleError) {
       return res.status(HTTP_BAD_REQUEST).json({ success: false, code: 'VALIDATION_ERROR', message: error.message });
     }
@@ -23,9 +27,15 @@ const respond = async (res: Response, status: number, run: () => Promise<SampleR
 
 export const makeSampleController = (service: SampleService) => ({
   create: (req: Request, res: Response) =>
-    respond(res, HTTP_CREATED, () => service.register({ body: req.body ?? {}, userId: userIdOf(req) })),
+    respond(res, HTTP_CREATED, async () => ({
+      success: true,
+      message: 'Muestra guardada',
+      data: await service.register({ body: req.body ?? {}, userId: userIdOf(req) }),
+    })),
 
   list: (req: Request, res: Response) =>
-    respond(res, HTTP_OK, () =>
-      service.list({ signCode: typeof req.query.signCode === 'string' ? req.query.signCode : undefined })),
+    respond(res, HTTP_OK, async () => ({
+      success: true,
+      data: await service.list({ signCode: typeof req.query.signCode === 'string' ? req.query.signCode : undefined }),
+    })),
 });

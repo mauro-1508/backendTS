@@ -6,6 +6,20 @@
 # Puertos en el host: solo el gateway (8080). Para depurar, postgres (5433-5437), mongo (27017)
 #   y la UI de rabbitmq (15672) se enlazan unicamente a 127.0.0.1. El AMQP (5672) y los
 #   servicios (3001-3005) no se publican.
+# Esquemas: los .sql montados en initdb SOLO se aplican al crear el volumen. En un volumen que ya
+#   existe hay que aplicar a mano las migraciones nuevas (con la plataforma levantada):
+#   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/009_outbox_events.sql
+#   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/010_users_password_nullable.sql
+#   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/011_account_deletion_token.sql
+#   docker compose exec -T postgres-analytics psql -U postgres -d analytics < services/analytics-service/db/002_erased_users.sql
+#   docker compose exec -T postgres-profile   psql -U postgres -d profile   < services/profile-service/db/002_erased_users.sql
+#   docker compose exec -T postgres-profile   psql -U postgres -d profile   < services/profile-service/db/003_ui_languages.sql
+#   docker compose exec -T postgres-profile   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile < services/profile-service/db/004_achievement_catalog.sql
+#   docker compose exec -T postgres-recognition psql -U postgres -d recognition < services/recognition-service/db/003_erased_users.sql
+#   (si 009 ya se aplico con una version anterior, volver a ejecutarla: es idempotente y anade las columnas nuevas)
+# Orden de despliegue de iam.UserDeleted: el outbox publica con mandatory=true, asi que un evento sin
+#   cola destino FALLA y se reintenta (no se pierde). Aun asi, levanta/despliega primero los consumidores
+#   (recognition, analytics, profile: crean sus colas *.user-deleted al arrancar) y despues iam.
 
 x-postgres: &postgres
   image: postgres:16-alpine
@@ -54,6 +68,9 @@ services:
       DB_NAME: iam
       EMAIL_USER: ${EMAIL_USER:-}
       EMAIL_PASS: ${EMAIL_PASS:-}
+      GOOGLE_CLIENT_IDS: ${GOOGLE_CLIENT_IDS:-}
+      FACEBOOK_APP_ID: ${FACEBOOK_APP_ID:-}
+      FACEBOOK_APP_SECRET: ${FACEBOOK_APP_SECRET:-}
     depends_on:
       postgres-iam:
         condition: service_healthy
@@ -143,6 +160,14 @@ services:
       - ./services/iam-service/db/003_iam_roles_permissions.sql:/docker-entrypoint-initdb.d/003_iam_roles_permissions.sql:ro
       - ./services/iam-service/db/005_auth_email_normalization_user_tokens.sql:/docker-entrypoint-initdb.d/005_auth_email_normalization_user_tokens.sql:ro
       - ./services/iam-service/db/006_users_status_email_verification.sql:/docker-entrypoint-initdb.d/006_users_status_email_verification.sql:ro
+      # Outbox de eventos (UserDeleted, ...): se publican con reintentos desde el relay de iam.
+      - ./services/iam-service/db/009_outbox_events.sql:/docker-entrypoint-initdb.d/009_outbox_events.sql:ro
+      # Cuentas de Google sin contraseña: password admite NULL.
+      - ./services/iam-service/db/010_users_password_nullable.sql:/docker-entrypoint-initdb.d/010_users_password_nullable.sql:ro
+      # Codigo por correo para borrar cuentas sin contraseña (token ACCOUNT_DELETION).
+      - ./services/iam-service/db/011_account_deletion_token.sql:/docker-entrypoint-initdb.d/011_account_deletion_token.sql:ro
+      # Reserva con token en el outbox: un relay vencido no confirma la reserva de otro.
+      - ./services/iam-service/db/012_outbox_claim_token.sql:/docker-entrypoint-initdb.d/012_outbox_claim_token.sql:ro
     healthcheck: &pg-healthcheck
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -161,6 +186,7 @@ services:
       # Esquema (translations, sign_templates): se aplica al crear el volumen por primera vez.
       - ./services/recognition-service/db/001_translations.sql:/docker-entrypoint-initdb.d/001_translations.sql:ro
       - ./services/recognition-service/db/002_sign_templates.sql:/docker-entrypoint-initdb.d/002_sign_templates.sql:ro
+      - ./services/recognition-service/db/003_erased_users.sql:/docker-entrypoint-initdb.d/003_erased_users.sql:ro
     healthcheck: *pg-healthcheck
 
   postgres-lexicon:
@@ -187,6 +213,7 @@ services:
       - pg-analytics-data:/var/lib/postgresql/data
       # Esquema: se aplica al crear el volumen por primera vez.
       - ./services/analytics-service/db/001_usage_event.sql:/docker-entrypoint-initdb.d/001_usage_event.sql:ro
+      - ./services/analytics-service/db/002_erased_users.sql:/docker-entrypoint-initdb.d/002_erased_users.sql:ro
     healthcheck: *pg-healthcheck
 
   postgres-profile:
@@ -200,6 +227,10 @@ services:
       - pg-profile-data:/var/lib/postgresql/data
       # Esquema y semilla de logros: se aplican al crear el volumen por primera vez.
       - ./services/profile-service/db/001_profile.sql:/docker-entrypoint-initdb.d/001_profile.sql:ro
+      - ./services/profile-service/db/002_erased_users.sql:/docker-entrypoint-initdb.d/002_erased_users.sql:ro
+      # Idioma de la interfaz: ES, EN, FR y PT.
+      - ./services/profile-service/db/003_ui_languages.sql:/docker-entrypoint-initdb.d/003_ui_languages.sql:ro
+      - ./services/profile-service/db/004_achievement_catalog.sql:/docker-entrypoint-initdb.d/004_achievement_catalog.sql:ro
     healthcheck: *pg-healthcheck
 
   mongo:

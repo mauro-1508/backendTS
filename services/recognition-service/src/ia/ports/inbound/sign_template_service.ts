@@ -1,15 +1,11 @@
-import { NewSignTemplate, TemplateKind } from '../../domain/entity';
-
-export interface SignTemplateResult {
-  success: boolean;
-  message?: string;
-  data?: unknown;
-}
+import { NewSignTemplate, SignTemplate, TemplateKind } from '../../domain/entity';
 
 export interface SignTemplateService {
-  importMany(input: { templates: NewSignTemplate[]; userId: number | null }): Promise<SignTemplateResult>;
-  list(input: { kind?: string; label?: string }): Promise<SignTemplateResult>;
-  remove(input: { templateId: number }): Promise<SignTemplateResult>;
+  /** Devuelve los ids de las plantillas creadas. */
+  importMany(input: { templates: NewSignTemplate[]; userId: number | null }): Promise<number[]>;
+  list(input: { kind?: string; label?: string }): Promise<SignTemplate[]>;
+  /** Lanza Error si la plantilla no existe. */
+  remove(input: { templateId: number; userId?: number | null }): Promise<{ templateId: number }>;
 }
 
 export type { NewSignTemplate, TemplateKind };

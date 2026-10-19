@@ -20,14 +20,31 @@ class FakeChannel extends EventEmitter {
   async assertQueue(queue: string, options: Record<string, unknown>) { this.queues.set(queue, options); return {}; }
   async bindQueue(queue: string, exchange: string, key: string) { this.bindings.push({ queue, exchange, key }); }
   async consume(queue: string, consumer: Consumer) { this.consumers.set(queue, consumer); return {}; }
-  publish() { return true; }
-  ack(message: unknown) { this.acked.push(message); }
-  nack(message: unknown, _allUpTo: boolean, requeue: boolean) { this.nacked.push({ message, requeue }); }
+  published: Array<{ exchange: string; key: string; body: Buffer }> = [];
+  confirmError?: Error;
+  publishOptions: Array<Record<string, unknown>> = [];
+  unroutable = false;
+  publish(exchange: string, key: string, body: Buffer, options: Record<string, unknown> = {}, confirmed?: (error: Error | null) => void) {
+    this.published.push({ exchange, key, body });
+    this.publishOptions.push(options);
+    // El broker devuelve (basic.return) los mandatory sin cola destino, antes de confirmarlos.
+    if (this.unroutable && options.mandatory) this.emit('return', { properties: { messageId: options.messageId } });
+    if (!this.neverConfirm) queueMicrotask(() => confirmed?.(this.confirmError ?? null));
+    return true;
+  }
+  neverConfirm = false;
+  async waitForConfirms() {
+    if (this.neverConfirm) return new Promise<void>(() => {});
+    if (this.confirmError) throw this.confirmError;
+  }
+  ackError?: Error;
+  ack(message: unknown) { if (this.ackError) throw this.ackError; this.acked.push(message); }
+  nack(message: unknown, _allUpTo: boolean, requeue: boolean) { if (this.ackError) throw this.ackError; this.nacked.push({ message, requeue }); }
 }
 
 class FakeConnection extends EventEmitter {
   readonly channel = new FakeChannel();
-  async createChannel() { return this.channel; }
+  async createConfirmChannel() { return this.channel; }
   async close() { this.emit('close'); }
 }
 
@@ -155,6 +172,98 @@ describe('RabbitMqEventBus', () => {
     await bus.close();
   });
 
+  test('publish resuelve solo tras la confirmacion del broker y respeta el eventId dado', async () => {
+    const { connect, connections } = makeConnector();
+    const bus = new RabbitMqEventBus('amqp://x', { connect });
+    await bus.publish('iam.UserDeleted', { userId: 1 }, { eventId: 'fijo-1' });
+    await bus.publish('iam.UserDeleted', { userId: 2 });
+    const [first, second] = connections[0].channel.published.map(p => JSON.parse(p.body.toString()));
+    assert.equal(first.eventId, 'fijo-1');
+    assert.notEqual(second.eventId, 'fijo-1');
+    assert.ok(second.eventId);
+    await bus.close();
+  });
+
+  test('si el broker no confirma (nack), publish rechaza', async () => {
+    const { connect, connections } = makeConnector();
+    const bus = new RabbitMqEventBus('amqp://x', { connect });
+    await bus.publish('iam.UserDeleted', { userId: 1 });
+    connections[0].channel.confirmError = new Error('nack del broker');
+    await assert.rejects(bus.publish('iam.UserDeleted', { userId: 1 }), /nack del broker/);
+    await bus.close();
+  });
+
+  test('con mandatory, un mensaje sin ruta (basic.return) hace fallar ese publish', async () => {
+    const { connect, connections } = makeConnector();
+    const bus = new RabbitMqEventBus('amqp://x', { connect });
+    await bus.publish('iam.UserDeleted', { userId: 1 }, { eventId: 'm1', mandatory: true });
+    const channel = connections[0].channel;
+    assert.equal(channel.publishOptions[0].mandatory, true);
+    assert.equal(channel.publishOptions[0].messageId, 'm1');
+
+    channel.unroutable = true;
+    await assert.rejects(bus.publish('iam.UserDeleted', { userId: 1 }, { eventId: 'm2', mandatory: true }), /ninguna cola/);
+    // Sin mandatory publicar sin consumidores sigue siendo normal.
+    await bus.publish('iam.UserDeleted', { userId: 1 }, { eventId: 'm3' });
+    assert.equal(channel.publishOptions[2].mandatory, false);
+    // El retorno de m2 no contamina a un reintento posterior que si tiene ruta.
+    channel.unroutable = false;
+    await bus.publish('iam.UserDeleted', { userId: 1 }, { eventId: 'm2', mandatory: true });
+    await bus.close();
+  });
+
+  test('publish rechaza si el broker no confirma a tiempo', async () => {
+    const { connect, connections } = makeConnector();
+    const bus = new RabbitMqEventBus('amqp://x', { connect, confirmTimeoutMs: 20 });
+    await bus.publish('iam.UserDeleted', { userId: 1 });
+    connections[0].channel.neverConfirm = true;
+    await assert.rejects(bus.publish('iam.UserDeleted', { userId: 1 }), /no confirmo/);
+    await assert.rejects(
+      bus.publish('iam.UserDeleted', { userId: 1 }),
+      (error: Error) => error.constructor.name === 'PublishTimeoutError',
+    );
+    await bus.close();
+  });
+
+  test('tras close(), publish y subscribe rechazan', async () => {
+    const { connect } = makeConnector();
+    const bus = new RabbitMqEventBus('amqp://x', { connect });
+    await bus.publish('iam.UserDeleted', { userId: 1 });
+    await bus.close();
+    await assert.rejects(bus.publish('iam.UserDeleted', { userId: 1 }), /cerrado/);
+    await assert.rejects(bus.subscribe(SUBSCRIPTION, async () => {}), /cerrado/);
+  });
+
+  test('ack/nack sobre un canal cerrado no genera unhandled rejection', async () => {
+    const { connect, connections } = makeConnector();
+    const bus = new RabbitMqEventBus('amqp://x', { connect });
+    let fail = false;
+    await bus.subscribe(SUBSCRIPTION, async () => { if (fail) throw new Error('boom'); });
+    const channel = connections[0].channel;
+    channel.ackError = new Error('Channel closed');
+    const unhandled: unknown[] = [];
+    const onUnhandled = (reason: unknown) => unhandled.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    const logs: unknown[][] = [];
+    await silenceLogs(async () => {
+      const original = console.error;
+      console.error = (...args: unknown[]) => { logs.push(args); };
+      try {
+        const consumer = channel.consumers.get('svc.queue')!;
+        consumer(messageOf('iam.UserRegistered'));
+        fail = true;
+        consumer(messageOf('iam.UserRegistered'));
+        await waitFor(() => logs.filter(l => String(l[0]).includes('no se pudo confirmar')).length === 2);
+        await new Promise(resolve => setTimeout(resolve, 20));
+      } finally {
+        console.error = original;
+      }
+    });
+    process.off('unhandledRejection', onUnhandled);
+    assert.deepEqual(unhandled, []);
+    await bus.close();
+  });
+
   test('close() no dispara reconexion', async () => {
     const connector = makeConnector();
     const bus = new RabbitMqEventBus('amqp://x', { connect: connector.connect, reconnectDelayMs: () => 1 });
@@ -168,4 +277,57 @@ describe('RabbitMqEventBus', () => {
     const bus = new RabbitMqEventBus('amqp://x', { connect: makeConnector(1).connect });
     await assert.rejects(bus.subscribe(SUBSCRIPTION, async () => {}), /broker caido/);
   });
+});
+
+ test('UserDeleted provisiona las tres colas aunque no haya consumidores activos', async () => {
+  const { connect, connections } = makeConnector();
+  const bus = new RabbitMqEventBus('amqp://test', { connect });
+  await bus.publish('iam.UserDeleted', { userId: 7 }, {
+    mandatory: true, eventId: 'deletion', occurredAt: '2020-01-01T00:00:00Z',
+  });
+  const channel = connections[0].channel;
+  for (const service of ['profile', 'recognition', 'analytics']) {
+    const queue = `${service}-service.user-deleted`;
+    assert.equal(channel.queues.get(queue)?.durable, true);
+    assert.ok(channel.bindings.some(b => b.queue === queue && b.key === 'iam.UserDeleted'));
+  }
+  assert.equal(JSON.parse(channel.published[0].body.toString()).occurredAt, '2020-01-01T00:00:00Z');
+  await bus.close();
+});
+
+test('no publica la eliminación si falla la provisión de uno de los consumidores', async () => {
+  const { connect, connections } = makeConnector();
+  const bus = new RabbitMqEventBus('amqp://test', { connect });
+  await bus.publish('test.Warmup', {});
+  const channel = connections[0].channel;
+  const declare = channel.assertQueue.bind(channel);
+  channel.assertQueue = async (queue, options) => {
+    if (queue === 'analytics-service.user-deleted') throw new Error('provision_failed');
+    return declare(queue, options);
+  };
+  await assert.rejects(bus.publish('iam.UserDeleted', { userId: 7 }, { mandatory: true }), /provision_failed/);
+  assert.equal(channel.published.length, 1);
+  await bus.close();
+});
+
+test('cada publicación espera solo su confirmación aunque otra siga pendiente', async () => {
+  const { connect, connections } = makeConnector();
+  const bus = new RabbitMqEventBus('amqp://test', { connect });
+  await bus.publish('test.Warmup', {});
+  const channel = connections[0].channel;
+  channel.neverConfirm = true;
+  const publish = channel.publish.bind(channel);
+  const callbacks: Array<(error: Error | null) => void> = [];
+  channel.publish = (exchange, key, body, options = {}, confirmed) => {
+    if (confirmed) callbacks.push(confirmed);
+    return publish(exchange, key, body, options);
+  };
+  const first = bus.publish('test.First', {});
+  const second = assert.rejects(bus.publish('test.Second', {}), /second_nack/);
+  await waitFor(() => callbacks.length === 2);
+  callbacks[0](null);
+  await first;
+  callbacks[1](new Error('second_nack'));
+  await second;
+  await bus.close();
 });

@@ -4,7 +4,7 @@ import http, { Server } from 'node:http';
 import { AddressInfo } from 'node:net';
 import { makeJwtTokenProvider } from '@traduce/shared';
 import { makeGatewayApp } from '../src/app';
-import { loadGatewayConfig } from '../src/config';
+import { loadGatewayConfig, parseTrustProxy } from '../src/config';
 import { DEV_CORS_ORIGINS, resolveCorsOrigins } from '../src/cors_options';
 import { ROUTE_PREFIXES, SERVICE_NAMES, ServiceName } from '../src/route_table';
 
@@ -40,7 +40,9 @@ describe('api-gateway', () => {
   let gateway: Server;
   let base: string;
 
-  const buildGateway = (rateLimitMax = 1000, serviceUrls?: Record<ServiceName, string>, authRateLimitMax = 1000) => {
+  const buildGateway = (
+    rateLimitMax = 1000, serviceUrls?: Record<ServiceName, string>, authRateLimitMax = 1000, trustProxy = 0,
+  ) => {
     const urls = serviceUrls ?? Object.fromEntries(
       SERVICE_NAMES.map(name => [name, urlOf(upstreams[name])]),
     ) as Record<ServiceName, string>;
@@ -49,6 +51,8 @@ describe('api-gateway', () => {
         authRateLimit: { windowMs: 60_000, maxRequests: authRateLimitMax },
         healthTimeoutMs: 500,
         corsOrigins: ['http://localhost:8081'],
+        trustProxy,
+        version: '1.2.3',
       },
       tokenProvider,
     });
@@ -158,9 +162,11 @@ describe('api-gateway', () => {
   describe('GET /health', () => {
     test('todos arriba: status ok', async () => {
       const response = await fetch(`${base}/health`);
-      const body = await response.json() as { status: string; services: Record<string, { status: string }> };
+      const body = await response.json() as
+        { status: string; version: string; services: Record<string, { status: string }> };
       assert.equal(response.status, 200);
       assert.equal(body.status, 'ok');
+      assert.equal(body.version, '1.2.3');
       assert.deepEqual(Object.keys(body.services).sort(), [...SERVICE_NAMES].sort());
       assert.ok(Object.values(body.services).every(s => s.status === 'up'));
     });
@@ -210,6 +216,8 @@ describe('api-gateway', () => {
         }
         assert.deepEqual(statuses, [200, 200, 429]);
         assert.equal((await fetch(`${urlOf(app)}/api/auth/forgot-password`, { method: 'POST' })).status, 429);
+        assert.equal((await fetch(`${urlOf(app)}/api/auth/google`, { method: 'POST' })).status, 429);
+        assert.equal((await fetch(`${urlOf(app)}/api/auth/facebook`, { method: 'POST' })).status, 429);
       } finally {
         await close(app);
       }
@@ -222,6 +230,33 @@ describe('api-gateway', () => {
         for (let i = 0; i < 3; i++) {
           assert.equal((await fetch(`${urlOf(app)}/api/lexicon`)).status, 200);
         }
+      } finally {
+        await close(app);
+      }
+    });
+
+    // Detras de Caddy todas las peticiones llegan desde la IP del proxy: sin trust proxy compartirian el limite.
+    const loginFrom = (app: Server, ip: string) =>
+      fetch(`${urlOf(app)}/api/auth/login`, { method: 'POST', headers: { 'x-forwarded-for': ip } });
+
+    test('con trustProxy cada IP de cliente (X-Forwarded-For) tiene su propio límite', async () => {
+      const app = http.createServer(buildGateway(1000, undefined, 1, 1));
+      await listen(app);
+      try {
+        assert.equal((await loginFrom(app, '203.0.113.1')).status, 200);
+        assert.equal((await loginFrom(app, '203.0.113.1')).status, 429);
+        assert.equal((await loginFrom(app, '203.0.113.2')).status, 200);
+      } finally {
+        await close(app);
+      }
+    });
+
+    test('sin trustProxy se ignora X-Forwarded-For: falsear la cabecera no esquiva el límite', async () => {
+      const app = http.createServer(buildGateway(1000, undefined, 1));
+      await listen(app);
+      try {
+        assert.equal((await loginFrom(app, '203.0.113.1')).status, 200);
+        assert.equal((await loginFrom(app, '203.0.113.2')).status, 429);
       } finally {
         await close(app);
       }
@@ -290,5 +325,17 @@ describe('loadGatewayConfig', () => {
     const config = loadGatewayConfig({ JWT_SECRET, LEXICON_SERVICE_URL: 'http://lexicon-service:3003', PORT: '9000' });
     assert.equal(config.serviceUrls.lexicon, 'http://lexicon-service:3003');
     assert.equal(config.port, 9000);
+  });
+
+  test('la version sale del package.json raiz', () => {
+    assert.equal(loadGatewayConfig({ JWT_SECRET }).version, '1.0.0');
+  });
+});
+
+describe('TRUST_PROXY', () => {
+  test('acepta enteros positivos; vacio, 0, negativos o texto cuentan como 0 (no confiar)', () => {
+    assert.equal(parseTrustProxy('1'), 1);
+    assert.equal(parseTrustProxy('2'), 2);
+    for (const raw of [undefined, '', '0', '-1', '1.5', 'true']) assert.equal(parseTrustProxy(raw), 0);
   });
 });

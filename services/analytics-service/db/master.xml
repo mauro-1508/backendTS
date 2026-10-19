@@ -7,4 +7,5 @@
 
     <include file="changelogs/006_usage_event.xml"/>
 
+    <include file="changelogs/007_erased_users.xml"/>
 </databaseChangeLog>

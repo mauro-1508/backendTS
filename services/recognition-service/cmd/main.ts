@@ -3,9 +3,8 @@ import { MongoClient } from 'mongodb';
 import {
   createEventBus, loadConfig, makeAuthMiddleware, makeJwtTokenProvider, makePgPool, requireRole,
 } from '@traduce/shared';
-import { makeRecognitionApp } from '../src/app';
+import { makeRecognitionModule } from '../src/recognition.module';
 import { loadRecognitionConfig } from '../src/config';
-import { subscribeToLexiconEvents } from '../src/events/lexicon_events_subscriber';
 import { InMemorySampleRepository } from '../src/samples/adapters/outbound/memory/in_memory_sample_repository';
 import {
   ensureSampleIndexes, GESTURE_SAMPLES_COLLECTION, makeMongoSampleRepository, SampleDocument,
@@ -34,10 +33,11 @@ const makeSampleRepository = async (): Promise<SampleRepository> => {
 };
 
 const start = async () => {
-  const app = makeRecognitionApp({
+  const sampleRepository = await makeSampleRepository();
+  const { app, subscribe } = makeRecognitionModule({
     pool,
-    eventPublisher: eventBus,
-    sampleRepository: await makeSampleRepository(),
+    eventBus,
+    sampleRepository,
     authMiddleware: makeAuthMiddleware(tokenProvider),
     requireAdmin: requireRole(ADMIN_ROLE),
   });
@@ -45,8 +45,7 @@ const start = async () => {
   const server = app.listen(config.port, () => {
     console.log(`recognition-service escuchando en el puerto ${config.port}`);
   });
-  // El broker puede tardar en estar arriba: subscribeWithRetry reintenta sin bloquear el arranque.
-  void subscribeToLexiconEvents(eventBus);
+  subscribe();
 
   process.on('SIGTERM', () => {
     server.close();

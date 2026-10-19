@@ -1,9 +1,11 @@
-import { EVENT_TYPES, EventSubscriber, subscribeWithRetry } from '@traduce/shared';
+import { EVENT_TYPES, EventSubscriber, subscribeWithRetry, withRetry } from '@traduce/shared';
 import { UsageEventRepository } from '../../../domain/repository';
+import { makeEraseUserLink } from '../../../application/erase_user_link';
 import { makeIngestTranslationProduced, makeIngestUserRegistered } from '../../../application/ingest_events';
 
 export const TRANSLATION_PRODUCED_QUEUE = 'analytics-service.translation-produced';
 export const USER_REGISTERED_QUEUE = 'analytics-service.user-registered';
+export const USER_DELETED_QUEUE = 'analytics-service.user-deleted';
 
 /**
  * Una cola por evento consumido: si dos handlers compartieran cola, RabbitMQ repartiria
@@ -25,6 +27,12 @@ export const subscribeToDomainEvents = async (deps: {
       subscriber,
       { queue: USER_REGISTERED_QUEUE, pattern: EVENT_TYPES.UserRegistered },
       makeIngestUserRegistered({ repository }),
+    ),
+    subscribeWithRetry(
+      subscriber,
+      { queue: USER_DELETED_QUEUE, pattern: EVENT_TYPES.UserDeleted },
+      // La limpieza válida permanece pendiente con backoff; no se pierde al agotar cinco intentos.
+      withRetry(makeEraseUserLink({ repository }), { attempts: Infinity }),
     ),
   ]);
 };

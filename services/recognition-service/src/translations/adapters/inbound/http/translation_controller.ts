@@ -1,4 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
+import { AccountErasedError } from '../../../../common/domain/errors';
 import { PermissionDeniedError } from '../../../domain/stats';
 import { TranslationService } from '../../../ports/inbound/translation_service';
 
@@ -10,9 +11,13 @@ export const makeTranslationController = (translationService: TranslationService
     try {
       const userId = resolveUserId(req);
       const { inputText, outputText, type, confidence, source } = req.body;
-      const result = await translationService.create({ userId, inputText, outputText, type, confidence, source });
-      return res.status(201).json(result);
+      const created = await translationService.create({ userId, inputText, outputText, type, confidence, source });
+      return res.status(201).json({ success: true, message: 'Traduccion guardada', data: created });
     } catch (error) {
+      // Cuenta borrada con un JWT todavia vigente: el token ya no corresponde a ninguna cuenta (401).
+      if (error instanceof AccountErasedError) {
+        return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });
+      }
       return res.status(400).json({ success: false, message: (error as Error).message });
     }
   },
@@ -21,12 +26,12 @@ export const makeTranslationController = (translationService: TranslationService
     try {
       const userId = resolveUserId(req);
       const { limit, offset } = req.query;
-      const result = await translationService.list({
+      const translations = await translationService.list({
         userId,
         limit: limit as string | undefined,
         offset: offset as string | undefined,
       });
-      return res.status(200).json(result);
+      return res.status(200).json({ success: true, data: translations });
     } catch (error) {
       return res.status(400).json({ success: false, message: (error as Error).message });
     }
@@ -57,8 +62,8 @@ export const makeTranslationController = (translationService: TranslationService
     try {
       const userId = resolveUserId(req);
       const translationId = Number(req.params.id);
-      const result = await translationService.remove({ translationId, userId });
-      return res.status(200).json(result);
+      const removed = await translationService.remove({ translationId, userId });
+      return res.status(200).json({ success: true, message: 'Traduccion eliminada', data: removed });
     } catch (error) {
       return res.status(400).json({ success: false, message: (error as Error).message });
     }

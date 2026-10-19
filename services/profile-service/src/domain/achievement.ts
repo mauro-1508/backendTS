@@ -1,8 +1,15 @@
 export type AchievementMetric =
+  | 'CATALOG_REQUIREMENT'
   | 'TRANSLATIONS_COMPLETED'
   | 'SIGNS_LEARNED'
   | 'ALPHABET_COMPLETED'
   | 'SESSIONS_COMPLETED';
+
+export interface AchievementLocalization {
+  name: string;
+  description: string;
+  unavailableReason?: string;
+}
 
 export interface Achievement {
   id: string;
@@ -15,6 +22,12 @@ export interface Achievement {
   iconReference?: string;
   isSecret: boolean;
   isActive: boolean;
+  // Optional internally for pre-catalogue fixtures; serialized explicitly by listAchievements.
+  collection?: 'catalog' | 'legacy';
+  availability?: 'available' | 'upcoming';
+  category?: 'translation' | 'practice' | 'vocabulary' | 'consistency' | 'community' | null;
+  level?: 'bronze' | 'silver' | 'gold' | null;
+  localizations?: Record<string, AchievementLocalization>;
 }
 
 /** Logro con el avance de un usuario; `achievedAt` nulo = en progreso. */

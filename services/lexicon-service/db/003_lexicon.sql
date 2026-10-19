@@ -392,7 +392,7 @@ WITH seed (code, letter, description, is_animated, display_order) AS (
     ('LETTER_N', 'N', 'Índice y medio flexionados cubren el pulgar.', FALSE, 14),
     ('LETTER_NN', 'Ñ', 'Con la configuración de la N, la mano hace un movimiento ondulado corto.', TRUE, 15),
     ('LETTER_O', 'O', 'Dedos y pulgar curvados formando un círculo cerrado.', FALSE, 16),
-    ('LETTER_P', 'P', 'Mano colgando con el índice recto hacia abajo; el medio se une con la punta del pulgar formando un aro a un lado. Anular y meñique recogidos.', FALSE, 17),
+    ('LETTER_P', 'P', 'Palma hacia abajo con el índice recto apuntando hacia abajo; el medio pasa por encima y su yema toca la mitad del índice, dejando un hueco que forma la panza de la P. Anular y meñique recogidos.', FALSE, 17),
     ('LETTER_Q', 'Q', 'Los cuatro dedos juntos y semiflexionados, con la punta del pulgar tocando las yemas de índice y medio. Se muestra el dorso de la mano.', FALSE, 18),
     ('LETTER_R', 'R', 'Índice y medio extendidos hacia arriba y separados.', FALSE, 19),
     ('LETTER_S', 'S', 'Índice extendido hacia arriba trazando una S en el aire.', TRUE, 20),
@@ -422,6 +422,14 @@ FROM (
 ) t
 JOIN seed s ON s.code = t.code
 ON CONFLICT (lexicon_id, ui_language) DO NOTHING;
+
+-- La P cambio de forma al regenerar los modelos. La semilla no pisa textos
+-- (DO NOTHING), asi que se actualiza aparte, solo si sigue el texto anterior.
+UPDATE public.sign_localizations l
+SET description = 'Palma hacia abajo con el índice recto apuntando hacia abajo; el medio pasa por encima y su yema toca la mitad del índice, dejando un hueco que forma la panza de la P. Anular y meñique recogidos.'
+FROM public.sign_lexicon s
+WHERE s.lexicon_id = l.lexicon_id AND s.code = 'LETTER_P' AND l.ui_language = 'ES'
+  AND l.description = 'Mano colgando con el índice recto hacia abajo; el medio se une con la punta del pulgar formando un aro a un lado. Anular y meñique recogidos.';
 
 -- Recursos: miniatura (card) y modelo 3D (modal). Rutas relativas a
 -- /api/lexicon/media; la API las devuelve como URL absolutas.

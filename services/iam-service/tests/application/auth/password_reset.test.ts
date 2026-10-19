@@ -67,7 +67,7 @@ const setup = (start = new Date('2026-01-01T12:00:00Z')) => {
     userRepository,
     authRepository,
     passwordHasher: hasher,
-    mailer: { sendPasswordResetCode, sendVerificationCode: async () => undefined },
+    mailer: { sendPasswordResetCode, sendVerificationCode: async () => undefined, sendAccountDeletionCode: async () => undefined },
     now: () => clock,
   };
   return {

@@ -10,8 +10,20 @@ export interface EventEnvelope<T = unknown> {
 export type EventHandler = (event: EventEnvelope) => Promise<void>;
 
 /** Lo unico que necesita quien solo publica. */
+export interface PublishOptions {
+  /** Id del evento; si falta se genera uno. Permite reintentar el mismo evento (outbox). */
+  eventId?: string;
+  /** Fecha original persistida; se conserva al reintentar un outbox. */
+  occurredAt?: string;
+  /**
+   * Si ninguna cola recibe el mensaje, publish RECHAZA en vez de descartarlo en silencio.
+   * Para eventos que no pueden perderse (outbox). Por defecto false: publicar sin consumidores es normal.
+   */
+  mandatory?: boolean;
+}
+
 export interface EventPublisher {
-  publish(type: string, payload: unknown): Promise<void>;
+  publish(type: string, payload: unknown, options?: PublishOptions): Promise<void>;
 }
 
 export interface Subscription {
