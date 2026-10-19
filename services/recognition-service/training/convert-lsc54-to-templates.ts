@@ -20,7 +20,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { FRAME_DIM, GestureTemplate, SEQ_LEN } from '../domain/motion_template';
+import { FRAME_DIM, GestureTemplate, SEQ_LEN } from '../src/ia/domain/motion_template';
 import { HandKey, loadRep0Samples, pickHandForSign, Rep0Sample, toTemplateFrames } from './lsc54-rep0';
 
 const args = process.argv.slice(2);

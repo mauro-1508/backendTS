@@ -5,7 +5,7 @@ dist/
 !.env.example
 
 # Datos de entrenamiento: no se versionan
-services/recognition-service/src/ia/training/datasets/
-services/recognition-service/src/ia/training/output/
+services/recognition-service/training/datasets/
+services/recognition-service/training/output/
 __pycache__/
 *.pyc

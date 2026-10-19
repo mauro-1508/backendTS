@@ -9,7 +9,7 @@ hexagonal de los demás dominios:
 | `application/` | Casos de uso: importar plantillas, listar, borrar |
 | `ports/` | Interfaces de entrada (servicio) y salida (repositorio) |
 | `adapters/` | Postgres (salida) y HTTP (entrada) |
-| `training/` | Conversión de datasets públicos a plantillas del motor (TypeScript) |
+| `../training/` (fuera de `src`) | Conversión de datasets públicos a plantillas del motor (TypeScript) |
 
 El reconocimiento corre en el cliente (MediaPipe + DTW/KNN en el frontend). El backend
 guarda y reparte las plantillas; no infiere.

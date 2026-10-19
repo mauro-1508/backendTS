@@ -4,7 +4,7 @@
  */
 import fs from 'fs';
 import path from 'path';
-import { Landmark, normalizeTwoHands, resampleSequence } from '../domain/motion_template';
+import { Landmark, normalizeTwoHands, resampleSequence } from '../src/ia/domain/motion_template';
 
 export const REP0_DIR = path.join(__dirname, 'datasets', 'lsc54', 'rep0');
 
