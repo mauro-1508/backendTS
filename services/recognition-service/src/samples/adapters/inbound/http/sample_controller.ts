@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { AccountErasedError } from '../../../../translations/domain/service';
+import { AccountErasedError } from '../../../../common/domain/errors';
 import { InvalidSampleError } from '../../../domain/service';
 import { SampleResult, SampleService } from '../../../ports/inbound/sample_service';
 

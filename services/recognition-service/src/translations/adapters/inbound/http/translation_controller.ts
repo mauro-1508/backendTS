@@ -1,5 +1,5 @@
 import { NextFunction, Request, Response } from 'express';
-import { AccountErasedError } from '../../../domain/service';
+import { AccountErasedError } from '../../../../common/domain/errors';
 import { PermissionDeniedError } from '../../../domain/stats';
 import { TranslationService } from '../../../ports/inbound/translation_service';
 

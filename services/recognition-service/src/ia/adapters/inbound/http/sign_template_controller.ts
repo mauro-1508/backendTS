@@ -1,5 +1,5 @@
 import { Request, Response } from 'express';
-import { AccountErasedError } from '../../../../translations/domain/service';
+import { AccountErasedError } from '../../../../common/domain/errors';
 import { NewSignTemplate } from '../../../domain/entity';
 import { SignTemplateService } from '../../../ports/inbound/sign_template_service';
 import { ImportTemplatesRequestDto } from './dto/import_templates_request';

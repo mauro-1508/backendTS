@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { it } from 'node:test';
 import { Pool } from 'pg';
 import { withActiveAccount } from '../src/accounts/active_account';
-import { AccountErasedError } from '../src/translations/domain/service';
+import { AccountErasedError } from '../src/common/domain/errors';
 
 for (const erased of [false, true]) {
   it(`protege la escritura externa y libera el bloqueo: erased=${erased}`, async () => {

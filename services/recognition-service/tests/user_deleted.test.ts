@@ -12,7 +12,7 @@ import { InMemorySampleRepository } from '../src/samples/adapters/outbound/memor
 import { makeMongoSampleRepository, SampleDocument } from '../src/samples/adapters/outbound/mongo/mongo_sample_repository';
 import { makeUserDeletedHandler, subscribeToUserDeleted, USER_DELETED_QUEUE } from '../src/events/user_deleted_subscriber';
 import { TranslationRepository } from '../src/translations/ports/outbound/translation_repository';
-import { AccountErasedError } from '../src/translations/domain/service';
+import { AccountErasedError } from '../src/common/domain/errors';
 import { makeTranslationController } from '../src/translations/adapters/inbound/http/translation_controller';
 import { makeCreateTranslation } from '../src/translations/application/create_translation';
 import { Translation } from '../src/translations/domain/entity';

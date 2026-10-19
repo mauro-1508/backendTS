@@ -1,5 +1,5 @@
 import { Pool, PoolClient } from 'pg';
-import { AccountErasedError } from '../translations/domain/service';
+import { AccountErasedError } from '../common/domain/errors';
 
 /** No cambia la retención: solo impide nuevas escrituras con un operador eliminado. */
 export const withActiveAccount = async <T>(
