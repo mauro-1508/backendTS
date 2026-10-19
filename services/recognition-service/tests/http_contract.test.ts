@@ -114,12 +114,10 @@ describe('contrato HTTP: sobre { success, message?, data? }', () => {
 
   test('POST samples: 201 con message y data; GET samples: 200 sin message', async () => {
     const created = await call('POST', '/m', sampleBody);
-    assert.equal(created.status, 201);
-    const { success, message, data } = created.body as { success: boolean; message: string; data: { sampleId: string } };
-    assert.deepEqual({ success, message }, { success: true, message: 'Muestra guardada' });
-    const listed = await call('GET', '/m');
-    assert.equal(listed.status, 200);
-    assert.deepEqual(Object.keys(listed.body as object), ['success', 'data']);
-    assert.deepEqual((listed.body as { data: Array<{ sampleId: string }> }).data.map(s => s.sampleId), [data.sampleId]);
+    const { data } = created.body as { data: unknown };
+    assert.deepEqual(created, { status: 201, body: { success: true, message: 'Muestra guardada', data } });
+    assert.deepEqual(Object.keys(created.body as object), ['success', 'message', 'data']);
+    // El listado devuelve la misma muestra serializada, sin depender del UUID ni la fecha.
+    assert.deepEqual(await call('GET', '/m'), { status: 200, body: { success: true, data: [data] } });
   });
 });
