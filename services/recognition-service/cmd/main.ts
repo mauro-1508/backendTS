@@ -5,7 +5,7 @@ import {
 } from '@traduce/shared';
 import { makeRecognitionApp } from '../src/app';
 import { loadRecognitionConfig } from '../src/config';
-import { subscribeToLexiconEvents } from '../src/events/lexicon_events_subscriber';
+import { subscribeToLexiconEvents } from '../src/ia/adapters/inbound/events/lexicon_events_subscriber';
 import { makeUserDeletedHandler, subscribeToUserDeleted } from '../src/accounts/adapters/inbound/events/user_deleted_subscriber';
 import { makePostgresTranslationRepository } from '../src/translations/adapters/outbound/postgres/translation_repository';
 import { makeEraseUserTranslations } from '../src/translations/application/erase_user_translations';
