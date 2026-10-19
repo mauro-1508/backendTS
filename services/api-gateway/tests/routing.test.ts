@@ -52,6 +52,7 @@ describe('api-gateway', () => {
         healthTimeoutMs: 500,
         corsOrigins: ['http://localhost:8081'],
         trustProxy,
+        version: '1.2.3',
       },
       tokenProvider,
     });
@@ -161,9 +162,11 @@ describe('api-gateway', () => {
   describe('GET /health', () => {
     test('todos arriba: status ok', async () => {
       const response = await fetch(`${base}/health`);
-      const body = await response.json() as { status: string; services: Record<string, { status: string }> };
+      const body = await response.json() as
+        { status: string; version: string; services: Record<string, { status: string }> };
       assert.equal(response.status, 200);
       assert.equal(body.status, 'ok');
+      assert.equal(body.version, '1.2.3');
       assert.deepEqual(Object.keys(body.services).sort(), [...SERVICE_NAMES].sort());
       assert.ok(Object.values(body.services).every(s => s.status === 'up'));
     });
@@ -322,6 +325,10 @@ describe('loadGatewayConfig', () => {
     const config = loadGatewayConfig({ JWT_SECRET, LEXICON_SERVICE_URL: 'http://lexicon-service:3003', PORT: '9000' });
     assert.equal(config.serviceUrls.lexicon, 'http://lexicon-service:3003');
     assert.equal(config.port, 9000);
+  });
+
+  test('la version sale del package.json raiz', () => {
+    assert.equal(loadGatewayConfig({ JWT_SECRET }).version, '1.0.0');
   });
 });
 

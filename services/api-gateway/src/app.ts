@@ -7,10 +7,11 @@ import { GatewayConfig, RateLimitConfig } from './config';
 import { FetchLike, makeHealthHandler } from './health';
 import { makeOptionalAuth } from './optional_auth';
 import { makeServiceProxies } from './proxies';
+import { UNKNOWN_VERSION } from './version';
 
 export interface GatewayDeps {
   config: Pick<GatewayConfig, 'serviceUrls' | 'rateLimit' | 'authRateLimit' | 'healthTimeoutMs' | 'corsOrigins'>
-    & Partial<Pick<GatewayConfig, 'trustProxy'>>;
+    & Partial<Pick<GatewayConfig, 'trustProxy' | 'version'>>;
   tokenProvider: TokenProvider;
   fetchFn?: FetchLike;
 }
@@ -43,6 +44,7 @@ export const makeGatewayApp = ({ config, tokenProvider, fetchFn = fetch }: Gatew
   app.use(cors(makeCorsOptions(config.corsOrigins)));
   app.get(HEALTH_PATH, makeHealthHandler({
     serviceUrls: config.serviceUrls, timeoutMs: config.healthTimeoutMs, fetchFn,
+    version: config.version ?? UNKNOWN_VERSION,
   }));
 
   app.use(SENSITIVE_AUTH_PATHS, makeLimiter(config.authRateLimit));
