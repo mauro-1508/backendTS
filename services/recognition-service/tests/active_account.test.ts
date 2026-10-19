@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { it } from 'node:test';
 import { Pool } from 'pg';
-import { withActiveAccount } from '../src/accounts/active_account';
+import { withActiveAccount } from '../src/common/adapters/outbound/postgres/active_account';
 import { AccountErasedError } from '../src/common/domain/errors';
 
 for (const erased of [false, true]) {
@@ -28,14 +28,14 @@ for (const erased of [false, true]) {
 }
 
 it('el decorador de muestras no escribe Mongo si la marca ya existe', async () => {
-  const { makeActiveSampleRepository } = await import('../src/accounts/active_sample_repository');
+  const { makeGuardedSampleRepository } = await import('../src/samples/adapters/outbound/guarded_sample_repository');
   const { InMemorySampleRepository } = await import('../src/samples/adapters/outbound/memory/in_memory_sample_repository');
   const repository = new InMemorySampleRepository();
   const pool = { connect: async () => ({
     query: async (sql: string) => ({ rows: sql.includes('FROM public.erased_users') ? [{}] : [] }),
     release: () => {},
   }) } as unknown as Pool;
-  const guarded = makeActiveSampleRepository(pool, repository);
+  const guarded = makeGuardedSampleRepository(pool, repository);
   await assert.rejects(guarded.create({
     signCode: 'TEST', captureSessionId: 'test-session', recordedBy: 7, performedBy: 'Test',
     consentGrantedAt: new Date('2020-01-01T00:00:00Z'), consentTermsVersion: 'test', frames: [[0]],

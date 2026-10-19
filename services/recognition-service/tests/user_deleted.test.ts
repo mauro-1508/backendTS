@@ -10,7 +10,7 @@ import { makeEraseUserTranslations } from '../src/translations/application/erase
 import { makePostgresTranslationRepository } from '../src/translations/adapters/outbound/postgres/translation_repository';
 import { InMemorySampleRepository } from '../src/samples/adapters/outbound/memory/in_memory_sample_repository';
 import { makeMongoSampleRepository, SampleDocument } from '../src/samples/adapters/outbound/mongo/mongo_sample_repository';
-import { makeUserDeletedHandler, subscribeToUserDeleted, USER_DELETED_QUEUE } from '../src/events/user_deleted_subscriber';
+import { makeUserDeletedHandler, subscribeToUserDeleted, USER_DELETED_QUEUE } from '../src/accounts/adapters/inbound/events/user_deleted_subscriber';
 import { TranslationRepository } from '../src/translations/ports/outbound/translation_repository';
 import { AccountErasedError } from '../src/common/domain/errors';
 import { makeTranslationController } from '../src/translations/adapters/inbound/http/translation_controller';
