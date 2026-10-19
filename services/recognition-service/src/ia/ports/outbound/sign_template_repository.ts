@@ -1,1 +1,7 @@
-export type { SignTemplateRepository } from '../../domain/repository';
+import { NewSignTemplate, SignTemplate, TemplateKind } from '../../domain/entity';
+
+export interface SignTemplateRepository {
+  createMany(templates: NewSignTemplate[], createdBy: number | null): Promise<SignTemplate[]>;
+  list(filter: { kind?: TemplateKind; label?: string }): Promise<SignTemplate[]>;
+  remove(templateId: number, userId?: number | null): Promise<{ templateId: number } | null>;
+}

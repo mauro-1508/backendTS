@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EVENT_TYPES, EventPublisher, InMemoryEventBus, EventEnvelope } from '@traduce/shared';
 import { makeCreateTranslation } from '../src/translations/application/create_translation';
 import { Translation } from '../src/translations/domain/entity';
-import { TranslationRepository } from '../src/translations/domain/repository';
+import { TranslationRepository } from '../src/translations/ports/outbound/translation_repository';
 
 const CREATED_AT = new Date('2026-01-02T03:04:05.000Z');
 
