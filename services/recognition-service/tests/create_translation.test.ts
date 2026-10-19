@@ -29,7 +29,7 @@ describe('create_translation', () => {
       eventPublisher: bus,
     })(validInput);
 
-    assert.equal(result.success, true);
+    assert.equal(result.translationId, 7);
     assert.equal(received.length, 1);
     assert.equal(received[0].type, EVENT_TYPES.TranslationProduced);
     assert.deepEqual(received[0].payload, {
@@ -59,7 +59,7 @@ describe('create_translation', () => {
         translationRepository: new FakeTranslationRepository(),
         eventPublisher: failingPublisher,
       })(validInput);
-      assert.equal(result.success, true);
+      assert.equal(result.translationId, 7);
     } finally {
       console.error = originalError;
     }

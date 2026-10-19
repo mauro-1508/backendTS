@@ -33,11 +33,11 @@ const userIdOf = (req: Request): number | null =>
 export const makeSignTemplateController = (service: SignTemplateService) => ({
   import: async (req: Request, res: Response) => {
     try {
-      const result = await service.importMany({
+      const importedIds = await service.importMany({
         templates: toTemplates(req.body ?? {}),
         userId: userIdOf(req),
       });
-      return res.status(201).json(result);
+      return res.status(201).json({ success: true, message: `${importedIds.length} plantillas importadas`, data: importedIds });
     } catch (error) {
       if (error instanceof AccountErasedError) {
         return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });
@@ -49,8 +49,8 @@ export const makeSignTemplateController = (service: SignTemplateService) => ({
   list: async (req: Request, res: Response) => {
     try {
       const { kind, label } = req.query;
-      const result = await service.list({ kind: kind as string | undefined, label: label as string | undefined });
-      return res.status(200).json(result);
+      const templates = await service.list({ kind: kind as string | undefined, label: label as string | undefined });
+      return res.status(200).json({ success: true, data: templates });
     } catch (error) {
       if (error instanceof AccountErasedError) {
         return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });
@@ -61,8 +61,8 @@ export const makeSignTemplateController = (service: SignTemplateService) => ({
 
   remove: async (req: Request, res: Response) => {
     try {
-      const result = await service.remove({ templateId: Number(req.params.id), userId: userIdOf(req) });
-      return res.status(200).json(result);
+      const removed = await service.remove({ templateId: Number(req.params.id), userId: userIdOf(req) });
+      return res.status(200).json({ success: true, message: 'Plantilla eliminada', data: removed });
     } catch (error) {
       if (error instanceof AccountErasedError) {
         return res.status(401).json({ success: false, code: 'ACCOUNT_DELETED', message: error.message });

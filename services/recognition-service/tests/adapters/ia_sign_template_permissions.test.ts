@@ -16,9 +16,9 @@ const USER = tokenWith(['translation.create']);
 const LEGACY = tokenWith(undefined); // token sin claim de permisos
 
 const service: SignTemplateService = {
-  importMany: mock.fn(async () => ({ success: true, message: 'ok' })),
-  list: mock.fn(async () => ({ success: true, data: [] })),
-  remove: mock.fn(async () => ({ success: true })),
+  importMany: mock.fn(async () => [1]),
+  list: mock.fn(async () => []),
+  remove: mock.fn(async () => ({ templateId: 3 })),
 };
 const calls = (fn: unknown) => (fn as { mock: { callCount(): number } }).mock.callCount();
 
