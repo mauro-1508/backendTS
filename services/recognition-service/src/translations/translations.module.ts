@@ -11,13 +11,16 @@ import { makeGetTranslationStats } from './application/get_translation_stats';
 import { makeGetMyTranslationStats } from './application/get_my_translation_stats';
 import { makeTranslationRoutes } from './adapters/inbound/http/routes';
 import { TranslationService } from './ports/inbound/translation_service';
+import { TranslationRepository } from './ports/outbound/translation_repository';
 
 export const makeTranslationsModule = (deps: {
   pool: Pool;
   eventPublisher: EventPublisher;
   authMiddleware: RequestHandler;
+  /** Repositorio compartido con otros modulos; si falta se crea uno de Postgres. */
+  translationRepository?: TranslationRepository;
 }) => {
-  const translationRepository = makePostgresTranslationRepository(deps.pool);
+  const translationRepository = deps.translationRepository ?? makePostgresTranslationRepository(deps.pool);
   const translationService: TranslationService = {
     create: makeCreateTranslation({ translationRepository, eventPublisher: deps.eventPublisher }),
     list: makeListTranslations({ translationRepository }),

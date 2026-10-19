@@ -5,6 +5,7 @@ import { makeTranslationsModule } from './translations/translations.module';
 import { makeIaModule } from './ia/ia.module';
 import { makeSamplesModule } from './samples/samples.module';
 import { SampleRepository } from './samples/ports/outbound/sample_repository';
+import { TranslationRepository } from './translations/ports/outbound/translation_repository';
 
 const SERVICE_NAME = 'recognition-service';
 const JSON_BODY_LIMIT = '2mb';
@@ -20,6 +21,8 @@ export interface RecognitionAppDeps {
   authMiddleware: RequestHandler;
   /** Exige rol ADMIN; va despues de authMiddleware. */
   requireAdmin: RequestHandler;
+  /** Repositorio de traducciones compartido con otros modulos; si falta, el modulo crea el suyo. */
+  translationRepository?: TranslationRepository;
 }
 
 export const makeRecognitionApp = (deps: RecognitionAppDeps): Express => {
