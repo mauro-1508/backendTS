@@ -1,6 +1,7 @@
 import { Env, makeEnvReader, requireJwtSecret } from '@traduce/shared';
 import { resolveCorsOrigins } from './cors_options';
 import { SERVICE_NAMES, ServiceName } from './route_table';
+import { readBackendVersion } from './version';
 
 export interface RateLimitConfig {
   windowMs: number;
@@ -23,6 +24,8 @@ export interface GatewayConfig {
    * detras de un proxy hace falta para que el rate limit cuente por IP de cliente y no por la del proxy.
    */
   trustProxy: number;
+  /** Version del backend que informa GET /health (package.json raiz). */
+  version: string;
 }
 
 const PRODUCTION_ENV = 'production';
@@ -72,5 +75,6 @@ export const loadGatewayConfig = (env: Env = process.env): GatewayConfig => {
     healthTimeoutMs: Number(read('HEALTH_TIMEOUT_MS')) || DEFAULT_HEALTH_TIMEOUT_MS,
     corsOrigins: resolveCorsOrigins(read('CORS_ORIGINS'), read('NODE_ENV') === PRODUCTION_ENV),
     trustProxy: parseTrustProxy(read('TRUST_PROXY')),
+    version: readBackendVersion(),
   };
 };

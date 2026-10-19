@@ -9,6 +9,8 @@ export interface ServiceHealth {
 
 export interface HealthReport {
   status: 'ok' | 'degraded';
+  /** Version del backend desplegado (package.json raiz). */
+  version: string;
   services: Record<ServiceName, ServiceHealth>;
 }
 
@@ -16,6 +18,7 @@ export interface HealthDeps {
   serviceUrls: Record<ServiceName, string>;
   timeoutMs: number;
   fetchFn: FetchLike;
+  version: string;
 }
 
 const checkService = async (url: string, { timeoutMs, fetchFn }: HealthDeps): Promise<ServiceHealth> => {
@@ -33,7 +36,7 @@ export const buildHealthReport = async (deps: HealthDeps): Promise<HealthReport>
   );
   const services = Object.fromEntries(checks) as Record<ServiceName, ServiceHealth>;
   const allUp = checks.every(([, health]) => health.status === 'up');
-  return { status: allUp ? 'ok' : 'degraded', services };
+  return { status: allUp ? 'ok' : 'degraded', version: deps.version, services };
 };
 
 /** El gateway responde 200 mientras viva; el detalle de los servicios va en el cuerpo. */
