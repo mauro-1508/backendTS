@@ -1,4 +1,4 @@
-import { AchievementProgress, concealIfSecret } from '../domain/achievement';
+import { AchievementProgress, concealIfSecret, isObtainable } from '../domain/achievement';
 import { AchievementRepository } from '../ports/repositories';
 
 /** Availability is independent of progress: null means no measurement exists. */
@@ -31,9 +31,13 @@ export const serializeLegacyAchievement = (progress: AchievementProgress) => {
 
 export const makeListAchievements = (deps: { achievements: AchievementRepository }) =>
   async (userId: string, catalogVersion: 1 | 2 = 1) => {
-    const progress = await deps.achievements.findAllProgress(userId, catalogVersion);
+    const progress = (await deps.achievements.findAllProgress(userId, catalogVersion))
+      .filter(p => isObtainable(p.achievement))
+      .sort((a, b) => Number((a.achievement.collection ?? 'legacy') !== 'legacy')
+        - Number((b.achievement.collection ?? 'legacy') !== 'legacy')
+        || a.achievement.targetCount - b.achievement.targetCount
+        || a.achievement.code.localeCompare(b.achievement.code));
     // Defensive filtering also protects alternative repository implementations.
     return catalogVersion === 2 ? progress.map(serializeAchievement)
-      : progress.filter(p => (p.achievement.collection ?? 'legacy') === 'legacy')
-        .map(serializeLegacyAchievement);
+      : progress.map(serializeLegacyAchievement);
   };
