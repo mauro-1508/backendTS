@@ -1,6 +1,7 @@
+import { ReportKind } from '../domain/admin_report_schedule';
 import { AchievementMetric, AchievementProgress } from '../domain/achievement';
 import { NewNotification, Notification, NotificationPage, NotificationQuery } from '../domain/notification';
-import { Preferences, PreferencesPatch, Profile } from '../domain/preferences';
+import { Preferences, PreferencesPatch, Profile, UiLanguage } from '../domain/preferences';
 
 export interface NewProfile {
   userId: string;
@@ -58,6 +59,28 @@ export interface GamificationLocks {
 }
 
 
+export interface AdminRecipient {
+  userId: string;
+  uiLanguage: UiLanguage;
+}
+
+export interface AdminRecipientRepository {
+  /** Registra al usuario como ADMIN visto (con limite de escrituras) o lo quita si ya no lo es. */
+  touch(userId: string, isAdmin: boolean): Promise<void>;
+  /** Admins con perfil vigente y notificaciones activadas. */
+  listActive(): Promise<AdminRecipient[]>;
+}
+
+export interface ReportRunRepository {
+  /** Reserva el periodo; devuelve el id de la ejecucion o null si otro ya lo reservo. */
+  claim(kind: ReportKind, periodKey: string): Promise<string | null>;
+}
+
+/** Consulta fuera de la transaccion: evita pedir estadisticas de un periodo que ya se envio. */
+export interface ReportRunQuery {
+  isClaimed(kind: ReportKind, periodKey: string): Promise<boolean>;
+}
+
 /** Repositorios que comparten una misma transaccion. */
 export interface TransactionalRepositories {
   profiles: ProfileRepository;
@@ -65,6 +88,7 @@ export interface TransactionalRepositories {
   notifications: NotificationRepository;
   processedEvents: ProcessedEventRepository;
   gamificationLocks: GamificationLocks;
+  reportRuns: ReportRunRepository;
 }
 
 export interface UnitOfWork {

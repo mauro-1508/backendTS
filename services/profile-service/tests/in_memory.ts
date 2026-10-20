@@ -1,7 +1,7 @@
 import { AchievementProgress } from '../src/domain/achievement';
 import { NewNotification } from '../src/domain/notification';
 import { DEFAULT_PREFERENCES, Preferences } from '../src/domain/preferences';
-import {NewProfile,TransactionalRepositories,UnitOfWork,} from '../src/ports/repositories';
+import {NewProfile,ReportRunQuery,TransactionalRepositories,UnitOfWork,} from '../src/ports/repositories';
 
 export const makeAchievement = (
   code: string,
@@ -33,6 +33,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
   const processed = new Set<string>();
   const createdProfiles: string[] = [];
   const erasedUsers = new Set<string>();
+  const claimedReports = new Map<string, string>();
 
   const progressOf = (userId: string) => {
     if (!progressByUser.has(userId)) {
@@ -143,21 +144,49 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
     gamificationLocks: {
       lockUser: async () => {},
     },
+
+    reportRuns: {
+      claim: async (kind, periodKey) => {
+        const key = `${kind}:${periodKey}`;
+        if (claimedReports.has(key)) return null;
+
+        claimedReports.set(key, `run-${claimedReports.size + 1}`);
+        return claimedReports.get(key)!;
+      },
+    },
+  };
+
+  const reportRunQuery: ReportRunQuery = {
+    isClaimed: async (kind, periodKey) => claimedReports.has(`${kind}:${periodKey}`),
   };
 
   const unitOfWork: UnitOfWork = {
-    run: work => work(repositories),
+    run: async work => {
+      // Imita el rollback de las reservas de reportes si la transaccion falla.
+      const claimedBefore = new Map(claimedReports);
+      const notificationsBefore = notifications.length;
+      try {
+        return await work(repositories);
+      } catch (error) {
+        claimedReports.clear();
+        claimedBefore.forEach((value, key) => claimedReports.set(key, value));
+        notifications.length = notificationsBefore;
+        throw error;
+      }
+    },
   };
 
   return {
     repositories,
     unitOfWork,
+    reportRunQuery,
     notifications,
     notifiedAchievements,
     preferencesByUser,
     profilesByUser,
     createdProfiles,
     erasedUsers,
+    claimedReports,
     progressOf,
   };
 };

@@ -7,6 +7,7 @@ import {
   ProcessedEventRepository, ProfileRepository,
   TransactionalRepositories, UnitOfWork,
 } from '../../../ports/repositories';
+import { makePostgresReportRunRepository } from './admin_report_repositories';
 
 /** Lo unico que los repositorios necesitan: Pool y PoolClient (transaccion) lo cumplen. */
 export interface Queryable {
@@ -54,6 +55,7 @@ export const makePostgresProfileRepository = (db: Queryable): ProfileRepository 
     await db.query('DELETE FROM user_achievements WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM user_preferences WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM admin_recipients WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM user_profiles WHERE user_id = $1', [userId]);
     await db.query('INSERT INTO erased_users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
   },
@@ -297,6 +299,7 @@ export const makePostgresRepositories = (
   notifications: makePostgresNotificationRepository(db),
   processedEvents: makePostgresProcessedEventRepository(db),
   gamificationLocks: makePostgresGamificationLocks(db),
+  reportRuns: makePostgresReportRunRepository(db),
 });
 
 /** Cada `run` abre una transaccion: commit si termina bien, rollback si falla. */
