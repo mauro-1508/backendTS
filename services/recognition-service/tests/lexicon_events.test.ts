@@ -1,7 +1,7 @@
 import { test, describe } from 'node:test';
 import assert from 'node:assert/strict';
 import { InMemoryEventBus } from '@traduce/shared';
-import { makeLexiconEventHandler, subscribeToLexiconEvents } from '../src/events/lexicon_events_subscriber';
+import { makeLexiconEventHandler, subscribeToLexiconEvents } from '../src/ia/adapters/inbound/events/lexicon_events_subscriber';
 
 const SIGN_PUBLISHED = {
   lexiconId: 1, code: 'HOLA', type: 'WORD', language: 'LSC', letter: null, categoryId: 2,

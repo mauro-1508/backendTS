@@ -1,5 +1,5 @@
 import { Pool } from 'pg';
-import { withActiveAccount } from '../../../../accounts/active_account';
+import { withActiveAccount } from '../../../../common/adapters/outbound/postgres/active_account';
 import { SignTemplateRepository } from '../../../ports/outbound/sign_template_repository';
 import { NewSignTemplate, SignTemplate, TemplateKind } from '../../../domain/entity';
 

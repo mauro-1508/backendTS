@@ -11,17 +11,19 @@
  * reconocen en la app.
  */
 
+import { MOTION_DIM, SEQ_LEN } from '../../common/domain/landmarks';
+
 export interface Landmark {
   x: number;
   y: number;
   z: number;
 }
 
-export const SEQ_LEN = 16;
+export { SEQ_LEN };
 /** 63 valores por mano. */
 export const HAND_DIM = 63;
 /** 126 = 2 manos x 21 puntos x (x, y, z). */
-export const FRAME_DIM = 126;
+export const FRAME_DIM = MOTION_DIM;
 
 /**
  * Distancia DTW maxima para aceptar una palabra (motionClassifier.ts).

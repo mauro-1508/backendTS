@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { TranslationRepository } from '../../../ports/outbound/translation_repository';
-import { AccountErasedError } from '../../../domain/service';
+import { AccountErasedError } from '../../../../common/domain/errors';
 import { NewTranslation, Translation, TranslationType } from '../../../domain/entity';
 
 

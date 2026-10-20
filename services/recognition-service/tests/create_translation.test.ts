@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EVENT_TYPES, EventPublisher, InMemoryEventBus, EventEnvelope } from '@traduce/shared';
 import { makeCreateTranslation } from '../src/translations/application/create_translation';
 import { Translation } from '../src/translations/domain/entity';
-import { TranslationRepository } from '../src/translations/domain/repository';
+import { TranslationRepository } from '../src/translations/ports/outbound/translation_repository';
 
 const CREATED_AT = new Date('2026-01-02T03:04:05.000Z');
 
@@ -29,7 +29,7 @@ describe('create_translation', () => {
       eventPublisher: bus,
     })(validInput);
 
-    assert.equal(result.success, true);
+    assert.equal(result.translationId, 7);
     assert.equal(received.length, 1);
     assert.equal(received[0].type, EVENT_TYPES.TranslationProduced);
     assert.deepEqual(received[0].payload, {
@@ -59,7 +59,7 @@ describe('create_translation', () => {
         translationRepository: new FakeTranslationRepository(),
         eventPublisher: failingPublisher,
       })(validInput);
-      assert.equal(result.success, true);
+      assert.equal(result.translationId, 7);
     } finally {
       console.error = originalError;
     }

@@ -10,9 +10,10 @@ import { makeEraseUserTranslations } from '../src/translations/application/erase
 import { makePostgresTranslationRepository } from '../src/translations/adapters/outbound/postgres/translation_repository';
 import { InMemorySampleRepository } from '../src/samples/adapters/outbound/memory/in_memory_sample_repository';
 import { makeMongoSampleRepository, SampleDocument } from '../src/samples/adapters/outbound/mongo/mongo_sample_repository';
-import { makeUserDeletedHandler, subscribeToUserDeleted, USER_DELETED_QUEUE } from '../src/events/user_deleted_subscriber';
+import { makeEraseAccountData } from '../src/accounts/application/erase_account_data';
+import { makeUserDeletedHandler, subscribeToUserDeleted, USER_DELETED_QUEUE } from '../src/accounts/adapters/inbound/events/user_deleted_subscriber';
 import { TranslationRepository } from '../src/translations/ports/outbound/translation_repository';
-import { AccountErasedError } from '../src/translations/domain/service';
+import { AccountErasedError } from '../src/common/domain/errors';
 import { makeTranslationController } from '../src/translations/adapters/inbound/http/translation_controller';
 import { makeCreateTranslation } from '../src/translations/application/create_translation';
 import { Translation } from '../src/translations/domain/entity';
@@ -56,8 +57,10 @@ describe('recognition: iam.UserDeleted', () => {
     await sampleRepository.create(sample(8));
     const logs: string[] = [];
     const handler = makeUserDeletedHandler({
-      eraseTranslations: makeEraseUserTranslations({ translationRepository: translations.repository }),
-      unlinkSamples: makeUnlinkUserSamples({ sampleRepository }),
+      eraseAccountData: makeEraseAccountData({
+        eraseTranslations: makeEraseUserTranslations({ translationRepository: translations.repository }),
+        unlinkSamples: makeUnlinkUserSamples({ sampleRepository }),
+      }),
       log: m => logs.push(m),
     });
 
@@ -75,8 +78,10 @@ describe('recognition: iam.UserDeleted', () => {
     const sampleRepository = new InMemorySampleRepository();
     await sampleRepository.create(sample(8));
     const handler = makeUserDeletedHandler({
-      eraseTranslations: makeEraseUserTranslations({ translationRepository: translations.repository }),
-      unlinkSamples: makeUnlinkUserSamples({ sampleRepository }),
+      eraseAccountData: makeEraseAccountData({
+        eraseTranslations: makeEraseUserTranslations({ translationRepository: translations.repository }),
+        unlinkSamples: makeUnlinkUserSamples({ sampleRepository }),
+      }),
       log: () => {},
     });
     await handler(validEvent(7));
@@ -89,8 +94,10 @@ describe('recognition: iam.UserDeleted', () => {
     let calls = 0;
     const logs: string[] = [];
     const handler = makeUserDeletedHandler({
-      eraseTranslations: async () => { calls++; return 0; },
-      unlinkSamples: async () => { calls++; return 0; },
+      eraseAccountData: makeEraseAccountData({
+        eraseTranslations: async () => { calls++; return 0; },
+        unlinkSamples: async () => { calls++; return 0; },
+      }),
     });
     const original = console.error;
     console.error = (m: string) => logs.push(m);
@@ -106,8 +113,10 @@ describe('recognition: iam.UserDeleted', () => {
 
   test('un error de base de datos se propaga (tras reintentos, el bus lo manda a la cola muerta)', async () => {
     const handler = makeUserDeletedHandler({
-      eraseTranslations: async () => { throw new Error('db caida'); },
-      unlinkSamples: async () => 0,
+      eraseAccountData: makeEraseAccountData({
+        eraseTranslations: async () => { throw new Error('db caida'); },
+        unlinkSamples: async () => 0,
+      }),
     });
     await assert.rejects(handler(validEvent(7)), /db caida/);
   });
