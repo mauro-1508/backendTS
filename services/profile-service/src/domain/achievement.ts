@@ -57,3 +57,9 @@ export const concealIfSecret = (progress: AchievementProgress): AchievementProgr
   progress.achievement.isSecret && !isUnlocked(progress)
     ? { ...progress, achievement: { ...progress.achievement, name: HIDDEN_TEXT, description: HIDDEN_TEXT } }
     : progress;
+
+/** Only this metric currently has an idempotent, implemented counter. */
+export const isObtainable = (achievement: Achievement): boolean =>
+  achievement.isActive && achievement.metric === 'TRANSLATIONS_COMPLETED'
+  && achievement.availability !== 'upcoming' && achievement.code !== 'firstSign'
+  && Number.isSafeInteger(achievement.targetCount) && achievement.targetCount > 0;

@@ -109,9 +109,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
         withUserState(userId).filter(
           progress => progress.achievement.metric === metric,
         ),
-      findAllProgress: async (userId, version = 1) => withUserState(userId).filter(
-        p => version === 2 || (p.achievement.collection ?? 'legacy') === 'legacy',
-      ),
+      findAllProgress: async userId => withUserState(userId),
       saveProgress: async (userId, progress) => {
         progressOf(userId).set(progress.achievement.id, progress);
       },

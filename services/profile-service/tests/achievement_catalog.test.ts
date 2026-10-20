@@ -87,11 +87,11 @@ describe('expanded catalogue contract', () => {
     assert.deepEqual(await list('alice', 2), before);
     assert.deepEqual(before.slice(0,3).map(p => p.currentCount), [1,10,50]);
     assert.ok(before.slice(0,3).every(p => p.achievedAt !== null));
-    assert.equal(before[3].currentCount, null);
+    assert.equal(before.length, 3);
     assert.equal(store.notifications.length, 3);
     assert.deepEqual((await list('bob', 2)).slice(0,3).map(p => p.currentCount), [0,0,0]);
   });
-  it('keeps v1 measured-only and publishes null progress exclusively through v2', async () => {
+  it('keeps both public versions obtainable without publishing upcoming announcements', async () => {
     const store = makeInMemoryStore([makeAchievement('FIRST_TRANSLATION', 1), upcoming()]);
     const list = makeListAchievements({ achievements: store.repositories.achievements });
     const old = await list('alice');
@@ -100,8 +100,27 @@ describe('expanded catalogue contract', () => {
     assert.equal('availability' in old[0].achievement, false);
     assert.equal(old[0].currentCount, 0);
     const modern = await list('alice', 2);
-    assert.equal(modern.length, 2);
-    assert.equal(modern[1].currentCount, null);
+    assert.equal(modern.length, 1);
+    assert.equal(modern[0].achievement.code, 'FIRST_TRANSLATION');
+  });
+  it('filters every unsupported metric, inactive rule and duplicate, and orders measured targets', async () => {
+    const unsupported = ['SIGNS_LEARNED','ALPHABET_COMPLETED','SESSIONS_COMPLETED','CATALOG_REQUIREMENT'] as const;
+    const entries = unsupported.map(metric => {
+      const p = makeAchievement(metric, 1); p.achievement.metric = metric; return p;
+    });
+    const inactive = makeAchievement('INACTIVE', 1); inactive.achievement.isActive = false;
+    const duplicate = makeAchievement('firstSign', 1);
+    const functional = [makeAchievement('FIFTY_TRANSLATIONS',50), makeAchievement('FIRST_TRANSLATION',1), makeAchievement('TEN_TRANSLATIONS',10)];
+    const store = makeInMemoryStore([...entries, inactive, duplicate, ...functional]);
+    for (const version of [1,2] as const) {
+      const response = await makeListAchievements({ achievements: store.repositories.achievements })('alice', version);
+      assert.deepEqual(response.map(p => p.achievement.code), ['FIRST_TRANSLATION','TEN_TRANSLATIONS','FIFTY_TRANSLATIONS']);
+      assert.ok(response.every(p => p.achievement.metric === 'TRANSLATIONS_COMPLETED'));
+    }
+    const record = makeRecordTranslation({ unitOfWork: store.unitOfWork, eventPublisher: { publish: async () => {} } });
+    for (let n=0; n<50; n++) await record(`real-${n}`, 'alice');
+    assert.deepEqual([...store.progressOf('alice').keys()].sort(), functional.map(p => p.achievement.id).sort());
+    assert.ok((await makeListAchievements({ achievements: store.repositories.achievements })('alice',2)).every(p => p.achievedAt));
   });
   it('negotiates the HTTP version explicitly and rejects invalid versions without querying', async () => {
     const calls: unknown[] = [];
@@ -136,6 +155,7 @@ it('migration preserves legacy UUIDs, progress, dates and notifications and is r
   { skip: !process.env.PROFILE_TEST_DATABASE_URL }, async () => {
     await withIsolatedPostgres(async pool => {
       await pool.query(readFileSync(resolve(__dirname, '../db/001_profile.sql'), 'utf8'));
+      await pool.query(readFileSync(resolve(__dirname, '../db/003_ui_languages.sql'), 'utf8'));
       await pool.query(`INSERT INTO user_achievements (user_id, achievement_id, current_count, achieved_at, notified_at)
         SELECT 'alice', achievement_id, target_count, '2026-01-01T00:00:00Z', '2026-01-02T00:00:00Z' FROM achievements`);
       await pool.query(`INSERT INTO notifications (user_id, notification_type_id, title, body, reference_type, reference_id)
@@ -148,13 +168,13 @@ it('migration preserves legacy UUIDs, progress, dates and notifications and is r
         notices: (await pool.query('SELECT * FROM notifications ORDER BY notification_id')).rows,
       });
       const before = await snapshot();
-      const apply = async () => {
-        if (!process.env.PROFILE_TEST_PSQL) { await pool.query(migration); return; }
+      const apply = async (file = '004_achievement_catalog.sql') => {
+        if (!process.env.PROFILE_TEST_PSQL) { await pool.query(readFileSync(resolve(__dirname, '../db', file), 'utf8')); return; }
         const schema = (await pool.query('SELECT current_schema() AS schema')).rows[0].schema;
         // withIsolatedPostgres has already verified this exact local database/role.
         // Exercise the project's psql -f procedure, restricted to our random schema.
         execFileSync(process.env.PROFILE_TEST_PSQL, ['-X', '-v', 'ON_ERROR_STOP=1',
-          '--dbname', process.env.PROFILE_TEST_DATABASE_URL!, '-f', resolve(__dirname, '../db/004_achievement_catalog.sql')],
+          '--dbname', process.env.PROFILE_TEST_DATABASE_URL!, '-f', resolve(__dirname, '../db', file)],
         { env: { ...process.env, PGOPTIONS: `-c search_path=${schema}` }, stdio: 'pipe' });
       };
       await apply();
@@ -178,15 +198,40 @@ it('migration preserves legacy UUIDs, progress, dates and notifications and is r
         WHERE a.is_active ORDER BY a.target_count`, ['alice']);
       assert.deepEqual(oldRead.rows.map(r => r.code), ['FIRST_TRANSLATION','TEN_TRANSLATIONS','FIFTY_TRANSLATIONS']);
       assert.ok(oldRead.rows.every(r => r.metric === 'TRANSLATIONS_COMPLETED'));
+      for (const metric of ['SIGNS_LEARNED','ALPHABET_COMPLETED','SESSIONS_COMPLETED']) {
+        await pool.query(`INSERT INTO achievements (code,name,description,metric,target_count)
+          VALUES ($1,'Historical unmeasured','Historical unmeasured',$1,1)`, [metric]);
+      }
+      await pool.query(`INSERT INTO user_achievements (user_id, achievement_id, current_count, achieved_at)
+        SELECT 'historical', achievement_id, 3, '2026-01-02T00:00:00Z' FROM achievements
+        WHERE metric IN ('SIGNS_LEARNED','ALPHABET_COMPLETED','SESSIONS_COMPLETED')`);
+      // Simulate historical state even for a now-withdrawn definition.
+      await pool.query(`INSERT INTO user_achievements (user_id, achievement_id, current_count, achieved_at, notified_at)
+        SELECT 'historical', achievement_id, 7, '2026-01-03T00:00:00Z', '2026-01-04T00:00:00Z'
+        FROM achievements WHERE code='firstSign'`);
+      const history = (await pool.query('SELECT * FROM user_achievements ORDER BY user_achievement_id')).rows;
+      const identities = (await pool.query('SELECT achievement_id,code,metric,target_count,points,name,description FROM achievements ORDER BY code')).rows;
+      await apply('005_obtainable_achievements.sql');
+      await apply('005_obtainable_achievements.sql');
+      assert.deepEqual((await pool.query('SELECT * FROM user_achievements ORDER BY user_achievement_id')).rows, history);
+      assert.deepEqual((await pool.query('SELECT achievement_id,code,metric,target_count,points,name,description FROM achievements ORDER BY code')).rows, identities);
+      for (const metric of ['CATALOG_REQUIREMENT','SIGNS_LEARNED','ALPHABET_COMPLETED','SESSIONS_COMPLETED']) {
+        await assert.rejects(pool.query(`INSERT INTO achievements (code,name,description,metric,target_count)
+          VALUES ($1,'Unsupported','Unsupported',$1,1)`, [metric]), (error: any) => error.code === '23514');
+      }
+      // Collection alone no longer prevents a future fully measured rule from activation.
+      await pool.query(`INSERT INTO achievements (code,name,description,metric,target_count,collection,category,level,is_active)
+        VALUES ('TEST_MEASURED','Measured','Measured','TRANSLATIONS_COMPLETED',100,'catalog','translation','gold',TRUE)`);
+      await pool.query(`UPDATE achievements SET is_active=FALSE WHERE code='TEST_MEASURED'`);
       const list = makeListAchievements({ achievements: makePostgresAchievementRepository(pool) });
       const v1 = await list('alice');
       assert.equal(v1.length, 3);
       assert.ok(v1.every(p => !('availability' in p.achievement)));
       const v2 = await list('alice', 2);
-      assert.equal(v2.length, 27);
+      assert.equal(v2.length, 3);
       const modern = v2.filter(p => 'collection' in p.achievement && p.achievement.collection === 'catalog');
-      assert.equal(modern.length, 24);
-      assert.ok(modern.every(p => p.currentCount === null && p.achievement.targetCount === null && p.achievedAt === null));
+      assert.equal(modern.length, 0);
+      assert.deepEqual(v2.map(p => p.achievement.code), ['FIRST_TRANSLATION','TEN_TRANSLATIONS','FIFTY_TRANSLATIONS']);
       // The deletion guard is part of the real translation unit of work.
       await pool.query(readFileSync(resolve(__dirname, '../db/002_erased_users.sql'), 'utf8'));
       await pool.query(`INSERT INTO user_preferences (user_id, notifications_enabled) VALUES ('bob', FALSE)`);
@@ -199,7 +244,21 @@ it('migration preserves legacy UUIDs, progress, dates and notifications and is r
       assert.equal(bob.filter(p => p.achievedAt !== null).length, 1);
       assert.equal((await pool.query(`SELECT COUNT(*)::int AS n FROM notifications WHERE user_id='bob'`)).rows[0].n, 0);
       assert.deepEqual((await list('alice')).map(p => p.currentCount), [1,10,50]);
+      for (const [language, prefix] of [['ES','Logro desbloqueado:'],['EN','Achievement unlocked:'],
+        ['FR','Succès débloqué :'],['PT','Conquista desbloqueada:']]) {
+        const user = `localized-${language}`;
+        await pool.query(`INSERT INTO user_preferences (user_id,ui_language) VALUES ($1,$2)`, [user,language]);
+        await record(randomUUID(), user);
+        const notice = (await pool.query('SELECT title,body FROM notifications WHERE user_id=$1', [user])).rows[0];
+        const definition = (await pool.query(`SELECT localizations FROM achievements WHERE code='FIRST_TRANSLATION'`)).rows[0];
+        const localized = definition.localizations[language.toLowerCase()];
+        assert.deepEqual(notice, { title: `${prefix} ${localized.name}`, body: localized.description });
+        const [old, modern] = await Promise.all([list(user,1), list(user,2)]);
+        assert.deepEqual(old.map(p => [p.achievement.id,p.currentCount,p.achievedAt]), modern.map(p => [p.achievement.id,p.currentCount,p.achievedAt]));
+      }
+      assert.deepEqual((await pool.query(`SELECT * FROM user_achievements WHERE user_id IN ('alice','historical') ORDER BY user_achievement_id`)).rows, history);
+      assert.deepEqual((await pool.query(`SELECT * FROM notifications WHERE user_id='alice' ORDER BY notification_id`)).rows, before.notices);
       assert.equal((await pool.query(`SELECT COUNT(*)::int AS n FROM user_achievements ua
-        JOIN achievements a USING (achievement_id) WHERE a.collection='catalog'`)).rows[0].n, 0);
+        JOIN achievements a USING (achievement_id) WHERE a.collection='catalog'`)).rows[0].n, 1);
     });
   });

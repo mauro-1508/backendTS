@@ -131,8 +131,7 @@ const toProgress = (row: Record<string, any>): AchievementProgress => ({
     points: row.points,
     iconReference: row.icon_reference ?? undefined,
     isSecret: row.is_secret,
-    // Effective v2 publication; the stored flag remains closed to the old API.
-    isActive: row.collection === 'catalog' || row.is_active,
+    isActive: row.is_active,
     collection: row.collection,
     availability: row.availability,
     category: row.category,
@@ -145,16 +144,14 @@ const toProgress = (row: Record<string, any>): AchievementProgress => ({
 
 export const makePostgresAchievementRepository = (db: Queryable): AchievementRepository => ({
   async findProgressByMetric(userId, metric) {
-    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE (a.is_active OR a.collection = 'catalog') AND a.metric = $2 AND a.availability = 'available' ORDER BY a.target_count`, [userId, metric]);
+    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE a.is_active AND a.metric = 'TRANSLATIONS_COMPLETED' AND a.metric = $2 AND a.availability = 'available' AND a.code <> 'firstSign' ORDER BY a.target_count`, [userId, metric]);
     return rows.map(toProgress);
   },
 
-  async findAllProgress(userId, catalogVersion = 1) {
-    // is_active is the legacy publication gate. Never expose new metrics/nulls to v1.
-    const visibility = catalogVersion === 2
-      ? "(a.is_active OR a.collection = 'catalog')"
-      : "a.is_active AND a.collection = 'legacy'";
-    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE ${visibility} ORDER BY a.collection, a.display_order, a.metric, a.target_count`, [userId]);
+  async findAllProgress(userId) {
+    // Both versions publish the same measured rules; only their wire shape differs.
+    const visibility = "a.is_active AND a.availability = 'available' AND a.metric = 'TRANSLATIONS_COMPLETED' AND a.code <> 'firstSign'";
+    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE ${visibility} ORDER BY CASE WHEN a.collection = 'legacy' THEN 0 ELSE 1 END, a.target_count, a.code`, [userId]);
     return rows.map(toProgress);
   },
 

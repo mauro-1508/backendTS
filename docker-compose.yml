@@ -15,6 +15,8 @@
 #   docker compose exec -T postgres-profile   psql -U postgres -d profile   < services/profile-service/db/002_erased_users.sql
 #   docker compose exec -T postgres-profile   psql -U postgres -d profile   < services/profile-service/db/003_ui_languages.sql
 #   docker compose exec -T postgres-profile   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile < services/profile-service/db/004_achievement_catalog.sql
+#   docker compose exec -T postgres-profile   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile < services/profile-service/db/005_obtainable_achievements.sql
+#   docker compose exec -T postgres-profile   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile < services/profile-service/db/006_translation_milestones.sql
 #   docker compose exec -T postgres-recognition psql -U postgres -d recognition < services/recognition-service/db/003_erased_users.sql
 #   (si 009 ya se aplico con una version anterior, volver a ejecutarla: es idempotente y anade las columnas nuevas)
 # Orden de despliegue de iam.UserDeleted: el outbox publica con mandatory=true, asi que un evento sin
@@ -231,6 +233,8 @@ services:
       # Idioma de la interfaz: ES, EN, FR y PT.
       - ./services/profile-service/db/003_ui_languages.sql:/docker-entrypoint-initdb.d/003_ui_languages.sql:ro
       - ./services/profile-service/db/004_achievement_catalog.sql:/docker-entrypoint-initdb.d/004_achievement_catalog.sql:ro
+      - ./services/profile-service/db/005_obtainable_achievements.sql:/docker-entrypoint-initdb.d/005_obtainable_achievements.sql:ro
+      - ./services/profile-service/db/006_translation_milestones.sql:/docker-entrypoint-initdb.d/006_translation_milestones.sql:ro
     healthcheck: *pg-healthcheck
 
   mongo:

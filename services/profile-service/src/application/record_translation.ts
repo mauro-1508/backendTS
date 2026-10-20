@@ -1,23 +1,21 @@
 import { EventPublisher } from '@traduce/shared';
-import { advanceProgress, AchievementMetric, AchievementProgress, isUnlocked } from '../domain/achievement';
+import { advanceProgress, AchievementMetric, AchievementProgress, isUnlocked, isObtainable } from '../domain/achievement';
 import { AchievementUnlockedPayload, PUBLISHED_EVENTS } from '../domain/events';
 import { ACHIEVEMENT_NOTIFICATION_TYPE_CODE } from '../domain/notification';
-import { DEFAULT_PREFERENCES } from '../domain/preferences';
+import { achievementNotificationText } from './achievement_notification_text';
+import { DEFAULT_PREFERENCES, UiLanguage } from '../domain/preferences';
 import { TransactionalRepositories, UnitOfWork } from '../ports/repositories';
 import { processEventOnce } from './process_event_once';
 import { publishQuietly } from './publish_event';
 
-
-
 const TRANSLATIONS_METRIC: AchievementMetric = 'TRANSLATIONS_COMPLETED';
 const TRANSLATION_INCREMENT = 1;
 
-const notifyUnlock = (repositories: TransactionalRepositories, userId: string, unlocked: AchievementProgress) =>
+const notifyUnlock = (repositories: TransactionalRepositories, userId: string, unlocked: AchievementProgress, language: UiLanguage) =>
   repositories.notifications.create({
     userId,
     typeCode: ACHIEVEMENT_NOTIFICATION_TYPE_CODE,
-    title: `Logro desbloqueado: ${unlocked.achievement.name}`,
-    body: unlocked.achievement.description,
+    ...achievementNotificationText(unlocked.achievement, language),
     referenceType: 'ACHIEVEMENT',
     referenceId: unlocked.achievement.id,
   });
@@ -33,7 +31,7 @@ export const makeRecordTranslation = (deps: { unitOfWork: UnitOfWork; eventPubli
     if (await repositories.profiles.isErased(userId)) return [];
     const preferences = (await repositories.profiles.findPreferences(userId)) ?? DEFAULT_PREFERENCES;
     const pending = (await repositories.achievements.findProgressByMetric(userId, TRANSLATIONS_METRIC))
-      .filter(progress => progress.achievement.availability !== 'upcoming' && !isUnlocked(progress));
+      .filter(progress => isObtainable(progress.achievement) && !isUnlocked(progress));
     const unlockedNow: AchievementProgress[] = [];
 
     for (const progress of pending) {
@@ -42,16 +40,11 @@ export const makeRecordTranslation = (deps: { unitOfWork: UnitOfWork; eventPubli
       if (!isUnlocked(next)) continue;
       unlockedNow.push(next);
       if (preferences.notificationsEnabled) {
-  const notificationCreated =
-    await notifyUnlock(repositories, userId, next);
-
-  if (notificationCreated) {
-    await repositories.achievements.markNotified(
-      userId,
-      next.achievement.id,
-    );
-  }
-}
+        const notificationCreated = await notifyUnlock(repositories, userId, next, preferences.uiLanguage);
+        if (notificationCreated) {
+          await repositories.achievements.markNotified(userId, next.achievement.id);
+        }
+      }
     }
     return unlockedNow;
   };
