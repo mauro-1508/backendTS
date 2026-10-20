@@ -1,226 +1,202 @@
-# Catálogo de logros de Profile
+# Catálogo de logros obtenibles
 
-## Alcance y autoridad
+## Comportamiento actual
 
-El catálogo original de frontend `d154e1e` contiene 24 logros, ahora persistidos por
-`004_achievement_catalog.sql`, con los mismos códigos de presentación, nombres,
-requisitos, iconos, niveles y cinco categorías. Los valores de demostración NO se
-importan. Los objetivos numéricos antiguos de conjuntos (27, 40, 32) tampoco son
-mediciones válidas del contenido completo.
+El servidor publica únicamente reglas activas, disponibles y medidas. Actualmente
+son cinco: `FIRST_TRANSLATION` (1), `TEN_TRANSLATIONS` (10), `FIFTY_TRANSLATIONS`
+(50), `hundredSigns` (100) y `thousandSigns` (1.000 traducciones completadas).
+Los tres originales conservan UUID, códigos, metas, puntos, textos y progreso.
+Los dos adaptados conservan UUID, códigos, puntos e historia; 006 actualiza sus
+metas y textos para contar traducciones completadas, nunca señas individuales.
+`recognition.TranslationProduced` incrementa una traducción por `eventId` con
+usuario, mediante el consumidor, transacción y bloqueo por usuario existentes.
+Los contadores se congelan al desbloquearse. `achievedAt` acredita el desbloqueo;
+alcanzar la meta numérica por sí solo no lo acredita en la presentación.
 
-**En esta entrega: 0 nuevos disponibles, 24 próximos y 3 anteriores disponibles.**
-No se construyen módulos de práctica, comunidad, aprendizaje ni paquetes offline.
-El backend decide disponibilidad y desbloqueos. No existe endpoint nuevo que acepte
-contadores o desbloqueos del cliente.
+De los 24 requisitos de `004_achievement_catalog.sql`, dos se adaptan por decisión
+explícita del equipo a traducciones completadas: 100 y 1.000. Los 22 restantes
+(21 sin función/medición y un duplicado) se conservan como registros internos,
+sin publicación ni promesas de funciones próximas. No se inventa progreso
+retroactivo ni se eliminan filas de `user_achievements`, notificaciones o eventos
+procesados. La adaptación no acredita aprendizaje ni cantidades de señas.
 
-## Contrato de GET /api/achievements
+## Revisión individual de los 24 requisitos
 
-Se conserva la API anterior: sin parámetro o con `catalogVersion=1`, el sobre
-`{ data: [...] }` contiene exclusivamente logros anteriores y su formato medido
-original, sin campos de catálogo nuevos ni la métrica CATALOG_REQUIREMENT.
-
-El frontend nuevo solicita `GET /api/achievements?catalogVersion=2`. El backend
-nuevo responde `{ data: [...], meta: { catalogVersion: 2 } }`. Un backend anterior
-ignora el parámetro y devuelve su respuesta anterior válida; no hay reintentos que
-transformen errores o datos inválidos en progreso cero. Versiones distintas de
-1/2 se rechazan con 400 en el backend nuevo.
-
-En la respuesta v2, cada `achievement` incorpora:
-
-
-- `collection`: `catalog` (los 24) o `legacy` (los anteriores).
-- `availability`: `available` o `upcoming`, independiente de `is_active`.
-- `category`: translation/practice/vocabulary/consistency/community; null en anteriores.
-- `level`: bronze/silver/gold; null en anteriores.
-- `localizations`: es/en/fr/pt con name, description y unavailableReason para próximos.
-
-Disponible: targetCount positivo, currentCount entero >=0 y achievedAt fecha o null.
-Próximo: **targetCount=null, currentCount=null, achievedAt=null**; no hay medición.
-`achievedAt` sigue siendo autoridad de desbloqueo, incluso si un contador alcanza
-la meta. Un secreto pendiente no expone textos localizados.
-
-La métrica nueva `CATALOG_REQUIREMENT` expresa un requisito aún no instrumentado.
-La restricción SQL de métricas se amplía en la migración nueva. Por compatibilidad
-con target_count NOT NULL >0, las filas próximas almacenan un centinela 1. NO es
-una meta ni se expone como progreso; la descripción contiene el requisito exacto.
-El cero que producía COALESCE sin una fila de progreso tampoco acredita una
-medición nueva. En el borrador, is_active=TRUE permitía que el backend anterior
-publicara targetCount=1/currentCount=0 y una métrica desconocida; el frontend
-anterior rechazaba la métrica y el nuevo rechazaba su uso como progreso medido.
-Ahora esas filas nunca son visibles en v1 y v2 serializa los contadores como null.
-Las métricas internas existentes conservan su significado. La proyección filtra
-availability=available y el caso de uso vuelve a comprobarlo antes de incrementar.
-
-Ejemplo próximo:
-
-```json
-{"achievement":{"code":"hundredSigns","collection":"catalog","availability":"upcoming","metric":"CATALOG_REQUIREMENT","targetCount":null},"currentCount":null,"achievedAt":null}
-```
-
-Es un extracto, no una respuesta completa para el validador.
-
-## Catálogo y evidencia pendiente
-
-Todos están **Próximamente** y ninguno acumula progreso en esta entrega.
-
-| # | Código | Requisito | Motivo / evidencia necesaria |
+| Logro | Condición | Evidencia actual o faltante | Clasificación / decisión |
 |---|---|---|---|
-| 1 | `firstSign` | Primera seña traducida con cámara | Falta un hecho inequívoco de seña confirmada; una fila puede contener un transcript. |
-| 2 | `hundredSigns` | 100 señas traducidas | Faltan unidades individuales; contar filas o palabras no acredita señas. |
-| 3 | `thousandSigns` | 1000 señas traducidas | Faltan unidades individuales y un acumulado verificable. |
-| 4 | `fullConversation` | Traducción continua >5 minutos sin pausas | Faltan intervalos de actividad y definición de pausa. |
-| 5 | `voiceOn` | Salida de voz 25 veces | Speech.speak existe; falta definir uso válido y registrar resultado, no clics. |
-| 6 | `twoWay` | Voz a señas y señas a texto en la misma sesión | Falta flujo funcional voz→señas y correlación de sesiones. |
-| 7 | `offline` | Traducción con paquete offline LSC | Falta paquete identificable y evidencia de ejecución offline. |
-| 8 | `firstPractice` | Primera práctica completada con cámara | Faltan prácticas evaluables; las muestras administrativas no son prácticas. |
-| 9 | `steadyHand` | 90% de precisión en ronda de 20 señas | Faltan resultados validados; confianza del modelo no es precisión. |
-| 10 | `perfectPulse` | 20 señas consecutivas sin error de forma | Faltan evaluación de forma, orden y reglas de ruptura. |
-| 11 | `sprinter` | 30 señas reconocidas en menos de un minuto | Falta ronda cronometrada con resultados válidos. |
-| 12 | `fingerspelling` | Alfabeto completo sin ayuda visual | Faltan evaluación, registro de ayudas y conjunto versionado. |
-| 13 | `honestReview` | Repetir 50 señas antes falladas | Falta historial de errores y vínculo con repeticiones; definir unidades distintas. |
-| 14 | `facialExpression` | Aprobar expresión facial | Faltan módulo, rúbrica y aprobación. |
-| 15 | `firstTen` | Guardar 10 señas en vocabulario personal | Falta colección personal persistida; definir efecto de quitar y guardar. |
-| 16 | `twoHundred` | 200 señas dominadas | Falta criterio y evidencia de dominio; textos distintos no lo acreditan. |
-| 17 | `everyday` | Dominar casa, comida y familia completas | Faltan conjunto versionado y dominio por integrante. |
-| 18 | `numbersHours` | Dominar cardinales, fechas y horas | Faltan contenido evaluable finito y evidencia de dominio. |
-| 19 | `regionalisms` | Guardar 15 variantes regionales conocidas | Faltan relación variante/base/región, conocimiento previo y guardado personal. |
-| 20 | `sevenDays` | Practicar 7 días consecutivos | Faltan prácticas válidas y reglas de día local; días activos no son rachas. |
-| 21 | `thirtyDays` | Practicar 30 días consecutivos | Faltan prácticas válidas y reglas de día local. |
-| 22 | `beforeDawn` | Practicar antes de las 7 diez veces | Faltan prácticas y definición de zona, momento válido y repeticiones diarias. |
-| 23 | `sharedSign` | Compartir traducción fuera de la app | Solo existe copia; falta compartir con resultado observable y criterio acordado. |
-| 24 | `bridge` | Validar 20 propuestas de la comunidad sorda | Faltan propuestas, procedencia, personas autorizadas y decisiones únicas. |
+| firstSign | Primera seña con cámara | Primera traducción ya premiada; no hay unidad de seña confirmada | Duplicado; retirar |
+| hundredSigns | 100 traducciones completadas | TranslationProduced, +1 por evento nuevo procesado | Adaptación aprobada; disponible mediante 006 |
+| thousandSigns | 1.000 traducciones completadas | TranslationProduced, +1 por evento nuevo procesado | Adaptación aprobada; disponible mediante 006 |
+| fullConversation | >5 minutos sin pausas | Sin intervalos; equipo debe definir pausa | No viable; retirar |
+| voiceOn | 25 usos de salida de voz | Speech.speak existe, sin registro de reproducción completada; definir uso válido | No viable hoy; retirar |
+| twoWay | Ambos sentidos en una sesión | Falta flujo voz→señas y correlación de sesión | No viable; retirar |
+| offline | Traducir con paquete offline LSC | Falta paquete identificable y ejecución offline | No viable; retirar |
+| firstPractice | Completar una práctica | No existe práctica evaluable | No viable; retirar |
+| steadyHand | 90% en ronda de 20 señas | Sin resultados evaluados; confianza del modelo no es precisión | No viable; retirar |
+| perfectPulse | 20 señas sin error de forma | Sin evaluación de forma ni reglas de secuencia | No viable; retirar |
+| sprinter | 30 señas en menos de un minuto | Sin ronda cronometrada validada | No viable; retirar |
+| fingerspelling | Alfabeto completo sin ayudas | Sin evaluación ni registro de ayudas | No viable; retirar |
+| honestReview | Repetir 50 señas antes falladas | Sin errores vinculados a repeticiones; definir unidades distintas | No viable; retirar |
+| facialExpression | Aprobar expresión facial | Sin módulo, rúbrica ni evaluación | No viable; retirar |
+| firstTen | Guardar 10 señas personales | Sin colección personal persistida; definir efecto de retirar/guardar | No viable; retirar |
+| twoHundred | Dominar 200 señas | Equipo debe definir dominio; no hay medición | No viable; retirar |
+| everyday | Dominar casa, comida y familia completas | Sin conjunto versionado ni dominio por integrante | No viable; retirar |
+| numbersHours | Dominar números, fechas y horas | Sin conjunto finito evaluable ni resultados | No viable; retirar |
+| regionalisms | Guardar 15 variantes conocidas | Sin guardado personal ni conocimiento previo acreditado | No viable; retirar |
+| sevenDays | Practicar 7 días consecutivos | Sin prácticas válidas; rachas eliminadas | No viable; retirar |
+| thirtyDays | Practicar 30 días consecutivos | Sin prácticas válidas; rachas eliminadas | No viable; retirar |
+| beforeDawn | Practicar antes de las 7 diez veces | Sin prácticas; definir zona horaria y repeticiones diarias | No viable; retirar |
+| sharedSign | Compartir una traducción fuera de la app | Copiar texto no demuestra compartir; falta resultado observable | No viable; retirar |
+| bridge | Validar 20 propuestas comunitarias | Sin propuestas, procedencia ni validaciones autorizadas | No viable; retirar |
 
-La evidencia existente se encuentra en Recognition (translations, tipo, origen,
-confianza y fecha), TranslationScreen/useGestureAgent, lexicon-service y
-analytics-service. TranslationProduced omite tipo, origen y sesión. El transcript
-puede contener varias señas; Analytics separa gloss por espacios, lo que tampoco
-resuelve la unidad de seña. Los tipos AUDIO_PLAYED o voz_sena por sí solos no
-prueban que una acción exista, ocurra o tenga el resultado requerido.
+Se contrastaron Recognition (persistencia y TranslationProduced), Analytics
+(tipos de eventos y proyecciones), Lexicon y TranslationScreen (Speech.speak,
+cámara y copia). Un nombre de métrica o evento admitido por un tipo no demuestra
+que exista su productor ni su contador. Consultar una seña no es aprenderla,
+abrir el alfabeto no es completarlo e iniciar sesión no termina una práctica.
+`SIGNS_LEARNED`, `ALPHABET_COMPLETED`, `SESSIONS_COMPLETED` y
+`CATALOG_REQUIREMENT` no se publican ni se activan. No se implementan esos módulos.
 
-## Conservación y medición anterior
+## Publicación, disponibilidad y activación
 
-Se mantienen FIRST_TRANSLATION (1), TEN_TRANSLATIONS (10), FIFTY_TRANSLATIONS (50)
-con sus UUID, metas, puntos y textos. La migración solo añade columnas con defaults
-y filas nuevas mediante ON CONFLICT DO NOTHING: no actualiza filas previas,
-user_achievements, achieved_at, notified_at ni notifications.
+- **Disponibilidad**: `available` significa que la regla usa la métrica implementada
+  `TRANSLATIONS_COMPLETED`; `upcoming` queda como valor interno heredado para reglas
+  sin medición, sin anuncios públicos.
+- **Activación**: `is_active` habilita procesamiento y exposición. Una regla
+  disponible puede estar desactivada; no acumula progreso ni se publica mientras
+  esté desactivada. La colección no evita ni fuerza su activación.
+- **Publicación**: ambas versiones requieren `is_active`, `available`, métrica
+  implementada y meta positiva. `firstSign` se excluye por duplicación. La colección
+  no excluye reglas medidas de v1: las cinco usan una métrica ya admitida por sus
+  clientes. Se conserva el formato anterior mediante su serializador v1.
 
-Su fuente sigue siendo recognition.TranslationProduced, +1 traducción por eventId
-con usuario, dentro de la unidad de trabajo y el bloqueo por usuario existentes.
-No cuenta señas individuales. Las notificaciones respetan notificationsEnabled.
-El contador de cada logro se congela al desbloquearse; no es un total histórico.
+`005_obtainable_achievements.sql` sustituye la prohibición indiscriminada de activar
+`collection=catalog` (`ck_achievement_legacy_publication`) por restricciones de
+medición y activación. Desactiva métricas sin contador y el duplicado, y permite
+clasificar como internos no disponibles los registros históricos sin medición.
+No reactiva ninguna fila ni modifica metas, identidades o historia de usuarios.
+Añade localizaciones de los tres logros funcionales sin reemplazar localizaciones
+existentes. Las migraciones 001–005 permanecen intactas en esta adaptación.
+`006_translation_milestones.sql` activa únicamente hundredSigns/thousandSigns,
+con TRANSLATIONS_COMPLETED, metas 100/1.000 y textos es/en/fr/pt nuevos. No altera
+points, UUID, códigos, filas de progreso, fechas de desbloqueo ni avisos previos.
 
-Fecha de inicio: el momento en que el consumidor existente comenzó a procesar
-los eventos de cada entorno; el repositorio no prueba una fecha de despliegue.
-Esta entrega no cambia esa fecha ni reconstruye el pasado. Los 24 nuevos NO tienen
-fecha de inicio de medición. Tampoco se infiere historia desde glosas, confianza,
-textos distintos, muestras, fechas de desbloqueo o días de traducción.
+## API y presentación
 
-Limitación heredada: Recognition publica con publishQuietly después de persistir;
-una publicación fallida puede dejar una traducción sin reflejar en Profile.
-La deduplicación existente es por eventId, no translationId. Esta entrega no cambia
-el bus ni reenvía eventos antiguos; no promete reconstrucción exacta del histórico.
+`GET /api/achievements` y `?catalogVersion=1` conservan `{ data: [...] }` y el
+formato medido anterior sin metadatos nuevos. `?catalogVersion=2` mantiene
+`{ data: [...], meta: { catalogVersion: 2 } }` con los metadatos de catálogo.
+Ambas respuestas públicas contienen los mismos cinco UUID y el mismo progreso.
+V1 sigue enviando exclusivamente campos medidos, sin collection, availability ni
+localizations; v2 añade esos metadatos. Los nuevos códigos usan la métrica conocida
+TRANSLATIONS_COMPLETED y metas positivas, sin centinelas ni progreso null.
+Un servidor anterior a 006 puede seguir devolviendo tres y el frontend lo acepta.
+Versiones distintas de 1/2 se rechazan con 400. Los filtros del caso de uso protegen
+también repositorios alternativos que devuelvan reglas no publicables.
 
-## Presentación y acceso
+El frontend solicita v2 y sigue aceptando una respuesta v1 válida del servidor
+anterior. No rellena un catálogo local, no inventa progreso y no reintenta respuestas
+inválidas como ceros. Se conserva la lectura del formato `upcoming` para
+compatibilidad con el servidor anterior; el servidor corregido no lo publica.
+Al actualizar solo el frontend, un backend de la entrega 004 todavía podría
+anunciar sus 24 requisitos: la retirada completa requiere desplegar el backend
+corregido. No se ha realizado ningún despliegue durante esta corrección.
 
-Los 24 se muestran completos por categoría. Próximos: tarjeta/medalla gris,
-etiqueta traducida, requisito y explicación; sin contador individual ni barra.
-Disponibles pendientes: gris con progreso real. Completados: acento del tema,
-con texto explícito de estado. Morado/verde y claro/oscuro usan los colores del
-provider. Los anteriores aparecen en un grupo separado, con contador independiente.
-El denominador del porcentaje solo incluye nuevos disponibles. Si no hay ninguno,
-no hay porcentaje; el resumen distingue catálogo total, disponibles y próximos.
+Los históricos funcionales se presentan primero, por meta ascendente en el
+servidor: 1, 10, 50, 100, 1.000. El resumen y contador incluyen los cinco
+disponibles (incluidos los tres históricos). Pendientes: tarjetas y medallas grises incluso si el contador alcanza
+la meta sin `achievedAt`. Completados: acento del tema. Se mantienen las cuatro
+paletas y las claves de idioma existentes. No hay sección, contador ni consultas
+para administradores ni mientras el acceso esté pendiente o falle. Secretos
+pendientes no revelan nombre, descripción ni localizaciones. Se conserva el
+aislamiento por usuario, token y generación de sesión y el descarte de respuestas
+tardías.
 
-Se reutilizan useAdminMode y el estado de acceso: no hay sección, contador ni
-consulta de logros para administradores o mientras el acceso está pendiente/falla.
-La consulta y el detalle conservan aislamiento por token, usuario y generación;
-se descartan respuestas tardías aunque el transporte ignore AbortController.
+## Avisos compatibles
 
-## Despliegue compatible y procedimiento real de migración
+No cambia el contrato de notificaciones: `title`, `body`, `referenceType` y
+`referenceId` mantienen sus tipos y significado. Al desbloquear, se usa
+`user_preferences.ui_language` (ES/EN/FR/PT), la preferencia existente sincronizada
+por el frontend. El prefijo y los textos del logro se traducen; si falta una
+localización, se usa español o el texto original. Se respeta
+`notificationsEnabled` y se marca notificado solo tras insertar el aviso.
+Los avisos ya almacenados se conservan en su idioma original. Cambiar idioma
+después no reescribe esos avisos. No se necesitan campos ni versiones adicionales.
 
-Profile utiliza scripts SQL manuales. No tiene un runner automático ni un historial
-Liquibase propio que aplique 004 al arrancar. El montaje de docker-compose.yml en
-/docker-entrypoint-initdb.d solo actúa al inicializar un volumen NUEVO; levantar o
-reconstruir contenedores con un volumen existente no aplica la migración.
+## Migración y operación
 
-Sobre una base Profile existente con 001–003 aplicadas, el procedimiento del
-proyecto es ejecutar el script con psql desde la raíz del backend:
+En bases existentes, aplicar **005 después de 004 y 006 después de 005**.
+No reejecutar migraciones anteriores después de 006. El proyecto usa SQL manual;
+Compose solo ejecuta los archivos montados cuando crea un volumen nuevo. Se monta
+006 para instalaciones nuevas. No recrear volúmenes existentes.
+
+Procedimiento documentado para quien opere el entorno, no ejecutado sobre bases
+de aplicación durante esta tarea (requiere tener aplicadas 001–004):
 
 ```sh
 docker compose exec -T postgres-profile \
   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile \
-  < services/profile-service/db/004_achievement_catalog.sql
+  < services/profile-service/db/005_obtainable_achievements.sql
+docker compose exec -T postgres-profile \
+  psql -X -v ON_ERROR_STOP=1 -U postgres -d profile \
+  < services/profile-service/db/006_translation_milestones.sql
 ```
 
-Utilizar los mismos archivos Compose/opciones de entorno que identifican la
-instancia prevista. Este comando de aplicación NO se ha ejecutado sobre ninguna
-base real ni sobre el VPS. No recrear volúmenes ni volver a inicializar la base.
-El SQL contiene BEGIN/COMMIT; ON_ERROR_STOP hace fallar el comando ante un error.
-Reejecutar el mismo 004 es admisible: columnas con IF NOT EXISTS, restricciones
-recreadas y filas con ON CONFLICT (code) DO NOTHING. No cambia identidad, metas,
-progreso, desbloqueos ni notificaciones anteriores. Un fallo no debe considerarse
-una migración aplicada; revisar el error antes de desplegar código dependiente.
+006 es transaccional y repetible: actualiza las dos filas por código, sin insertar
+reemplazos, conceder puntos ni modificar historia. No cambia los tres logros
+originales ni publica los otros 22 requisitos. Aplicar primero el esquema permite
+que el consumidor existente mida ambos objetivos. El backend de la corrección
+005 ya los procesa y publica en v2; el backend actualizado también los publica
+en v1 con el formato medido anterior. Antes de 006 solo se publican tres.
 
-La versión corregida de 004 sigue siendo una migración nueva de esta rama,
-no una edición de 001–003. No se aplicó el borrador anterior a datos reales.
+Rollback de aplicación: mantener migraciones y filas. Un backend anterior a 004
+que filtre is_active puede leer los cinco medidos sin métricas desconocidas.
+Un backend de la entrega 004 puede volver a anunciar requisitos por su consulta
+que ignora is_active para catálogo; no usarlo para restaurar el catálogo corregido.
+No revertir borrando progreso.
 
-Orden recomendado, con intervalos independientes:
+## Inicio de medición y recompensa de los dos objetivos
 
-1. Aplicar 004 mediante el procedimiento anterior. El backend anterior sigue
-   leyendo los tres logros actuales: los 24 nuevos se insertan con is_active=FALSE.
-2. Desplegar el backend nuevo. Sin parámetro (o con catalogVersion=1) conserva
-   exactamente la respuesta anterior. Con catalogVersion=2 publica 24 próximos
-   más los tres anteriores, con progreso null para próximos.
-3. Desplegar el frontend nuevo, que solicita catalogVersion=2. También puede
-   desplegarse ANTES de 004 o del backend: el servidor anterior ignora el parámetro
-   y devuelve los tres medidos; el frontend los presenta como anteriores.
+La fecha real de activación será la confirmación de 006 en cada entorno; esta
+tarea solo la ejecuta en una base de pruebas. Desde entonces el consumidor
+existente procesa +1 por TranslationProduced con usuario y eventId no procesado.
+No hay replay, backfill, consulta de un total antiguo ni asignación desde los tres
+contadores congelados. Un usuario sin filas de estos objetivos comienza en cero,
+aunque haya ganado los tres históricos: tras un evento nuevo tendrá 1/100 y
+1/1.000. El bloqueo por usuario y la deduplicación por eventId son los existentes.
+Un evento atrasado procesado por primera vez tras la activación también cuenta;
+no se añade un filtro ficticio por fecha de emisión que el consumidor no utiliza.
 
-La única dependencia de esquema es 004 ANTES del backend nuevo, porque consulta
-sus columnas. No se exige simultaneidad con el frontend ni una ventana de error.
-Hasta disponer del backend v2, el frontend nuevo recibe solo los tres anteriores;
-no completa localmente un catálogo de 24 ni inventa disponibilidad/progreso.
+Si ya existen filas de progreso o desbloqueos para esos UUID, se conservan tal cual,
+sin resetearlos, sumarlos, completarlos ni adjudicarles una fecha de origen nueva.
+Los contadores de cada objetivo se congelan al ganarlo y siguen sin ser un total
+de traducciones de toda la vida del usuario. No se cambia la historia de avisos.
 
-| Base | Backend | Frontend anterior (sin parámetro) | Frontend nuevo (solicita v2) |
-|---|---|---|---|
-| Antes de 004 | Anterior | 3 medidos | 3 anteriores medidos |
-| Con 004 | Anterior | 3 medidos | 3 anteriores medidos |
-| Con 004 | Nuevo | 3 medidos, formato v1 | 24 próximos + 3 anteriores |
+La puntuación de hundredSigns y thousandSigns en 004 es **0**. 006 no asigna ni
+modifica points: si un entorno ya tiene otro valor, lo conserva. No se inventa una
+recompensa de puntos, moneda o nivel. Su recompensa es **el desbloqueo del logro**,
+con el aviso existente si el usuario tiene notificationsEnabled activado. Los
+eventos AchievementUnlocked siguen llevando la puntuación almacenada sin cambios.
 
-Rollback de frontend o backend: mantener 004 y sus datos. El backend anterior
-sigue ocultando los nuevos por is_active=FALSE, incluso tras volver desde v2.
-El frontend anterior sigue usando v1 con el backend nuevo. No hay que borrar ni
-revertir filas, UUID, metas, progreso o notificaciones.
+No se reconstruye historia ni se cambia el bus: Recognition usa publishQuietly
+tras persistir, por lo que una publicación fallida puede dejar una traducción sin
+reflejar en Profile. La deduplicación existente usa `eventId`, no translationId.
+La fecha real de inicio del consumidor en cada entorno no está acreditada por el
+repositorio. No se promete un total histórico reconstruido.
 
-La restricción ck_achievement_legacy_publication impide activar is_active en las
-filas collection=catalog. Ese campo es la puerta de publicación ANTERIOR, no la
-medición v2. La consulta v2 publica explícitamente esa colección y comunica
-isActive=true como visibilidad efectiva de esa versión; availability decide si
-hay medición. Al activar un logro futuro se mantiene cerrada la puerta v1.
+## Verificación reproducible
 
-## Activación futura
-
-Por cada logro: acordar su semántica, implementar la acción y evidencia de dominio,
-identificadores idempotentes y aislamiento, un evaluador probado y una migración
-aditiva que publique métrica/meta reales y disponibilidad. Registrar fecha de
-inicio, versión de regla y cobertura del histórico. Disponibilidad no se activa
-cambiando solo una etiqueta SQL. No otorgar progreso retroactivo sin evidencia
-suficiente ni reinterpretar logros anteriores. Contar prácticas, forma, dominio,
-rachas, compartir o validación exige los hechos correspondientes.
-
-## Verificación de compatibilidad
-
-La prueba achievement_catalog.test.ts valida 24 códigos únicos, negociación
-v1/v2 y preservación de anteriores. Con PROFILE_TEST_DATABASE_URL crea un esquema
-aleatorio en la base exclusiva de pruebas; comprueba reejecución, identidad/metas,
-progreso/fechas/notificaciones y procesamiento idempotente de traducciones después
-de migrar. Reproduce la consulta del backend anterior con WHERE a.is_active.
-
-Si PROFILE_TEST_PSQL apunta al cliente local, esa prueba aplica 004 DOS veces con
-psql -X -v ON_ERROR_STOP=1 --dbname URL -f archivo y PGOPTIONS limitado al esquema
-aleatorio. Si no se proporciona cliente, utiliza el mismo SQL desde pg. El helper
-verifica 127.0.0.1:55437, base profile_gamification_test y rol gamification_test
-antes de escribir; nunca usa DB_* ni carga .env.
-
-Para repetir las pruebas backend afectadas sobre esa instancia exclusiva:
+Pruebas de dominio/HTTP con repositorios en memoria y dobles: no equivalen a una
+prueba de infraestructura. La integración usa exclusivamente PostgreSQL local
+`127.0.0.1:55437/profile_gamification_test`, rol `gamification_test`, esquemas
+aleatorios y datos ficticios. El helper verifica destino y no carga `.env` ni DB_*.
+Con `PROFILE_TEST_PSQL`, aplica 004 dos veces y después 005 dos veces usando
+`psql -X -v ON_ERROR_STOP=1 -f`; comprueba identidad, progreso, fechas y avisos,
+restricciones, consultas v1/v2 y desbloqueo idempotente después de migrar.
+translation_milestones.test.ts aplica 006 dos veces por psql, verifica conservación
+de UUID/puntos/historia, procesa 1.000 eventos nuevos desde cero, comprueba 99/100
+y 999/1.000, duplicados, aislamiento, contadores congelados y concurrencia al
+desbloquear ambos objetivos. Sus fixtures históricos son exclusivamente ficticios.
 
 ```sh
 PROFILE_TEST_DATABASE_URL=postgresql://gamification_test@127.0.0.1:55437/profile_gamification_test \
@@ -230,32 +206,43 @@ node --require ts-node/register --test --test-concurrency=2 \
   services/profile-service/tests/*.test.ts tests/postgres_schema.test.ts
 ```
 
-En frontend: npm run typecheck y npm test -- --runInBand (suite COMPLETA).
-profileAchievements.service.test.ts comprueba petición v2, respuesta antigua
-válida y rechazo de progreso ficticio. Se mantienen pruebas de paletas, detalle,
-exclusión administrativa e aislamiento entre cuentas.
+Backend: `npm run build -w @traduce/profile-service`.
+Frontend: `npm run typecheck` y `npm test -- --runInBand`.
+El frontend se verifica con renderizado simulado de React Native, no con dispositivo.
+No se accede al VPS, APIs publicadas ni bases de aplicación.
 
-Los resultados de la revisión previa sin PostgreSQL son antecedentes. En esta
-corrección se ha preparado PostgreSQL 16.15 descargando/extrayendo binarios en
-/tmp, sin instalación global ni Docker. Solo se usa un cluster temporal con datos
-ficticios y escucha en loopback. No se han consultado datos reales ni el VPS.
+## Reconstrucción en rutas permanentes (2026-10-20)
 
+Se recuperaron los scripts de cambios y pruebas del historial local de la sesión
+del 19 de octubre, incluida su adaptación final a cinco objetivos. Se revisó el
+código base de ambos worktrees antes de reconstruir. Las migraciones 001–004
+se compararon byte a byte con HEAD y permanecen intactas. Los resultados del
+19 de octubre no acreditan esta reconstrucción.
 
-### Resultados ejecutados de la corrección de compatibilidad
+Rutas de trabajo: `~/Documentos/backendTS-achievements` y
+`~/Documentos/frontendTS-achievements`, ambas en `fix/obtainable-achievements`.
+Dependencias instaladas dentro de cada worktree mediante
+`npm ci --offline --ignore-scripts`, sin cambios en los checkouts originales.
+Las verificaciones utilizan Node 22.23.3 y PostgreSQL 16.15 temporal exclusivo
+de pruebas. No se aplican migraciones a bases de aplicación.
 
-- PostgreSQL local aislado 16.15: 004 aplicada DOS veces con psql -X
-  -v ON_ERROR_STOP=1 -f sobre un esquema aleatorio. Se comprobaron 24 códigos
-  únicos, UUID nuevos estables al reejecutar, identidad/metas/progreso/fechas y
-  notificaciones de los tres anteriores, lectura anterior/v1/v2 y traducciones
-  idempotentes posteriores. Ninguna fila nueva acumuló progreso.
-- Todas las pruebas de Profile y postgres_schema: **123 aprobadas, 0 fallidas,
-  0 omitidas**, incluidas concurrencia, preferencias y eliminación en PostgreSQL.
-- Suite frontend COMPLETA, npm test -- --runInBand: **12 suites, 106 pruebas
-  aprobadas**, 0 fallidas. npm run typecheck: aprobado.
-- npm run build -w @traduce/profile-service: aprobado. No se repitió el build
-  global; la revisión previa identificó google-auth-library ausente en IAM.
-- git diff --check: aprobado en ambos repositorios. Sin staging, commits o push.
-- No se usaron datos reales, API publicada, proxies ni VPS. No hubo revisión
-  visual en navegador/dispositivo. Los paquetes PostgreSQL se descargaron y
-  extrajeron en /tmp; no se instalaron dependencias del proyecto ni paquetes globales.
+Resultados ejecutados sobre los archivos reconstruidos (2026-10-20):
 
+- Compilaciones de Shared y Profile: aprobadas.
+- Suite completa Profile + postgres_schema: 133 aprobadas, 0 fallidas,
+  0 omitidas, usando PostgreSQL 16.15 real y aplicación repetida por psql.
+- Después de recuperar los dos últimos ajustes de pruebas, se volvió a ejecutar
+  translation_milestones.test.ts: 3 aprobadas, 0 fallidas y 0 omitidas. Comprueba
+  que un evento procesado antes de activar 006 no aporta progreso al repetirse,
+  y conserva un desbloqueo previo con contador 1 aunque su nueva meta sea 1.000.
+- TypeScript frontend (`tsc --noEmit`, script de typecheck): aprobado.
+- Primer intento de la suite frontend: 142 aprobadas y un timeout de 30 segundos
+  en la prueba de presentación de las 24 tarjetas del servidor anterior. Se
+  repite la suite completa tras finalizar las pruebas backend, sin cambiar
+  el límite temporal ni omitir la prueba.
+- PostgreSQL temporal detenido al terminar la integración.
+- Repetición completa frontend: 13 suites, 143 pruebas aprobadas, 0 fallidas
+  y 0 omitidas en 27,43 segundos, con el mismo límite temporal.
+- git diff --check: aprobado en ambos worktrees. Checkouts originales limpios;
+  índices sin cambios; sin git add, commits ni push. No se ejecutó exportación
+  web ni revisión visual en navegador/dispositivo en esta reconstrucción.
