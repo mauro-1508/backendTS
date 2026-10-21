@@ -10,8 +10,11 @@ export const makeTranslationController = (translationService: TranslationService
   create: async (req: Request, res: Response) => {
     try {
       const userId = resolveUserId(req);
-      const { inputText, outputText, type, confidence, source } = req.body;
-      const created = await translationService.create({ userId, inputText, outputText, type, confidence, source });
+      const { inputText, outputText, type, confidence, source, mode, sessionId } = req.body;
+      if (mode !== undefined && mode !== 'letters' && mode !== 'words') throw new Error('Invalid mode');
+      if (sessionId !== undefined && (typeof sessionId !== 'string' || !/^[a-zA-Z0-9-]{16,80}$/.test(sessionId))) throw new Error('Invalid session');
+      const created = await translationService.create({ userId, inputText, outputText, type, confidence, source, mode, sessionId,
+        eligible: !req.user!.permissions.includes('users.manage') && source !== 'mock' });
       return res.status(201).json({ success: true, message: 'Traduccion guardada', data: created });
     } catch (error) {
       // Cuenta borrada con un JWT todavia vigente: el token ya no corresponde a ninguna cuenta (401).
