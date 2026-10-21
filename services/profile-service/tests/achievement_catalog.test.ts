@@ -135,7 +135,7 @@ describe('expanded catalogue contract', () => {
       let status = 200; let body: any;
       const response = { status: (code: number) => { status = code; return response; },
         json: (value: unknown) => { body = value; return response; } } as unknown as Response;
-      await controller.listAchievements({ user: { userId: 7 }, query: { catalogVersion: requested } } as unknown as Request, response);
+      await controller.listAchievements({ user: { userId: 7, permissions: [] }, query: { catalogVersion: requested } } as unknown as Request, response);
       assert.equal(status, expectedStatus);
       if (requested === '2') assert.deepEqual(body.meta, { catalogVersion: 2 });
       else if (expectedStatus === 200) assert.deepEqual(body, { data: [] });

@@ -154,7 +154,7 @@ describe('recognition: usuario borrado no puede recrear traducciones', () => {
     const controller = makeTranslationController({ create } as never);
     const app = express();
     app.use(express.json());
-    app.post('/t', (req, res) => { req.user = { userId: 7 } as never; return controller.create(req, res); });
+    app.post('/t', (req, res) => { req.user = { userId: 7, permissions: [] } as never; return controller.create(req, res); });
     const server = http.createServer(app);
     await new Promise<void>(resolve => server.listen(0, resolve));
     try {

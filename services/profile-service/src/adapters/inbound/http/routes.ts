@@ -31,6 +31,7 @@ export const makeProfileRoutes = (deps: { useCases: ProfileUseCases; authMiddlew
   const achievements = Router();
   achievements.use(deps.authMiddleware);
   achievements.get('/', controller.listAchievements);
+  achievements.post('/activity', controller.recordActivity);
 
   const notifications = Router();
   notifications.use(deps.authMiddleware);

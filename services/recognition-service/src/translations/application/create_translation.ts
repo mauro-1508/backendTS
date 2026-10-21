@@ -22,6 +22,9 @@ export const makeCreateTranslation = (deps: {
     type: string;
     confidence?: number | null;
     source?: string | null;
+    eligible?: boolean;
+    mode?: 'letters' | 'words';
+    sessionId?: string;
   }): Promise<Translation> => {
     translationDomainService.ensureIsValid(input);
 
@@ -34,7 +37,10 @@ export const makeCreateTranslation = (deps: {
       source: input.source,
     });
     // La traduccion ya esta guardada: un fallo del bus no debe tumbar la peticion.
-    await publishQuietly(deps.eventPublisher, EVENT_TYPES.TranslationProduced, toEventPayload(created));
+    await publishQuietly(deps.eventPublisher, EVENT_TYPES.TranslationProduced, { ...toEventPayload(created),
+      ...(input.eligible !== undefined ? { eligible: input.eligible } : {}),
+      ...(input.mode !== undefined ? { mode: input.mode } : {}),
+      ...(input.sessionId !== undefined ? { sessionId: input.sessionId } : {}) });
 
     return created;
   };
