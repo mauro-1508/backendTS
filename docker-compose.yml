@@ -235,6 +235,7 @@ services:
       - ./services/profile-service/db/004_achievement_catalog.sql:/docker-entrypoint-initdb.d/004_achievement_catalog.sql:ro
       - ./services/profile-service/db/005_obtainable_achievements.sql:/docker-entrypoint-initdb.d/005_obtainable_achievements.sql:ro
       - ./services/profile-service/db/006_translation_milestones.sql:/docker-entrypoint-initdb.d/006_translation_milestones.sql:ro
+      - ./services/profile-service/db/007_functional_achievements.sql:/docker-entrypoint-initdb.d/007_functional_achievements.sql:ro
     healthcheck: *pg-healthcheck
 
   mongo:

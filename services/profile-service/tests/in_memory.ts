@@ -1,3 +1,4 @@
+import { emptyActivity, ActivityState } from '../src/domain/activity';
 import { AchievementProgress } from '../src/domain/achievement';
 import { NewNotification } from '../src/domain/notification';
 import { DEFAULT_PREFERENCES, Preferences } from '../src/domain/preferences';
@@ -25,6 +26,8 @@ export const makeAchievement = (
 
 /** Repositorios en memoria para probar casos de uso sin base de datos. */
 export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
+  const activities = new Map<string, ActivityState>();
+  const receipts = new Set<string>();
   const progressByUser = new Map<string, Map<string, AchievementProgress>>();
   const preferencesByUser = new Map<string, Preferences>();
     const profilesByUser = new Map<string, NewProfile>();
@@ -48,6 +51,15 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
     );
 
   const repositories: TransactionalRepositories = {
+    activity: {
+      recordTranslationIfNew: async (userId, id) => {
+        const key = `${userId}:${id}`;
+        if (receipts.has(key)) return false;
+        receipts.add(key); return true;
+      },
+      load: async userId => structuredClone(activities.get(userId) ?? emptyActivity()),
+      save: async (userId, state) => { activities.set(userId, structuredClone(state)); },
+    },
         profiles: {
       createIfAbsent: async profile => {
         if (erasedUsers.has(profile.userId)) return;
@@ -62,6 +74,8 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
       },
       isErased: async userId => erasedUsers.has(userId),
       eraseUser: async userId => {
+        activities.delete(userId);
+        for (const key of receipts) if (key.startsWith(`${userId}:`)) receipts.delete(key);
         erasedUsers.add(userId);
         profilesByUser.delete(userId);
         preferencesByUser.delete(userId);
@@ -109,7 +123,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
         withUserState(userId).filter(
           progress => progress.achievement.metric === metric,
         ),
-      findAllProgress: async userId => withUserState(userId),
+      findAllProgress: async (userId, version = 1) => withUserState(userId).filter(p => version === 2 || p.achievement.metric === 'TRANSLATIONS_COMPLETED'),
       saveProgress: async (userId, progress) => {
         progressOf(userId).set(progress.achievement.id, progress);
       },

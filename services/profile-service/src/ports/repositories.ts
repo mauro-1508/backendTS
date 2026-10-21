@@ -29,10 +29,16 @@ export interface ProfileRepository {
   ): Promise<Preferences | null>;
 }
 
+export interface ActivityRepository {
+  recordTranslationIfNew(userId: string, translationId: number): Promise<boolean>;
+  load(userId: string): Promise<import('../domain/activity').ActivityState>;
+  save(userId: string, state: import('../domain/activity').ActivityState): Promise<void>;
+}
+
 export interface AchievementRepository {
   /** Logros activos de la metrica con el avance del usuario (0 si aun no tiene fila). */
   findProgressByMetric(userId: string, metric: AchievementMetric): Promise<AchievementProgress[]>;
-  /** v1 preserves the published legacy catalogue; v2 also publishes the new collection. */
+  /** v1 preserves the five translation rules; v2 includes the new implemented measurements. */
   findAllProgress(userId: string, catalogVersion?: 1 | 2): Promise<AchievementProgress[]>;
   /** Registra la creación efectiva de la notificación del logro. */
 markNotified(userId: string, achievementId: string): Promise<void>;
@@ -65,6 +71,7 @@ export interface TransactionalRepositories {
   notifications: NotificationRepository;
   processedEvents: ProcessedEventRepository;
   gamificationLocks: GamificationLocks;
+  activity?: ActivityRepository;
 }
 
 export interface UnitOfWork {
