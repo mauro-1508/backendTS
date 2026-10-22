@@ -1,3 +1,4 @@
+import { emptyActivity } from '../../../domain/activity';
 import { Pool, PoolClient, QueryResultRow } from 'pg';
 import { AchievementProgress } from '../../../domain/achievement';
 import { Notification } from '../../../domain/notification';
@@ -51,6 +52,8 @@ export const makePostgresProfileRepository = (db: Queryable): ProfileRepository 
   isErased,
 
   async eraseUser(userId) {
+    await db.query('DELETE FROM achievement_translation_receipts WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM achievement_activity WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM user_achievements WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM user_preferences WHERE user_id = $1', [userId]);
@@ -131,8 +134,7 @@ const toProgress = (row: Record<string, any>): AchievementProgress => ({
     points: row.points,
     iconReference: row.icon_reference ?? undefined,
     isSecret: row.is_secret,
-    // Effective v2 publication; the stored flag remains closed to the old API.
-    isActive: row.collection === 'catalog' || row.is_active,
+    isActive: row.is_active,
     collection: row.collection,
     availability: row.availability,
     category: row.category,
@@ -145,16 +147,14 @@ const toProgress = (row: Record<string, any>): AchievementProgress => ({
 
 export const makePostgresAchievementRepository = (db: Queryable): AchievementRepository => ({
   async findProgressByMetric(userId, metric) {
-    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE (a.is_active OR a.collection = 'catalog') AND a.metric = $2 AND a.availability = 'available' ORDER BY a.target_count`, [userId, metric]);
+    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE a.is_active AND a.metric = $2 AND a.availability = 'available' AND a.code <> 'firstSign' ORDER BY a.target_count`, [userId, metric]);
     return rows.map(toProgress);
   },
 
   async findAllProgress(userId, catalogVersion = 1) {
-    // is_active is the legacy publication gate. Never expose new metrics/nulls to v1.
-    const visibility = catalogVersion === 2
-      ? "(a.is_active OR a.collection = 'catalog')"
-      : "a.is_active AND a.collection = 'legacy'";
-    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE ${visibility} ORDER BY a.collection, a.display_order, a.metric, a.target_count`, [userId]);
+    // Preserve the v1 metric vocabulary; new measurements are published through v2.
+    const visibility = "a.is_active AND a.availability = 'available' AND a.metric IN ('TRANSLATIONS_COMPLETED','ACTIVE_SECONDS','VOICE_COMPLETED','FAVORITE_WORD','DISTINCT_WORDS','LETTERS_VIEWED','BOTH_MODES','TRANSLATION_DAYS','WORD_CATEGORIES') AND a.code <> 'firstSign'";
+    const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE ${visibility} ${catalogVersion === 1 ? "AND a.metric = 'TRANSLATIONS_COMPLETED'" : ""} ORDER BY CASE WHEN a.collection = 'legacy' THEN 0 ELSE 1 END, a.target_count, a.code`, [userId]);
     return rows.map(toProgress);
   },
 
@@ -295,6 +295,21 @@ export const makePostgresGamificationLocks = (
 export const makePostgresRepositories = (
   db: Queryable,
 ): TransactionalRepositories => ({
+  activity: {
+    async recordTranslationIfNew(userId, translationId) {
+      const result = await db.query(`INSERT INTO achievement_translation_receipts(user_id,translation_id)
+        VALUES ($1,$2) ON CONFLICT DO NOTHING`, [userId, translationId]);
+      return result.rowCount === 1;
+    },
+    async load(userId) {
+      const { rows } = await db.query('SELECT state FROM achievement_activity WHERE user_id = $1', [userId]);
+      return rows[0]?.state ?? emptyActivity();
+    },
+    async save(userId, state) {
+      await db.query(`INSERT INTO achievement_activity(user_id,state) VALUES ($1,$2::jsonb)
+        ON CONFLICT(user_id) DO UPDATE SET state=EXCLUDED.state`, [userId, JSON.stringify(state)]);
+    },
+  },
   profiles: makePostgresProfileRepository(db),
   achievements: makePostgresAchievementRepository(db),
   notifications: makePostgresNotificationRepository(db),

@@ -224,3 +224,25 @@ describe('crear perfil al registrarse', () => {
     );
   });
 });
+for (const [language, title] of [['ES','Logro desbloqueado:'],['EN','Achievement unlocked:'],
+  ['FR','Succès débloqué :'],['PT','Conquista desbloqueada:']] as const) {
+  it(`uses persisted ${language} preferences for the notification without changing its contract`, async () => {
+    const entry = makeAchievement('FIRST_TRANSLATION', 1);
+    entry.achievement.localizations = { [language.toLowerCase()]: { name: 'Localized name', description: 'Localized description' } };
+    const store = makeInMemoryStore([entry]);
+    store.preferencesByUser.set(USER, { uiLanguage: language, theme: 'LIGHT', notificationsEnabled: true });
+    const record = makeRecordTranslation({ unitOfWork: store.unitOfWork, eventPublisher: { publish: async () => {} } });
+    await record(`language-${language}`, USER);
+    await record(`language-${language}`, USER);
+    assert.equal(store.notifications.length, 1);
+    assert.deepEqual(store.notifications[0], { userId: USER, typeCode: 'ACHIEVEMENT_UNLOCKED',
+      title: `${title} Localized name`, body: 'Localized description', referenceType: 'ACHIEVEMENT', referenceId: entry.achievement.id });
+  });
+}
+it('uses Spanish fallback for untranslated definitions', async () => {
+  const { store, record } = setup([1]);
+  store.preferencesByUser.set(USER, { uiLanguage: 'EN', theme: 'LIGHT', notificationsEnabled: true });
+  await record('fallback', USER);
+  assert.equal(store.notifications[0].title, 'Achievement unlocked: T1');
+  assert.equal(store.notifications[0].body, 'desc T1');
+});

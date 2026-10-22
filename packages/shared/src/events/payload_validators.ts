@@ -24,6 +24,9 @@ export const isTranslationProduced: PayloadGuard<TranslationProduced> = (payload
   isRecord(payload)
   && isId(payload.translationId)
   && (payload.userId === null || isId(payload.userId))
+  && (payload.eligible === undefined || typeof payload.eligible === 'boolean')
+  && (payload.mode === undefined || payload.mode === 'letters' || payload.mode === 'words')
+  && (payload.sessionId === undefined || (typeof payload.sessionId === 'string' && /^[a-zA-Z0-9-]{16,80}$/.test(payload.sessionId)))
   && isString(payload.gloss)
   && isString(payload.text)
   && isIsoDate(payload.occurredAt);

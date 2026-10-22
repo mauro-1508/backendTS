@@ -1,4 +1,6 @@
 export type AchievementMetric =
+  | 'ACTIVE_SECONDS' | 'VOICE_COMPLETED' | 'FAVORITE_WORD' | 'DISTINCT_WORDS'
+  | 'LETTERS_VIEWED' | 'BOTH_MODES' | 'TRANSLATION_DAYS' | 'WORD_CATEGORIES'
   | 'CATALOG_REQUIREMENT'
   | 'TRANSLATIONS_COMPLETED'
   | 'SIGNS_LEARNED'
@@ -57,3 +59,9 @@ export const concealIfSecret = (progress: AchievementProgress): AchievementProgr
   progress.achievement.isSecret && !isUnlocked(progress)
     ? { ...progress, achievement: { ...progress.achievement, name: HIDDEN_TEXT, description: HIDDEN_TEXT } }
     : progress;
+
+/** Only implemented measurements with a positive target can be published. */
+export const isObtainable = (achievement: Achievement): boolean =>
+  achievement.isActive && ['TRANSLATIONS_COMPLETED','ACTIVE_SECONDS','VOICE_COMPLETED','FAVORITE_WORD','DISTINCT_WORDS','LETTERS_VIEWED','BOTH_MODES','TRANSLATION_DAYS','WORD_CATEGORIES'].includes(achievement.metric)
+  && achievement.availability !== 'upcoming' && achievement.code !== 'firstSign'
+  && Number.isSafeInteger(achievement.targetCount) && achievement.targetCount > 0;
