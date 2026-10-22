@@ -16,7 +16,7 @@ const withTempTree = (work: (root: string) => void) => {
 
 describe('readBackendVersion', () => {
   test('lee la version del package.json raiz del monorepo', () => {
-    assert.equal(readBackendVersion(), '1.0.0');
+    assert.equal(readBackendVersion(), '1.1.0');
   });
 
   test('salta los package.json de los workspaces hasta el que declara workspaces', () => {

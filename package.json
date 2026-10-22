@@ -1,6 +1,6 @@
 {
   "name": "signa-backend",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "scripts": {
     "build": "npm run build --workspaces --if-present",
     "test": "npm run build -w @traduce/shared && node scripts/run-tests.js",
