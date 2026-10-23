@@ -19,8 +19,8 @@ export const makeRegister = (deps: {
   eventPublisher: EventPublisher;
   now?: () => Date;
 }) =>
-  async ({ name, email: rawEmail, password }: RegisterInput): Promise<AuthResult> => {
-    userDomainService.ensureRegistrationIsValid({ name, email: rawEmail, password });
+  async ({ name, email: rawEmail, password, acceptedTerms, termsVersion }: RegisterInput): Promise<AuthResult> => {
+    userDomainService.ensureRegistrationIsValid({ name, email: rawEmail, password, acceptedTerms, termsVersion });
     const email = normalizeEmail(rawEmail);
 
     const existingUser = await deps.userRepository.findByEmail(email);
@@ -30,7 +30,7 @@ export const makeRegister = (deps: {
 
     const hashedPassword = await deps.passwordHasher.hash(password);
     // La cuenta nace INACTIVE (pendiente de verificar el correo).
-    const newUser = await deps.userRepository.create({ name, email, password: hashedPassword, status: 'INACTIVE' });
+    const newUser = await deps.userRepository.create({ name, email, password: hashedPassword, status: 'INACTIVE', termsVersion });
     // Toda cuenta debe tener al menos un rol (USER), o queda sin permisos.
     try {
       await deps.roleAssigner.assignDefaultRole(newUser.userId);

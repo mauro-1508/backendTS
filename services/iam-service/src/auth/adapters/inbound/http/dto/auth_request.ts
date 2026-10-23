@@ -6,7 +6,11 @@ const str = z.string().refine((v) => Buffer.byteLength(v, 'utf8') <= 72);
 const email = z.string().trim().toLowerCase().email().max(255);
 const code = z.string().regex(/^\d{6}$/);
 
-export const registerBodySchema = z.object({ name: z.string().trim().min(1).max(120), email, password: str });
+// Sin consentimiento expreso no hay registro (Ley 1581); termsVersion cabe en users.terms_version.
+export const registerBodySchema = z.object({
+  name: z.string().trim().min(1).max(120), email, password: str,
+  acceptedTerms: z.literal(true), termsVersion: z.string().trim().min(1).max(20),
+});
 export const loginBodySchema = z.object({ email, password: str });
 export const forgotPasswordBodySchema = z.object({ email });
 export const verifyCodeBodySchema = z.object({ email, code });

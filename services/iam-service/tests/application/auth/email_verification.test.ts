@@ -121,7 +121,7 @@ const setup = (users: U[] = []) => {
 };
 
 const ana: U = { userId: 7, name: 'Ana', email: 'ana@x.com', password: 'h:clave-larga', status: 'INACTIVE', emailVerifiedAt: null };
-const input = { name: 'Ana', email: 'Ana@X.com', password: 'clave-larga' };
+const input = { name: 'Ana', email: 'Ana@X.com', password: 'clave-larga', acceptedTerms: true, termsVersion: '2025-01' };
 const codeOf = (ctx: ReturnType<typeof setup>) => argsOf(ctx.sendVerificationCode)[0].code as string;
 const INVALID_CODE = { code: 'INVALID_CODE', httpStatus: 400 };
 
@@ -313,7 +313,7 @@ describe('verify-email exige la contrasena', () => {
 describe('pre-account hijacking', () => {
   test('atacante registra con P; la victima recupera y activa con su contrasena; P ya no sirve', async () => {
     const ctx = setup();
-    await ctx.register({ name: 'Ana', email: 'ana@x.com', password: 'clave-atacante' });
+    await ctx.register({ name: 'Ana', email: 'ana@x.com', password: 'clave-atacante', acceptedTerms: true, termsVersion: '2025-01' });
     const verificationCode = codeOf(ctx);
     ctx.advance(61_000);
     await ctx.forgot({ email: 'ana@x.com' });

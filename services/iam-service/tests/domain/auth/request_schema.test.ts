@@ -30,7 +30,7 @@ describe('esquemas zod de auth', () => {
   });
 
   test('acepta entradas validas', () => {
-    assert.equal(registerBodySchema.safeParse({ name: 'a', email: 'a@b.co', password: 'x' }).success, true);
+    assert.equal(registerBodySchema.safeParse({ name: 'a', email: 'a@b.co', password: 'x', acceptedTerms: true, termsVersion: '2025-01' }).success, true);
     assert.equal(loginBodySchema.safeParse({ email: 'a@b.co', password: 'x' }).success, true);
     assert.equal(forgotPasswordBodySchema.safeParse({ email: 'a@b.co' }).success, true);
     assert.equal(verifyCodeBodySchema.safeParse({ email: 'a@b.co', code: '123456' }).success, true);
@@ -74,8 +74,8 @@ describe('normalizacion y limites del esquema', () => {
     assert.equal(forgotPasswordBodySchema.safeParse({ email: `${'a'.repeat(250)}@x.com` }).success, false);
   });
   test('name: recorta, no vacio y max 120', () => {
-    assert.equal(registerBodySchema.safeParse({ name: '  ', email: 'a@b.co', password: 'x' }).success, false);
-    assert.equal(registerBodySchema.safeParse({ name: 'a'.repeat(121), email: 'a@b.co', password: 'x' }).success, false);
+    assert.equal(registerBodySchema.safeParse({ name: '  ', email: 'a@b.co', password: 'x', acceptedTerms: true, termsVersion: '2025-01' }).success, false);
+    assert.equal(registerBodySchema.safeParse({ name: 'a'.repeat(121), email: 'a@b.co', password: 'x', acceptedTerms: true, termsVersion: '2025-01' }).success, false);
   });
   for (const code of ['12345', '1234567', 'abcdef', '12 456']) {
     test(`code ${code} no es valido`, () => {
@@ -94,7 +94,7 @@ describe('auth_controller: errores conocidos', () => {
     await makeAuthController(service as unknown as AuthService)[handler]({ body } as any, res, next);
     return { res, next };
   };
-  const reg = { name: 'Ana', email: 'ana@x.com', password: 'Abcdef1!x' };
+  const reg = { name: 'Ana', email: 'ana@x.com', password: 'Abcdef1!x', acceptedTerms: true, termsVersion: '2025-01' };
 
   test('AuthError responde con su httpStatus y code', async () => {
     const { res } = await run('verifyCode', new InvalidCodeError(), { email: 'a@b.co', code: '123456' });
@@ -104,10 +104,10 @@ describe('auth_controller: errores conocidos', () => {
 
   test('password de mas de 72 bytes -> 400 (bytes, no caracteres)', () => {
     const long = 'ñ'.repeat(37); // 74 bytes
-    assert.equal(registerBodySchema.safeParse({ name: 'a', email: 'a@b.co', password: long }).success, false);
+    assert.equal(registerBodySchema.safeParse({ name: 'a', email: 'a@b.co', password: long, acceptedTerms: true, termsVersion: '2025-01' }).success, false);
     assert.equal(loginBodySchema.safeParse({ email: 'a@b.co', password: long }).success, false);
     assert.equal(resetPasswordBodySchema.safeParse({ email: 'a@b.co', code: '123456', newPassword: long }).success, false);
-    assert.equal(registerBodySchema.safeParse({ name: 'a', email: 'a@b.co', password: 'ñ'.repeat(36) }).success, true);
+    assert.equal(registerBodySchema.safeParse({ name: 'a', email: 'a@b.co', password: 'ñ'.repeat(36), acceptedTerms: true, termsVersion: '2025-01' }).success, true);
   });
 
   test('23505 de otra restriccion no se traduce a EMAIL_ALREADY_EXISTS', async () => {
@@ -149,8 +149,51 @@ describe('register con correo duplicado', () => {
       mailer: { sendVerificationCode: async () => undefined, sendPasswordResetCode: async () => undefined, sendAccountDeletionCode: async () => undefined },
       eventPublisher: new RecordingEventPublisher(),
     });
-    await assert.rejects(register({ name: 'Ana', email: ' ANA@x.com', password: 'Abcdef1!x' }), EmailAlreadyExistsError);
+    await assert.rejects(register({ name: 'Ana', email: ' ANA@x.com', password: 'Abcdef1!x', acceptedTerms: true, termsVersion: '2025-01' }), EmailAlreadyExistsError);
     assert.deepEqual(argsOf(findByEmail), ['ana@x.com']);
     assert.equal(create.mock.callCount(), 0);
+  });
+});
+
+describe('register exige consentimiento (Ley 1581)', () => {
+  const base = { name: 'Ana', email: 'ana@x.com', password: 'Abcdef1!x' };
+
+  test('el esquema rechaza el registro sin acceptedTerms=true o sin termsVersion valida', () => {
+    for (const body of [
+      base,
+      { ...base, termsVersion: '2025-01' },
+      { ...base, acceptedTerms: false, termsVersion: '2025-01' },
+      { ...base, acceptedTerms: 'true', termsVersion: '2025-01' },
+      { ...base, acceptedTerms: true },
+      { ...base, acceptedTerms: true, termsVersion: '  ' },
+      { ...base, acceptedTerms: true, termsVersion: 'x'.repeat(21) },
+    ]) assert.equal(registerBodySchema.safeParse(body).success, false, JSON.stringify(body));
+  });
+
+  test('el controlador responde 400 sin llamar al servicio si falta el consentimiento', async () => {
+    const register = mock.fn(async () => ({}));
+    const res = fakeRes();
+    await makeAuthController({ register } as unknown as AuthService).register({ body: base } as any, res, mock.fn());
+    assert.deepEqual(argsOf(res.status), [400]);
+    assert.equal(register.mock.callCount(), 0);
+  });
+
+  test('el caso de uso no crea la cuenta sin consentimiento y guarda la version aceptada', async () => {
+    const create = mock.fn(async (user: { termsVersion?: string | null }) => ({ userId: 3, name: 'Ana', email: 'ana@x.com', status: 'INACTIVE', ...user }));
+    const register = makeRegister({
+      userRepository: { findByEmail: async () => null, create, deleteById: async () => undefined } as never,
+      passwordHasher: { hash: async () => 'h', compare: async () => true },
+      roleAssigner: { assignDefaultRole: async () => undefined },
+      authRepository: { saveToken: async () => undefined, invalidateTokens: async () => undefined } as never,
+      mailer: { sendVerificationCode: async () => undefined, sendPasswordResetCode: async () => undefined, sendAccountDeletionCode: async () => undefined },
+      eventPublisher: new RecordingEventPublisher(),
+    });
+
+    await assert.rejects(register({ ...base, acceptedTerms: false, termsVersion: '2025-01' }), /aceptar los términos/);
+    await assert.rejects(register({ ...base, acceptedTerms: true, termsVersion: ' ' }), /aceptar los términos/);
+    assert.equal(create.mock.callCount(), 0);
+
+    await register({ ...base, acceptedTerms: true, termsVersion: '2025-01' });
+    assert.equal(argsOf(create)[0].termsVersion, '2025-01');
   });
 });
