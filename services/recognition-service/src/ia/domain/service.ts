@@ -2,6 +2,7 @@ import { MOTION_DIM, SEQ_LEN, STATIC_DIM, WORD_DIM, WORD_SEQ_LEN } from '../../c
 import { NewSignTemplate, TEMPLATE_KINDS, TemplateKind } from './entity';
 
 export class InvalidSignTemplateError extends Error {}
+export class SignTemplateNotFoundError extends Error {}
 
 /** Cantidad de frames y valores por frame de cada tipo de plantilla. */
 const SHAPES: Record<TemplateKind, { frames: number; dim: number }> = {
