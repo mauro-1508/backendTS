@@ -19,7 +19,7 @@ const listTestFiles = (dir) =>
       })
     : [];
 
-const files = TEST_ROOTS.flatMap((name) => listTestFiles(path.join(ROOT, name))).sort();
+const files = TEST_ROOTS.flatMap((name) => listTestFiles(path.join(ROOT, name))).sort((a, b) => a.localeCompare(b));
 
 if (files.length === 0) {
   console.error('No se encontraron archivos *.test.ts');

@@ -28,6 +28,7 @@ import numpy as np
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras import layers
+from rutas import ruta_segura
 
 SEQ_LEN = 30
 FEATURE_DIM = 128
@@ -187,6 +188,9 @@ def main() -> None:
     ap.add_argument("--solo-dataset", default=None, help="lsc54 o lsc50, para el modelo base")
     ap.add_argument("--salida", default="../modelos")
     args = ap.parse_args()
+    # Cada ruta se valida una vez aqui: el resto del script ya recibe rutas seguras.
+    args.dataset = ruta_segura(args.dataset)
+    args.salida = ruta_segura(args.salida)
 
     datos = load_dataset(args.dataset, args.solo_dataset)
     glosas = datos["glosses"]

@@ -31,6 +31,7 @@ import subprocess
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+from rutas import ruta_segura
 
 from train_model import build_model
 
@@ -57,6 +58,8 @@ def compare(a: np.ndarray, b: np.ndarray, titulo: str) -> bool:
 
 
 def export_tfjs(saved_model: str, destino: str) -> None:
+    # Rutas absolutas y validadas: ninguna puede llegar como opcion del conversor.
+    saved_model, destino = ruta_segura(saved_model), ruta_segura(destino)
     subprocess.run(
         [
             "tensorflowjs_converter",
@@ -74,7 +77,7 @@ def export_tflite(saved_model: str, destino: str, cuantizar: bool) -> bytes:
     if cuantizar:
         conv.optimizations = [tf.lite.Optimize.DEFAULT]
     datos = conv.convert()
-    with open(destino, "wb") as fh:
+    with open(ruta_segura(destino), "wb") as fh:
         fh.write(datos)
     return datos
 
@@ -100,8 +103,13 @@ def main() -> None:
     ap.add_argument("--dataset", default=None, help=".npz para comparar con datos reales")
     ap.add_argument("--sin-cuantizar", action="store_true", help="tflite mas pesado y mas fiel")
     args = ap.parse_args()
+    # Cada ruta se valida una vez aqui: el resto del script ya recibe rutas seguras.
+    args.modelo = ruta_segura(args.modelo)
+    args.glosas = ruta_segura(args.glosas)
+    args.salida = ruta_segura(args.salida)
+    args.dataset = ruta_segura(args.dataset)
 
-    glosas_path = args.glosas or args.modelo.replace(".keras", "_glosas.json")
+    glosas_path = ruta_segura(args.glosas or args.modelo.replace(".keras", "_glosas.json"))
     with open(glosas_path, encoding="utf-8") as fh:
         glosas = json.load(fh)
 

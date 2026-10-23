@@ -1,5 +1,5 @@
 import { TranslationRepository } from '../ports/outbound/translation_repository';
-import { translationDomainService } from '../domain/service';
+import { InvalidTranslationError, translationDomainService } from '../domain/service';
 import { Translation } from '../domain/entity';
 
 export const makeListTranslations = (deps: { translationRepository: TranslationRepository }) =>
@@ -13,7 +13,7 @@ export const makeListTranslations = (deps: { translationRepository: TranslationR
     offset?: number | string;
   }): Promise<Translation[]> => {
     if (!userId) {
-      throw new Error('userId es obligatorio para listar el historial');
+      throw new InvalidTranslationError('userId es obligatorio para listar el historial');
     }
     return deps.translationRepository.listByUser({
       userId,

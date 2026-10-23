@@ -8,9 +8,6 @@ export const RESEND_COOLDOWN_MS = 60_000;
 export const MAX_SENDS_PER_HOUR = 5;
 export const ONE_HOUR_MS = 60 * 60 * 1000;
 
-/** Hash bcrypt (coste 10) de una clave inexistente: se compara cuando no hay usuario para igualar tiempos. */
-export const DUMMY_HASH = '$2b$10$rkfeSplziI2zx6pmV8wlneYDuvOlPiBTNOL.fRa6lMtI0i1YFVO52';
-
 /** Error de negocio conocido de auth: mensaje seguro de mostrar, con codigo estable para el cliente. */
 export class AuthError extends Error {
   constructor(

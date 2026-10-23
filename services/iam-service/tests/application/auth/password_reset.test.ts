@@ -1,11 +1,10 @@
 import { test, describe, mock } from 'node:test';
 import assert from 'node:assert/strict';
-import bcrypt from 'bcrypt';
 import { makeForgotPassword } from '../../../src/auth/application/forgot_password';
 import { makeVerifyCode } from '../../../src/auth/application/verify_code';
 import { makeResetPassword } from '../../../src/auth/application/reset_password';
 import { makeLogin } from '../../../src/auth/application/login';
-import { DUMMY_HASH } from '../../../src/auth/domain/service';
+import { bcryptPasswordHasher } from '../../../src/auth/adapters/outbound/security/password';
 import { UserToken } from '../../../src/auth/domain/entity';
 import { AuthRepository } from '../../../src/auth/domain/repository';
 import { argsOf, assertMatch, flush, rejectsWith, resolvesMatching } from '../../helpers/fakes';
@@ -254,10 +253,10 @@ describe('verify-code y reset-password', () => {
     await resolvesMatching(ctx.verify({ email: 'ana@x.com', code: second }), { success: true });
   });
 
-  test('correo desconocido: INVALID_CODE tras comparar contra DUMMY_HASH (igual que cuenta sin token)', async () => {
+  test('correo desconocido: INVALID_CODE tras comparar sin hash (igual que cuenta sin token)', async () => {
     const ctx = setup();
     const comparedWithDummy = () =>
-      hasher.compare.mock.calls.some((c) => c.arguments[0] === '123456' && c.arguments[1] === DUMMY_HASH);
+      hasher.compare.mock.calls.some((c) => c.arguments[0] === '123456' && c.arguments[1] === null);
     hasher.compare.mock.resetCalls();
     await rejectsWith(ctx.verify({ email: 'x@x.com', code: '123456' }), { code: 'INVALID_CODE', httpStatus: 400 });
     assert.ok(comparedWithDummy());
@@ -269,7 +268,7 @@ describe('verify-code y reset-password', () => {
 
 describe('login sin filtrar por tiempo', () => {
   const build = (found: unknown) => {
-    const compare = mock.fn(async (_p: string, _h: string) => false);
+    const compare = mock.fn(async (_p: string, _h: string | null) => false);
     const login = makeLogin({
       userRepository: { findByEmail: async () => found } as never,
       passwordHasher: { hash: async () => 'x', compare },
@@ -279,11 +278,11 @@ describe('login sin filtrar por tiempo', () => {
     return { login, compare };
   };
 
-  test('sin usuario: compara una vez contra DUMMY_HASH y da INVALID_CREDENTIALS', async () => {
+  test('sin usuario: compara una vez sin hash y da INVALID_CREDENTIALS', async () => {
     const { login, compare } = build(null);
     await rejectsWith(login({ email: 'a@x.com', password: 'clave' }), { code: 'INVALID_CREDENTIALS' });
     assert.equal(compare.mock.callCount(), 1);
-    assert.deepEqual(argsOf(compare), ['clave', DUMMY_HASH]);
+    assert.deepEqual(argsOf(compare), ['clave', null]);
   });
 
   test('password null (cuenta Google): compara una vez y falla', async () => {
@@ -292,7 +291,9 @@ describe('login sin filtrar por tiempo', () => {
     assert.equal(compare.mock.callCount(), 1);
   });
 
-  test('DUMMY_HASH es un bcrypt valido de coste 10', () => {
-    assert.equal(bcrypt.getRounds(DUMMY_HASH), 10);
+  test('el hasher sin hash gasta una comparacion real y devuelve false', async () => {
+    assert.equal(await bcryptPasswordHasher.compare('clave', null), false);
+    const hashed = await bcryptPasswordHasher.hash('clave');
+    assert.equal(await bcryptPasswordHasher.compare('clave', hashed), true);
   });
 });

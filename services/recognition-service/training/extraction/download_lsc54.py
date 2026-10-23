@@ -35,6 +35,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 
 import requests
+from rutas import ruta_segura
 
 FILE_URL = "https://china.scidb.cn/download?fileId=bef1a180dba2259b3bcd7de6bc62e3df"
 FILE_SIZE = 55_178_894_680
@@ -48,11 +49,40 @@ RATE_LIMIT_WAIT = 60
 KEPT_PARTS = ("r_hand", "l_hand", "pose")
 
 REP_RE = re.compile(rb'"rep_(\d+)":\s*\{')
-CHAIN_RE = re.compile(rb'((?:"[^"]+":\s*\{\s*)+)$')
 KEY_RE = re.compile(r'"([^"]+)":')
 
 _print_lock = threading.Lock()
 _state_lock = threading.Lock()
+
+
+_BLANCOS = b" \t\r\n\f\v"
+
+
+def trailing_chain(before: bytes) -> bytes:
+    """
+    Cadena de `"clave": {` seguidas con la que termina `before`.
+
+    Recorre el texto de atras hacia adelante. Antes era la regex
+    `((?:"[^"]+":\s*\{\s*)+)$`, que con cuantificadores anidados puede
+    retroceder de forma exponencial sobre una ventana de varios KB.
+    """
+    inicio = fin = len(before)
+    while True:
+        i = inicio
+        while i > 0 and before[i - 1] in _BLANCOS:
+            i -= 1
+        if i == 0 or before[i - 1] != ord("{"):
+            break
+        i -= 1
+        while i > 0 and before[i - 1] in _BLANCOS:
+            i -= 1
+        if i < 2 or before[i - 1] != ord(":") or before[i - 2] != ord('"'):
+            break
+        abre = before.rfind(b'"', 0, i - 2)
+        if abre == -1 or abre == i - 3:
+            break
+        inicio = abre
+    return before[inicio:fin]
 
 
 def log(worker: int, message: str) -> None:
@@ -121,10 +151,10 @@ def scan_next_rep(session: requests.Session, pos: int) -> dict | None:
             before = buf[: m.start()]
             if len(before) < CHAIN_CONTEXT and key_pos > CHAIN_CONTEXT:
                 before = fetch_range(session, key_pos - CHAIN_CONTEXT, key_pos - 1)
-            chain_match = CHAIN_RE.search(before)
+            chain = trailing_chain(before)
             # Los nombres llevan tildes y n: la cadena se decodifica en UTF-8,
             # aunque el rastreo se haga sobre bytes.
-            chain_text = chain_match.group(1).decode("utf-8", errors="replace") if chain_match else ""
+            chain_text = chain.decode("utf-8", errors="replace")
             return {
                 "n": 0,
                 "key_pos": key_pos,
@@ -179,14 +209,14 @@ def compact(rep: dict) -> list[dict]:
 class Descarga:
     def __init__(self, out_dir: str, workers: int, only: list[str], max_samples: int,
                  max_por_sena: int = 0):
-        self.out_dir = out_dir
+        self.out_dir = ruta_segura(out_dir)
         self.only = [s.lower() for s in only]
         self.max_samples = max_samples
         # Tope por sena: 30 grabaciones alcanzan para entrenar y evita bajar
         # 53 de unas y 20 de otras, que desbalancea las clases.
         self.max_por_sena = max_por_sena
-        self.state_path = os.path.join(out_dir, "state.json")
-        os.makedirs(out_dir, exist_ok=True)
+        self.state_path = os.path.join(self.out_dir, "state.json")
+        os.makedirs(self.out_dir, exist_ok=True)
 
         if os.path.exists(self.state_path):
             self.state = json.load(open(self.state_path, encoding="utf-8"))
@@ -321,6 +351,8 @@ def main() -> None:
     ap.add_argument("--max-por-sena", type=int, default=0,
                     help="deja de bajar una sena al llegar a N grabaciones (0 = sin tope)")
     args = ap.parse_args()
+    # Cada ruta se valida una vez aqui: el resto del script ya recibe rutas seguras.
+    args.out = ruta_segura(args.out)
 
     only = [s.strip() for s in args.solo.split(",") if s.strip()]
     if only:
