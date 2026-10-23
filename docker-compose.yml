@@ -19,6 +19,7 @@
 #   docker compose exec -T postgres-profile   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile < services/profile-service/db/005_obtainable_achievements.sql
 #   docker compose exec -T postgres-profile   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile < services/profile-service/db/006_translation_milestones.sql
 #   docker compose exec -T postgres-recognition psql -U postgres -d recognition < services/recognition-service/db/003_erased_users.sql
+#   docker compose exec -T postgres-recognition psql -X -v ON_ERROR_STOP=1 -U postgres -d recognition < services/recognition-service/db/004_sign_templates_word_kind.sql
 #   (si 009 ya se aplico con una version anterior, volver a ejecutarla: es idempotente y anade las columnas nuevas)
 # Orden de despliegue de iam.UserDeleted: el outbox publica con mandatory=true, asi que un evento sin
 #   cola destino FALLA y se reintenta (no se pierde). Aun asi, levanta/despliega primero los consumidores
@@ -192,6 +193,7 @@ services:
       - ./services/recognition-service/db/001_translations.sql:/docker-entrypoint-initdb.d/001_translations.sql:ro
       - ./services/recognition-service/db/002_sign_templates.sql:/docker-entrypoint-initdb.d/002_sign_templates.sql:ro
       - ./services/recognition-service/db/003_erased_users.sql:/docker-entrypoint-initdb.d/003_erased_users.sql:ro
+      - ./services/recognition-service/db/004_sign_templates_word_kind.sql:/docker-entrypoint-initdb.d/004_sign_templates_word_kind.sql:ro
     healthcheck: *pg-healthcheck
 
   postgres-lexicon:
