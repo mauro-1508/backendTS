@@ -88,11 +88,11 @@ describe('contrato HTTP: sobre { success, message?, data? }', () => {
     assert.deepEqual(r.body, { success: true, data: [{ ...STORED, createdAt: CREATED_AT.toISOString() }] });
   });
 
-  test('DELETE translations/:id: 200 y 400 si no existe', async () => {
+  test('DELETE translations/:id: 200 y 404 NOT_FOUND si no existe', async () => {
     removable = true;
     assert.deepEqual(await call('DELETE', '/t/7'), { status: 200, body: { success: true, message: 'Traduccion eliminada', data: { translationId: 7 } } });
     removable = false;
-    assert.deepEqual(await call('DELETE', '/t/7'), { status: 400, body: { success: false, message: 'Traduccion no encontrada' } });
+    assert.deepEqual(await call('DELETE', '/t/7'), { status: 404, body: { success: false, code: 'NOT_FOUND', message: 'Traduccion no encontrada' } });
   });
 
   test('POST sign-templates: 201 con ids importados', async () => {
@@ -105,11 +105,11 @@ describe('contrato HTTP: sobre { success, message?, data? }', () => {
     assert.deepEqual(r, { status: 200, body: { success: true, data: [TEMPLATE_JSON] } });
   });
 
-  test('DELETE sign-templates/:id: 200 y 400 si no existe', async () => {
+  test('DELETE sign-templates/:id: 200 y 404 NOT_FOUND si no existe', async () => {
     templateExists = true;
     assert.deepEqual(await call('DELETE', '/s/3'), { status: 200, body: { success: true, message: 'Plantilla eliminada', data: { templateId: 3 } } });
     templateExists = false;
-    assert.deepEqual(await call('DELETE', '/s/3'), { status: 400, body: { success: false, message: 'Plantilla no encontrada' } });
+    assert.deepEqual(await call('DELETE', '/s/3'), { status: 404, body: { success: false, code: 'NOT_FOUND', message: 'Plantilla no encontrada' } });
   });
 
   test('POST samples: 201 con message y data; GET samples: 200 sin message', async () => {
