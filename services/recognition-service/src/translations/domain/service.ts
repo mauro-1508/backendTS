@@ -1,6 +1,7 @@
 import { TRANSLATION_TYPES, TranslationType } from './entity';
 
 export class InvalidTranslationError extends Error {}
+export class TranslationNotFoundError extends Error {}
 
 export const translationDomainService = {
   ensureIsValid({
