@@ -65,13 +65,14 @@ describe('lexicon_events_subscriber', () => {
     const subscriber = {
       subscribe: async () => { if (++attempts < 2) throw new Error('broker caido'); },
     };
-    const originalError = console.error;
-    console.error = () => {};
-    try {
-      await subscribeToLexiconEvents(subscriber, async () => {});
-    } finally {
-      console.error = originalError;
-    }
+    // Espera inyectada: el sleep real usa un timer unref() y en Node 20 el proceso de
+    // pruebas puede terminar antes del reintento.
+    const waits: number[] = [];
+    await subscribeToLexiconEvents(subscriber, async () => {}, {
+      sleep: async ms => { waits.push(ms); },
+      log: () => {},
+    });
     assert.equal(attempts, 2);
+    assert.equal(waits.length, 1);
   });
 });

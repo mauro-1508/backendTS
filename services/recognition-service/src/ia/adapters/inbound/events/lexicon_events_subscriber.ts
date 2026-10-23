@@ -1,6 +1,6 @@
 import {
   EVENT_TYPES, EventEnvelope, EventHandler, EventSubscriber, isSignPublished, isSignWithdrawn,
-  subscribeWithRetry, withValidPayload,
+  SubscribeRetryOptions, subscribeWithRetry, withValidPayload,
 } from '@traduce/shared';
 
 export const RECOGNITION_EVENTS_QUEUE = 'recognition-service.lexicon-events';
@@ -33,5 +33,6 @@ export const makeLexiconEventHandler = (log: (message: string) => void = console
 export const subscribeToLexiconEvents = (
   subscriber: EventSubscriber,
   handler: EventHandler = makeLexiconEventHandler(),
+  retry?: SubscribeRetryOptions,
 ): Promise<void> =>
-  subscribeWithRetry(subscriber, { queue: RECOGNITION_EVENTS_QUEUE, pattern: LEXICON_EVENTS_PATTERN }, handler);
+  subscribeWithRetry(subscriber, { queue: RECOGNITION_EVENTS_QUEUE, pattern: LEXICON_EVENTS_PATTERN }, handler, retry);
