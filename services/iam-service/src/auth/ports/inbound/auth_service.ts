@@ -2,6 +2,10 @@ export interface RegisterInput {
   name: string;
   email: string;
   password: string;
+  /** Consentimiento expreso de terminos y tratamiento de datos (Ley 1581). */
+  acceptedTerms: boolean;
+  /** Version de los terminos que vio la persona, p. ej. "2025-01". */
+  termsVersion: string;
 }
 
 export interface LoginInput {

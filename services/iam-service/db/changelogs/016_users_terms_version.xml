@@ -1,0 +1,10 @@
+<databaseChangeLog xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog https://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.3.xsd">
+    <changeSet id="016-users-terms-version" author="backend">
+        <preConditions onFail="HALT">
+            <columnExists tableName="users" columnName="terms_accepted_at"/>
+        </preConditions>
+        <sqlFile path="../013_users_terms_version.sql" relativeToChangelogFile="true"/>
+    </changeSet>
+</databaseChangeLog>

@@ -32,7 +32,7 @@ describe('register asigna rol por defecto', () => {
       ...verificationDeps,
     });
 
-    const result = await register({ name: 'Ana Perez', email: 'ana@example.com', password: 'Abcdef1!x' });
+    const result = await register({ name: 'Ana Perez', email: 'ana@example.com', password: 'Abcdef1!x', acceptedTerms: true, termsVersion: '2025-01' });
 
     assert.equal(result.success, true);
     assert.deepEqual(argsOf(assignDefaultRole), [42]);
@@ -48,7 +48,7 @@ describe('register asigna rol por defecto', () => {
         eventPublisher: failingEventPublisher,
         ...verificationDeps,
       });
-      const result = await register({ name: 'Ana Perez', email: 'ana@example.com', password: 'Abcdef1!x' });
+      const result = await register({ name: 'Ana Perez', email: 'ana@example.com', password: 'Abcdef1!x', acceptedTerms: true, termsVersion: '2025-01' });
       assert.equal(result.success, true);
     } finally {
       log.mock.restore();
@@ -74,7 +74,7 @@ describe('registro atomico por compensacion', () => {
     const { register, deleteById, eventPublisher } = setup(async () => {
       throw new Error('pg: relation "roles" secret detail');
     });
-    const error = await register({ name: 'Ana Perez', email: 'ana@example.com', password: 'Abcdef1!x' }).catch((e) => e);
+    const error = await register({ name: 'Ana Perez', email: 'ana@example.com', password: 'Abcdef1!x', acceptedTerms: true, termsVersion: '2025-01' }).catch((e) => e);
     assert.ok(error instanceof RegistrationFailedError);
     assert.ok(!error.message.includes('pg'));
     assert.deepEqual(argsOf(deleteById), [42]);

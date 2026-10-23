@@ -11,6 +11,7 @@
 #   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/009_outbox_events.sql
 #   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/010_users_password_nullable.sql
 #   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/011_account_deletion_token.sql
+#   docker compose exec -T postgres-iam       psql -U postgres -d iam       < services/iam-service/db/013_users_terms_version.sql
 #   docker compose exec -T postgres-analytics psql -U postgres -d analytics < services/analytics-service/db/002_erased_users.sql
 #   docker compose exec -T postgres-profile   psql -U postgres -d profile   < services/profile-service/db/002_erased_users.sql
 #   docker compose exec -T postgres-profile   psql -U postgres -d profile   < services/profile-service/db/003_ui_languages.sql
@@ -18,6 +19,7 @@
 #   docker compose exec -T postgres-profile   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile < services/profile-service/db/005_obtainable_achievements.sql
 #   docker compose exec -T postgres-profile   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile < services/profile-service/db/006_translation_milestones.sql
 #   docker compose exec -T postgres-recognition psql -U postgres -d recognition < services/recognition-service/db/003_erased_users.sql
+#   docker compose exec -T postgres-recognition psql -X -v ON_ERROR_STOP=1 -U postgres -d recognition < services/recognition-service/db/004_sign_templates_word_kind.sql
 #   (si 009 ya se aplico con una version anterior, volver a ejecutarla: es idempotente y anade las columnas nuevas)
 # Orden de despliegue de iam.UserDeleted: el outbox publica con mandatory=true, asi que un evento sin
 #   cola destino FALLA y se reintenta (no se pierde). Aun asi, levanta/despliega primero los consumidores
@@ -170,6 +172,8 @@ services:
       - ./services/iam-service/db/011_account_deletion_token.sql:/docker-entrypoint-initdb.d/011_account_deletion_token.sql:ro
       # Reserva con token en el outbox: un relay vencido no confirma la reserva de otro.
       - ./services/iam-service/db/012_outbox_claim_token.sql:/docker-entrypoint-initdb.d/012_outbox_claim_token.sql:ro
+      # Version de los terminos aceptados en el registro (consentimiento Ley 1581).
+      - ./services/iam-service/db/013_users_terms_version.sql:/docker-entrypoint-initdb.d/013_users_terms_version.sql:ro
     healthcheck: &pg-healthcheck
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 5s
@@ -189,6 +193,7 @@ services:
       - ./services/recognition-service/db/001_translations.sql:/docker-entrypoint-initdb.d/001_translations.sql:ro
       - ./services/recognition-service/db/002_sign_templates.sql:/docker-entrypoint-initdb.d/002_sign_templates.sql:ro
       - ./services/recognition-service/db/003_erased_users.sql:/docker-entrypoint-initdb.d/003_erased_users.sql:ro
+      - ./services/recognition-service/db/004_sign_templates_word_kind.sql:/docker-entrypoint-initdb.d/004_sign_templates_word_kind.sql:ro
     healthcheck: *pg-healthcheck
 
   postgres-lexicon:

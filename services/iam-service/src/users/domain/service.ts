@@ -82,13 +82,21 @@ export const userDomainService = {
     name,
     email,
     password,
+    acceptedTerms,
+    termsVersion,
   }: {
     name?: string;
     email?: string;
     password?: string;
+    acceptedTerms?: boolean;
+    termsVersion?: string;
   }): void {
     if (!name || !email || !password) {
       throw new InvalidUserDataError('Nombre, email y contraseña son obligatorios');
+    }
+    // Ley 1581: la autorizacion debe ser expresa y quedar registrada con la version aceptada.
+    if (acceptedTerms !== true || !termsVersion?.trim()) {
+      throw new InvalidUserDataError('Debes aceptar los términos y la política de tratamiento de datos');
     }
   },
 };
