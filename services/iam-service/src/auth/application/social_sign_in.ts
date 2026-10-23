@@ -2,8 +2,8 @@ import { EventPublisher } from '@traduce/shared';
 import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { normalizeEmail } from '../../users/domain/service';
 import { TokenProvider } from '../ports/outbound/auth_provider';
-import { AuthResult } from '../ports/inbound/auth_service';
-import { AccountBlockedError, EmailNotVerifiedError, RegistrationFailedError } from '../domain/service';
+import { AuthResult, SocialConsentInput } from '../ports/inbound/auth_service';
+import { AccountBlockedError, EmailNotVerifiedError, RegistrationFailedError, TermsRequiredError } from '../domain/service';
 import { RoleAssigner } from '../ports/outbound/role_assigner';
 import { RoleReader } from '../ports/outbound/role_reader';
 import { signSession } from './sign_session';
@@ -26,10 +26,12 @@ const sessionUser = (user: { userId: number; name: string; email: string }) =>
 /**
  * Inicia sesion (o crea la cuenta ACTIVE) con un correo que un proveedor externo (Google, Facebook) ya verifico.
  * Solo recibe datos verificados por el proveedor, nunca los que mande el cliente.
+ * Una cuenta nueva exige el consentimiento (Ley 1581), igual que el registro con correo.
  */
 export const signInWithVerifiedEmail = async (
   deps: SocialSignInDeps,
   identity: { email: string; name: string | null },
+  { acceptedTerms, termsVersion }: SocialConsentInput = {},
 ): Promise<AuthResult> => {
   const email = normalizeEmail(identity.email);
   const name = (identity.name || email.split('@')[0]).slice(0, MAX_NAME_LENGTH);
@@ -43,7 +45,13 @@ export const signInWithVerifiedEmail = async (
     return { success: true, message: 'Inicio de sesión exitoso', data: { token, user: sessionUser(existingUser) } };
   }
 
-  const newUser = await deps.userRepository.create({ email, name, password: null, status: 'ACTIVE', emailVerifiedAt: new Date() });
+  // Se pide antes de crear nada: la app muestra la casilla y reintenta con el mismo token.
+  const acceptedVersion = termsVersion?.trim();
+  if (acceptedTerms !== true || !acceptedVersion) throw new TermsRequiredError();
+
+  const newUser = await deps.userRepository.create({
+    email, name, password: null, status: 'ACTIVE', emailVerifiedAt: new Date(), termsVersion: acceptedVersion,
+  });
   // Cuenta nueva: mismo rol por defecto que en el registro.
   try {
     await deps.roleAssigner.assignDefaultRole(newUser.userId);

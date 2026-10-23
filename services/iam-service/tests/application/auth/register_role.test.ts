@@ -6,6 +6,7 @@ import { makeLogin } from '../../../src/auth/application/login';
 import { RegistrationFailedError } from '../../../src/auth/domain/service';
 import {
   argsOf, failingEventPublisher, fakeGoogleTokenVerifier, googleIdToken, RecordingEventPublisher,
+  SOCIAL_CONSENT,
 } from '../../helpers/fakes';
 
 // Emision y envio del codigo de verificacion: aqui solo hay que dejarlos pasar.
@@ -103,7 +104,7 @@ describe('google_login asigna rol a cuentas nuevas', () => {
   test('cuenta nueva: asigna rol, devuelve token y publica iam.UserRegistered', async () => {
     const assign = mock.fn(async (_id: number) => undefined as void);
     const { googleLogin, eventPublisher } = build(assign, false);
-    const result = await googleLogin({ idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
+    const result = await googleLogin({ ...SOCIAL_CONSENT, idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
     assert.deepEqual(argsOf(assign), [42]);
     assert.deepEqual(result.data, { token: 'tok', user: { user_id: 42, name: 'Ana', email: 'a@b.com' } });
     assert.deepEqual(eventPublisher.published, [
@@ -114,7 +115,7 @@ describe('google_login asigna rol a cuentas nuevas', () => {
   test('cuenta existente: no asigna rol ni publica evento', async () => {
     const assign = mock.fn(async (_id: number) => undefined as void);
     const { googleLogin, eventPublisher } = build(assign, true);
-    await googleLogin({ idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
+    await googleLogin({ ...SOCIAL_CONSENT, idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
     assert.equal(assign.mock.callCount(), 0);
     assert.equal(eventPublisher.published.length, 0);
   });
@@ -123,7 +124,7 @@ describe('google_login asigna rol a cuentas nuevas', () => {
     const { googleLogin, deleteById, eventPublisher } = build(async () => {
       throw new Error('boom');
     }, false);
-    await assert.rejects(googleLogin({ idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) }), RegistrationFailedError);
+    await assert.rejects(googleLogin({ ...SOCIAL_CONSENT, idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) }), RegistrationFailedError);
     assert.deepEqual(argsOf(deleteById), [42]);
     assert.equal(eventPublisher.published.length, 0);
   });
@@ -157,7 +158,7 @@ describe('el JWT de sesion lleva roles y permisos', () => {
       roleReader: { readAccess: async () => access },
       eventPublisher: new RecordingEventPublisher(),
     });
-    await googleLogin({ idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
+    await googleLogin({ ...SOCIAL_CONSENT, idToken: googleIdToken({ email: 'a@b.com', name: 'Ana' }) });
     assert.deepEqual(argsOf(sign), [{ userId: 42, email: 'a@b.com', roles: access.roles, permissions: access.permissions }]);
   });
 });
