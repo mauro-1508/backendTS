@@ -30,3 +30,10 @@ Lo esencial antes de convertir:
 - Longitud variable (~45 frames a 30 FPS), sin alinear en el tiempo.
 - Manos con solo 4 puntos distintos = relleno copiado de la pose: descartar esos frames.
 - `face` viene en `null` cuando no se detectó.
+
+## Rutas en los scripts de `extraction/`
+
+Los scripts de Python solo leen y escriben dentro de `recognition-service/`, de
+la carpeta desde donde se ejecutan o de `/content` en Colab (`extraction/rutas.py`).
+Una ruta fuera de esas carpetas se rechaza antes de tocar ningún archivo. Si los
+datos están en otro disco, se habilita esa carpeta con `LSC_DATA_DIR=/ruta/a/datos`.

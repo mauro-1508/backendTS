@@ -2,7 +2,7 @@ import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { normalizeEmail } from '../../users/domain/service';
 import { AuthRepository } from '../ports/outbound/auth_repository';
 import { PasswordHasher } from '../ports/outbound/auth_provider';
-import { DUMMY_HASH, InvalidCodeError, MAX_ATTEMPTS, ValidationError } from '../domain/service';
+import { InvalidCodeError, MAX_ATTEMPTS, ValidationError } from '../domain/service';
 import { AuthResult } from '../ports/inbound/auth_service';
 
 type Deps = { userRepository: UserRepository; authRepository: AuthRepository; passwordHasher: PasswordHasher; now?: () => Date };
@@ -23,7 +23,7 @@ export const makeCheckResetCode = (deps: Deps) =>
       ? await deps.authRepository.reserveAttempt(user.userId, 'PASSWORD_RESET', (deps.now ?? (() => new Date()))(), MAX_ATTEMPTS)
       : null;
 
-    const ok = await deps.passwordHasher.compare(code, token ? token.tokenHash : DUMMY_HASH);
+    const ok = await deps.passwordHasher.compare(code, token?.tokenHash ?? null);
     if (!user || !token || !ok) throw new InvalidCodeError();
 
     await deps.authRepository.releaseAttempt(token.tokenId);

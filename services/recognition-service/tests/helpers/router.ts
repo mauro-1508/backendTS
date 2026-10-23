@@ -20,6 +20,6 @@ export const callRouter = (router: unknown, url: string, headers: Record<string,
     (router as { handle: (...a: unknown[]) => void }).handle(
       { method: 'GET', url, headers, query: {}, body: {} },
       res as unknown as Response,
-      (e?: unknown) => reject(e ?? new Error('next')),
+      (e?: unknown) => reject(e instanceof Error ? e : new Error(e === undefined ? 'next' : String(e))),
     );
   });

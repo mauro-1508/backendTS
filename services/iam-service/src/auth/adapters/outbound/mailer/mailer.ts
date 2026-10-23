@@ -12,6 +12,9 @@ export const missingMailerSettings = (config: MailerConfig): string[] => [
 export const makeNodemailerMailer = (config: MailerConfig): Mailer & { verify: () => Promise<void> } => {
   const transporter = nodemailer.createTransport({
     service: config.service,
+    // Gmail ya usa SMTPS (465); se fija explicito para que nunca se envie en claro.
+    secure: true,
+    requireTLS: true,
     // Sin esto un SMTP caido cuelga register durante minutos.
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,

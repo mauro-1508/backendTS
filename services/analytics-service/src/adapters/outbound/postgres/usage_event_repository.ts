@@ -80,7 +80,7 @@ export const makePostgresUsageEventRepository = (pool: Pool): UsageEventReposito
       await client.query('BEGIN');
       const referenceUser = event.referenceType === 'USER' ? event.referenceId : null;
       // Orden estable si un evento referencia otra cuenta: evita bloqueos cruzados.
-      const ids = [...new Set([event.userId, referenceUser].filter((id): id is string => id !== null))].sort();
+      const ids = [...new Set([event.userId, referenceUser].filter((id): id is string => id !== null))].sort((a, b) => a.localeCompare(b));
       const erased = new Set<string>();
       for (const id of ids) {
         await client.query(LOCK_USER, [id]);
