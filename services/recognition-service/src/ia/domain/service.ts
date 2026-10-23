@@ -1,13 +1,20 @@
-import { MOTION_DIM, SEQ_LEN, STATIC_DIM } from '../../common/domain/landmarks';
+import { MOTION_DIM, SEQ_LEN, STATIC_DIM, WORD_DIM, WORD_SEQ_LEN } from '../../common/domain/landmarks';
 import { NewSignTemplate, TEMPLATE_KINDS, TemplateKind } from './entity';
 
 export class InvalidSignTemplateError extends Error {}
 
-/** Cantidad de frames que debe traer cada tipo de plantilla. */
-const framesFor = (kind: TemplateKind) => (kind === 'motion' ? SEQ_LEN : 1);
+/** Cantidad de frames y valores por frame de cada tipo de plantilla. */
+const SHAPES: Record<TemplateKind, { frames: number; dim: number }> = {
+  // Abecedario: una mano en un solo frame.
+  static: { frames: 1, dim: STATIC_DIM },
+  // Palabras del motor viejo: las dos manos.
+  motion: { frames: SEQ_LEN, dim: MOTION_DIM },
+  // Palabras del modelo propio: manos y hombros, como las graba el motor que traduce.
+  word: { frames: WORD_SEQ_LEN, dim: WORD_DIM },
+};
 
-/** Valores por frame: el abecedario usa una mano y las palabras las dos. */
-const dimFor = (kind: TemplateKind) => (kind === 'motion' ? MOTION_DIM : STATIC_DIM);
+const framesFor = (kind: TemplateKind) => SHAPES[kind].frames;
+const dimFor = (kind: TemplateKind) => SHAPES[kind].dim;
 
 export const signTemplateDomainService = {
   ensureIsValid(input: Partial<NewSignTemplate>): asserts input is NewSignTemplate {
