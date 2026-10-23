@@ -40,7 +40,9 @@ jobs:
           --health-retries 10
 
     env:
-      PROFILE_TEST_DATABASE_URL: ${{ format('postgresql://gamification_test:ci-{0}-{1}@127.0.0.1:55437/profile_gamification_test', github.run_id, github.run_attempt) }}
+      # Sin clave en la URL: node-postgres la toma de PGPASSWORD.
+      PROFILE_TEST_DATABASE_URL: postgresql://gamification_test@127.0.0.1:55437/profile_gamification_test
+      PGPASSWORD: ${{ format('ci-{0}-{1}', github.run_id, github.run_attempt) }}
       # Sin estas banderas las pruebas con Postgres se omitirian en silencio.
       PROFILE_PREFERENCES_PG_TESTS: '1'
       GAMIFICATION_PG_TESTS: '1'
