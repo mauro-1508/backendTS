@@ -118,7 +118,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
 
   test('registro responde 201, crea la cuenta INACTIVE y publica iam.UserRegistered', async () => {
     const before = publisher.published.length;
-    const response = await post('/api/auth/register', { name: 'Bea', email: 'bea@example.com', password: 'clave-segura' });
+    const response = await post('/api/auth/register', { name: 'Bea', email: 'bea@example.com', password: 'clave-segura', acceptedTerms: true, termsVersion: '2025-01' });
     assert.equal(response.status, 201);
     const data = ((await response.json()) as { data: { user_id: number; status: string } }).data;
     assert.equal(data.status, 'INACTIVE');
@@ -136,7 +136,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
   });
 
   test('registro con correo repetido responde 409', async () => {
-    const response = await post('/api/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'clave-segura' });
+    const response = await post('/api/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'clave-segura', acceptedTerms: true, termsVersion: '2025-01' });
     assert.equal(response.status, 409);
   });
 
