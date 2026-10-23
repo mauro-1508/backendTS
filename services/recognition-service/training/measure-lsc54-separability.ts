@@ -87,8 +87,8 @@ const main = () => {
   const eligible = [...bySign.entries()]
     .filter(([, ps]) => ps.length >= MIN_SAMPLES && new Set(ps.map(p => p.signer)).size >= MIN_SIGNERS)
     .map(([label]) => label)
-    .sort();
-  const skipped = [...bySign.keys()].filter(l => !eligible.includes(l)).sort();
+    .sort((a, b) => a.localeCompare(b));
+  const skipped = [...bySign.keys()].filter(l => !eligible.includes(l)).sort((a, b) => a.localeCompare(b));
 
   console.log(
     `Muestras rep_0: ${raw.length} (sin mano suficiente: ${tooShort}) | senas: ${bySign.size} | elegibles: ${eligible.length}`,
@@ -103,7 +103,7 @@ const main = () => {
   for (const label of eligible) {
     const bySigner = new Map<string, Prepared[]>();
     for (const p of bySign.get(label)!) bySigner.set(p.signer, [...(bySigner.get(p.signer) ?? []), p]);
-    const queues = [...bySigner.keys()].sort().map(k => bySigner.get(k)!);
+    const queues = [...bySigner.keys()].sort((a, b) => a.localeCompare(b)).map(k => bySigner.get(k)!);
     const chosen: Prepared[] = [];
     for (let round = 0; chosen.length < TEMPLATES_PER_SIGN && queues.some(q => q.length > round); round++) {
       for (const q of queues) if (q[round] && chosen.length < TEMPLATES_PER_SIGN) chosen.push(q[round]);

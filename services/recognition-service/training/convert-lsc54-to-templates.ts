@@ -46,7 +46,7 @@ const mirrorFrames = (frames: number[][]): number[][] =>
 const spreadBySigner = <T extends { signer: string }>(samples: T[], max: number): T[] => {
   const bySigner = new Map<string, T[]>();
   for (const s of samples) bySigner.set(s.signer, [...(bySigner.get(s.signer) ?? []), s]);
-  const queues = [...bySigner.keys()].sort().map(k => bySigner.get(k)!);
+  const queues = [...bySigner.keys()].sort((a, b) => a.localeCompare(b)).map(k => bySigner.get(k)!);
   const chosen: T[] = [];
   for (let round = 0; chosen.length < max && queues.some(q => q.length > round); round++) {
     for (const q of queues) if (q[round] && chosen.length < max) chosen.push(q[round]);
@@ -77,7 +77,7 @@ const main = () => {
   const createdAt = new Date().toISOString();
   const report: { label: string; word: string; hand: HandKey; templates: number; signers: number; descartadas: number }[] = [];
 
-  for (const [label, list] of [...byLabel.entries()].sort()) {
+  for (const [label, list] of [...byLabel.entries()].sort(([a], [b]) => a.localeCompare(b))) {
     const word = words?.get(label) ?? label;
     // Una sola mano para toda la clase: mezclarlas deja plantillas espejadas.
     const hand = pickHandForSign(list);

@@ -42,7 +42,7 @@ export const makeInMemoryUsageRepository = (): UsageEventRepository & { events: 
         .slice(0, limit);
     },
     async dailySeries(range): Promise<DailyUsage[]> {
-      const days = [...new Set(inRange(range).map(e => localDay(e.createdAt)))].sort();
+      const days = [...new Set(inRange(range).map(e => localDay(e.createdAt)))].sort((a, b) => a.localeCompare(b));
       return days.map(date => {
         const list = inRange({ from: date, to: date });
         return { date, translations: count(list, 'TRANSLATION_COMPLETED'), newUsers: count(list, 'USER_REGISTERED') };

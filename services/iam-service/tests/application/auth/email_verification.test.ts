@@ -7,7 +7,7 @@ import { makeLogin } from '../../../src/auth/application/login';
 import { makeForgotPassword } from '../../../src/auth/application/forgot_password';
 import { makeResetPassword } from '../../../src/auth/application/reset_password';
 import { makeGoogleLogin } from '../../../src/auth/application/google_login';
-import { AuthError, DUMMY_HASH } from '../../../src/auth/domain/service';
+import { AuthError } from '../../../src/auth/domain/service';
 import { UserToken } from '../../../src/auth/domain/entity';
 import { AuthRepository } from '../../../src/auth/domain/repository';
 import { makeAuthController } from '../../../src/auth/adapters/inbound/http/auth_controller';
@@ -187,7 +187,7 @@ describe('verify-email', () => {
     assert.notEqual(ctx.db.get('ana@x.com')!.emailVerifiedAt, null);
   });
 
-  test('incorrecto, reutilizado, desconocido y ya activa: INVALID_CODE 400 (ya activa compara DUMMY_HASH)', async () => {
+  test('incorrecto, reutilizado, desconocido y ya activa: INVALID_CODE 400 (ya activa compara sin hash)', async () => {
     const ctx = setup([{ ...ana, userId: 8, name: 'Bea', email: 'bea@x.com', status: 'ACTIVE' }]);
     await ctx.register(input);
     const code = codeOf(ctx);
@@ -197,7 +197,7 @@ describe('verify-email', () => {
     await rejectsWith(ctx.verify({ email: 'nadie@x.com', code, password: 'clave-larga' }), { code: 'INVALID_CODE' });
     hasher.compare.mock.resetCalls();
     await rejectsWith(ctx.verify({ email: 'bea@x.com', code, password: 'clave-larga' }), { code: 'INVALID_CODE' });
-    assert.ok(hasher.compare.mock.calls.some((c) => c.arguments[0] === code && c.arguments[1] === DUMMY_HASH));
+    assert.ok(hasher.compare.mock.calls.some((c) => c.arguments[0] === code && c.arguments[1] === null));
     assert.equal(hasher.compare.mock.callCount(), 2);
   });
 

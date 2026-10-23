@@ -37,6 +37,7 @@ import sys
 
 import numpy as np
 from tensorflow import keras
+from rutas import nombre_seguro, ruta_segura
 
 from train_model import build_model, class_weights, report
 
@@ -55,7 +56,7 @@ def package_dir(nombre: str) -> pathlib.Path | None:
         return None
     if spec is None or not spec.submodule_search_locations:
         return None
-    return pathlib.Path(list(spec.submodule_search_locations)[0])
+    return pathlib.Path(next(iter(spec.submodule_search_locations)))
 
 
 # Alias que NumPy 2 retiro y que tensorflowjs todavia usa. Van todos juntos
@@ -229,10 +230,12 @@ def exportar(modelo, glosas: list[str], X_te, X_tr, args) -> None:
 
     patch_tensorflowjs()
 
+    # Lo llaman este script y finetune.py: se valida aqui tambien, no solo en sus main().
+    salida, destino_zip = ruta_segura(args.salida), ruta_segura(args.zip)
     # El conversor no sabe leer un SavedModel montado en Drive, asi que se
     # escribe en disco local y despues se copia el resultado.
-    saved_model = "/content/saved_model" if os.path.isdir("/content") else "./saved_model"
-    for carpeta in (saved_model, args.salida):
+    saved_model = ruta_segura("/content/saved_model" if os.path.isdir("/content") else "./saved_model")
+    for carpeta in (saved_model, salida):
         shutil.rmtree(carpeta, ignore_errors=True)
     plano.export(saved_model)
 
@@ -242,21 +245,21 @@ def exportar(modelo, glosas: list[str], X_te, X_tr, args) -> None:
             "--input_format=tf_saved_model",
             "--output_format=tfjs_graph_model",
             saved_model,
-            args.salida,
+            salida,
         ],
         check=True,
     )
 
-    with open(os.path.join(args.salida, "glosas.json"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(salida, "glosas.json"), "w", encoding="utf-8") as fh:
         json.dump(glosas, fh, ensure_ascii=False, indent=2)
 
-    shutil.make_archive(args.zip, "zip", args.salida)
+    shutil.make_archive(destino_zip, "zip", salida)
 
-    print(f"\n{args.salida}:")
-    for archivo in sorted(os.listdir(args.salida)):
-        ruta = os.path.join(args.salida, archivo)
+    print(f"\n{salida}:")
+    for archivo in sorted(os.listdir(salida)):
+        ruta = os.path.join(salida, archivo)
         print(f"  {os.path.getsize(ruta) / 1024:8.0f} KB  {archivo}")
-    print(f"\nzip listo: {args.zip}.zip")
+    print(f"\nzip listo: {destino_zip}.zip")
     print("Descomprimelo en frontend/public/models/lsc/ (reemplazando lo que haya).")
 
 
@@ -275,9 +278,15 @@ def main() -> None:
         help="carga el .keras ya entrenado y solo exporta, sin volver a entrenar",
     )
     args = ap.parse_args()
+    # Cada ruta se valida una vez aqui: el resto del script ya recibe rutas seguras.
+    args.dataset = ruta_segura(args.dataset)
+    args.modelos = ruta_segura(args.modelos)
+    args.salida = ruta_segura(args.salida)
+    args.zip = ruta_segura(args.zip)
+    args.nombre = nombre_seguro(args.nombre)
 
     # ------------------------------------------------------------ datos
-    dataset = find_dataset(args.dataset)
+    dataset = ruta_segura(find_dataset(args.dataset))
     if dataset != args.dataset:
         print(f"dataset encontrado en {dataset}")
     # Los modelos van junto al dataset, no donde diga el valor por defecto.

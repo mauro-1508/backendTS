@@ -298,7 +298,7 @@ run()
     const serializable = {
       ...report,
       signs: Object.fromEntries(
-        Object.entries(report.signs).map(([k, s]) => [k, { ...s, signers: [...s.signers].sort() }]),
+        Object.entries(report.signs).map(([k, s]) => [k, { ...s, signers: [...s.signers].sort((a, b) => a.localeCompare(b)) }]),
       ),
     };
     fs.writeFileSync(REPORT_PATH, JSON.stringify(serializable, null, 2));

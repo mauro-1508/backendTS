@@ -83,13 +83,14 @@ const main = async () => {
   }
 
   const res = await call<number[]>('POST', '/sign-templates', token, { gestures, kind: 'motion', source: SOURCE });
-  console.log(res.message ?? 'Subidas');
+  // El mensaje viene del servidor: sin saltos de linea no puede falsear otras lineas del log.
+  console.log(String(res.message ?? 'Subidas').replace(/[\r\n]+/g, ' '));
 
   const after = await call<{ label: string }[]>('GET', '/sign-templates?kind=motion', token);
   const porPalabra = new Map<string, number>();
   for (const t of after.data ?? []) porPalabra.set(t.label, (porPalabra.get(t.label) ?? 0) + 1);
   console.log('\nEn el servidor quedan:');
-  for (const [label, n] of [...porPalabra.entries()].sort()) console.log(`  ${label}: ${n}`);
+  for (const [label, n] of [...porPalabra.entries()].sort(([a], [b]) => a.localeCompare(b))) console.log(`  ${label}: ${n}`);
 };
 
 main().catch(err => {
