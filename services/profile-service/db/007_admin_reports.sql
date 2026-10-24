@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS admin_report_runs (
 CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_admin_report
   ON notifications (user_id, reference_id, channel) WHERE reference_type = 'ADMIN_REPORT';
 
--- Cola del worker de correo (ADR-005): EMAIL pendientes por hora programada.
+-- Cola del worker de correo (ADR-007): EMAIL pendientes por hora programada.
 CREATE INDEX IF NOT EXISTS idx_notifications_email_pending
   ON notifications (scheduled_at) WHERE channel = 'EMAIL' AND status = 'PENDING';
 

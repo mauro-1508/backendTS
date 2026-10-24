@@ -33,7 +33,7 @@ export const makeRunAdminReports = (deps: {
   reportRuns: ReportRunQuery;
   unitOfWork: UnitOfWork;
   logger: Logger;
-  /** Un aviso por canal y admin; EMAIL lo envia el worker de correo (ADR-005). */
+  /** Un aviso por canal y admin; EMAIL lo envia el worker de correo (ADR-007). */
   channels?: readonly DeliveryChannel[];
   now?: () => Date;
 }) => {
