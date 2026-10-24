@@ -1,3 +1,4 @@
+import { makeRecordActivity } from './application/record_activity';
 import { RequestHandler } from 'express';
 import { Pool } from 'pg';
 import { EventPublisher } from '@traduce/shared';
@@ -61,6 +62,7 @@ export const makeProfileModule = (deps: {
       unitOfWork,
       eventPublisher: deps.eventPublisher,
     }),
+    recordActivity: makeRecordActivity({ unitOfWork, eventPublisher: deps.eventPublisher }),
     listAchievements: makeListAchievements({ achievements }),
     listNotifications: makeListNotifications({ notifications }),
     markNotificationRead: makeMarkNotificationRead({ notifications }),

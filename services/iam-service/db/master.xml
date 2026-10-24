@@ -15,4 +15,5 @@
     <include file="changelogs/014_reset_token_attempts.xml"/>
 
     <include file="changelogs/015_account_deletion_outbox.xml"/>
+    <include file="changelogs/016_users_terms_version.xml"/>
 </databaseChangeLog>

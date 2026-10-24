@@ -95,7 +95,7 @@ describe('publishQuietly', () => {
     const original = console.error;
     console.error = () => {};
     try {
-      await publishQuietly(failing, 'a.B', {});
+      await assert.doesNotReject(publishQuietly(failing, 'a.B', {}));
     } finally {
       console.error = original;
     }

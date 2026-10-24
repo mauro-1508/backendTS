@@ -3,12 +3,56 @@ import path from 'node:path';
 
 export const ROOT = path.resolve(__dirname, '..', '..');
 
-/** Quita comentarios SQL (`-- ...`) y de bloque para no extraer nombres de ejemplos. */
-const stripSqlComments = (sql: string): string => sql.replace(/\/\*[\s\S]*?\*\//g, '').replace(/--.*$/gm, '');
+/**
+ * Quita los comentarios de bloque recorriendo el texto. Con una regex del tipo
+ * `[\s\S]*?` el motor puede retroceder de forma cuadratica en archivos grandes.
+ */
+const stripBlockComments = (text: string): string => {
+  let out = '';
+  let i = 0;
+  while (i < text.length) {
+    const start = text.indexOf('/*', i);
+    if (start === -1) return out + text.slice(i);
+    out += text.slice(i, start);
+    const end = text.indexOf('*/', start + 2);
+    if (end === -1) return out;
+    i = end + 2;
+  }
+  return out;
+};
 
-/** Quita comentarios TS/JS (`// ...` y bloque) para no contar tablas citadas en explicaciones. */
+/** Corta cada linea en el primer marcador de comentario que `isComment` acepte. */
+const stripLineComments = (text: string, marker: string, isComment: (line: string, at: number) => boolean): string =>
+  text
+    .split('\n')
+    .map(line => {
+      for (let at = line.indexOf(marker); at !== -1; at = line.indexOf(marker, at + 1)) {
+        if (isComment(line, at)) return line.slice(0, at);
+      }
+      return line;
+    })
+    .join('\n');
+
+/** Quita comentarios SQL (`-- ...`) y de bloque para no extraer nombres de ejemplos. */
+const stripSqlComments = (sql: string): string => stripLineComments(stripBlockComments(sql), '--', () => true);
+
+/**
+ * Quita comentarios TS/JS (`// ...` y bloque) para no contar tablas citadas en explicaciones.
+ * Un `//` pegado a `:` o a una comilla es parte de una URL o de un texto, no un comentario.
+ */
 const stripCodeComments = (code: string): string =>
-  code.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`])\/\/.*$/gm, '$1');
+  stripLineComments(stripBlockComments(code), '//', (line, at) => at === 0 || !":'\"`".includes(line[at - 1]));
+
+/** `- ./services/<x>/db/<archivo>.sql:/docker-entrypoint-initdb.d/...` -> servicio y archivo. */
+const parseInitdbMount = (line: string): { service: string; file: string } | null => {
+  const item = line.trim();
+  if (!item.startsWith('-')) return null;
+  const [source, target] = item.slice(1).trim().split(':');
+  if (!source?.startsWith('./services/') || !target?.startsWith('/docker-entrypoint-initdb.d/')) return null;
+  const parts = source.slice(2).split('/');
+  if (parts.length < 4 || parts[2] !== 'db' || !source.endsWith('.sql')) return null;
+  return { service: parts.slice(0, 2).join('/'), file: parts.slice(2).join('/') };
+};
 
 const CREATE_TABLE = /CREATE\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?(?:public\.)?"?([a-z_][a-z0-9_]*)"?/gi;
 
@@ -26,7 +70,7 @@ export const tablesUsedBy = (code: string): string[] => {
   const source = stripCodeComments(code);
   const ctes = new Set([...source.matchAll(CTE_NAME)].map(match => match[1].toLowerCase()));
   const names = [...source.matchAll(QUALIFIED), ...source.matchAll(UNQUALIFIED)].map(match => (match[1] ?? match[2]).toLowerCase());
-  return [...new Set(names)].filter(name => !NOT_TABLES.has(name) && !ctes.has(name)).sort();
+  return [...new Set(names)].filter(name => !NOT_TABLES.has(name) && !ctes.has(name)).sort((a, b) => a.localeCompare(b));
 };
 
 /**
@@ -36,9 +80,10 @@ export const tablesUsedBy = (code: string): string[] => {
  */
 export const mountedSchemaByService = (): Map<string, { files: string[]; tables: Set<string> }> => {
   const compose = fs.readFileSync(path.join(ROOT, 'docker-compose.yml'), 'utf8');
-  const mount = /^\s*-\s*\.\/(services\/[^/\s]+)\/(db\/[^:\s]+\.sql):\/docker-entrypoint-initdb\.d\//gm;
   const result = new Map<string, { files: string[]; tables: Set<string> }>();
-  for (const [, service, file] of compose.matchAll(mount)) {
+  for (const mount of compose.split('\n').map(parseInitdbMount)) {
+    if (!mount) continue;
+    const { service, file } = mount;
     const entry = result.get(service) ?? { files: [], tables: new Set<string>() };
     entry.files.push(file);
     const sql = fs.readFileSync(path.join(ROOT, service, file), 'utf8');
@@ -60,5 +105,5 @@ export const postgresAdapterFiles = (service: string): string[] => {
     }
   };
   walk(path.join(ROOT, service, 'src'));
-  return found.sort();
+  return found.sort((a, b) => a.localeCompare(b));
 };

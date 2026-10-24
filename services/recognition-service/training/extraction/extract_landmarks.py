@@ -27,6 +27,7 @@ from dataclasses import dataclass
 
 import cv2
 import numpy as np
+from rutas import ruta_segura
 
 # MediaPipe escribe avisos de su motor interno en cada frame; no aportan nada
 # aqui y tapan la salida util.
@@ -67,6 +68,7 @@ POSE_MODEL_URL = (
 
 def ensure_model(url: str, folder: str) -> str:
     """Descarga el .task la primera vez y devuelve su ruta local."""
+    folder = ruta_segura(folder)
     os.makedirs(folder, exist_ok=True)
     path = os.path.join(folder, url.rsplit("/", 1)[-1])
     if not os.path.exists(path):
@@ -247,6 +249,10 @@ def main() -> None:
     ap.add_argument("--models", default="models", help="carpeta donde guardar los .task")
     ap.add_argument("--limit", type=int, default=0, help="procesar solo los primeros N")
     args = ap.parse_args()
+    # Cada ruta se valida una vez aqui: el resto del script ya recibe rutas seguras.
+    args.videos = ruta_segura(args.videos)
+    args.out = ruta_segura(args.out)
+    args.models = ruta_segura(args.models)
 
     hand_model = ensure_model(HAND_MODEL_URL, args.models)
     pose_model = ensure_model(POSE_MODEL_URL, args.models)

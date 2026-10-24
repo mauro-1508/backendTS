@@ -7,7 +7,7 @@ import { makeLogin } from '../../../src/auth/application/login';
 import { makeForgotPassword } from '../../../src/auth/application/forgot_password';
 import { makeResetPassword } from '../../../src/auth/application/reset_password';
 import { makeGoogleLogin } from '../../../src/auth/application/google_login';
-import { AuthError, DUMMY_HASH } from '../../../src/auth/domain/service';
+import { AuthError } from '../../../src/auth/domain/service';
 import { UserToken } from '../../../src/auth/domain/entity';
 import { AuthRepository } from '../../../src/auth/domain/repository';
 import { makeAuthController } from '../../../src/auth/adapters/inbound/http/auth_controller';
@@ -15,6 +15,7 @@ import { makeAuthRoutes } from '../../../src/auth/adapters/inbound/http/routes';
 import {
   assertMatch, argsOf, fakeFacebookTokenVerifier, fakeGoogleTokenVerifier, fakeRes, flush, googleIdToken, rejectsWith, resolvesMatching,
   RecordingEventPublisher,
+  SOCIAL_CONSENT,
 } from '../../helpers/fakes';
 
 type U = {
@@ -121,7 +122,7 @@ const setup = (users: U[] = []) => {
 };
 
 const ana: U = { userId: 7, name: 'Ana', email: 'ana@x.com', password: 'h:clave-larga', status: 'INACTIVE', emailVerifiedAt: null };
-const input = { name: 'Ana', email: 'Ana@X.com', password: 'clave-larga' };
+const input = { name: 'Ana', email: 'Ana@X.com', password: 'clave-larga', acceptedTerms: true, termsVersion: '2025-01' };
 const codeOf = (ctx: ReturnType<typeof setup>) => argsOf(ctx.sendVerificationCode)[0].code as string;
 const INVALID_CODE = { code: 'INVALID_CODE', httpStatus: 400 };
 
@@ -187,7 +188,7 @@ describe('verify-email', () => {
     assert.notEqual(ctx.db.get('ana@x.com')!.emailVerifiedAt, null);
   });
 
-  test('incorrecto, reutilizado, desconocido y ya activa: INVALID_CODE 400 (ya activa compara DUMMY_HASH)', async () => {
+  test('incorrecto, reutilizado, desconocido y ya activa: INVALID_CODE 400 (ya activa compara sin hash)', async () => {
     const ctx = setup([{ ...ana, userId: 8, name: 'Bea', email: 'bea@x.com', status: 'ACTIVE' }]);
     await ctx.register(input);
     const code = codeOf(ctx);
@@ -197,7 +198,7 @@ describe('verify-email', () => {
     await rejectsWith(ctx.verify({ email: 'nadie@x.com', code, password: 'clave-larga' }), { code: 'INVALID_CODE' });
     hasher.compare.mock.resetCalls();
     await rejectsWith(ctx.verify({ email: 'bea@x.com', code, password: 'clave-larga' }), { code: 'INVALID_CODE' });
-    assert.ok(hasher.compare.mock.calls.some((c) => c.arguments[0] === code && c.arguments[1] === DUMMY_HASH));
+    assert.ok(hasher.compare.mock.calls.some((c) => c.arguments[0] === code && c.arguments[1] === null));
     assert.equal(hasher.compare.mock.callCount(), 2);
   });
 
@@ -313,7 +314,7 @@ describe('verify-email exige la contrasena', () => {
 describe('pre-account hijacking', () => {
   test('atacante registra con P; la victima recupera y activa con su contrasena; P ya no sirve', async () => {
     const ctx = setup();
-    await ctx.register({ name: 'Ana', email: 'ana@x.com', password: 'clave-atacante' });
+    await ctx.register({ name: 'Ana', email: 'ana@x.com', password: 'clave-atacante', acceptedTerms: true, termsVersion: '2025-01' });
     const verificationCode = codeOf(ctx);
     ctx.advance(61_000);
     await ctx.forgot({ email: 'ana@x.com' });
@@ -341,7 +342,7 @@ describe('google_login segun estado', () => {
 
   test('cuenta nueva: se crea ACTIVE con emailVerifiedAt y se publica iam.UserRegistered', async () => {
     const ctx = setup();
-    await resolvesMatching(ctx.googleLogin({ idToken: googleIdToken({ email: 'nueva@x.com', name: 'Nueva' }) }), { data: { token: 'jwt' } });
+    await resolvesMatching(ctx.googleLogin({ ...SOCIAL_CONSENT, idToken: googleIdToken({ email: 'nueva@x.com', name: 'Nueva' }) }), { data: { token: 'jwt' } });
     assertMatch(ctx.db.get('nueva@x.com'), { status: 'ACTIVE' });
     assert.ok(ctx.db.get('nueva@x.com')!.emailVerifiedAt instanceof Date);
     assert.deepEqual(ctx.eventPublisher.published, [

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { makeFacebookLogin } from '../../../src/auth/application/facebook_login';
 import { InvalidFacebookTokenError } from '../../../src/auth/domain/service';
 import { User } from '../../../src/users/domain/entity';
-import { argsOf, facebookAccessToken, fakeFacebookTokenVerifier, rejectsWith, RecordingEventPublisher } from '../../helpers/fakes';
+import { argsOf, facebookAccessToken, fakeFacebookTokenVerifier, rejectsWith, RecordingEventPublisher, SOCIAL_CONSENT } from '../../helpers/fakes';
 
 const existing = (status: User['status']) => ({ userId: 7, name: 'Ana', email: 'ana@x.com', status }) as User;
 
@@ -37,7 +37,7 @@ describe('facebook_login', () => {
 
   test('correo nuevo: crea la cuenta ACTIVE con el correo normalizado y responde como /auth/login', async () => {
     const { facebookLogin, create } = setup();
-    const result = await facebookLogin({ accessToken: facebookAccessToken({ email: ' Ana@X.com ', name: 'Ana' }) });
+    const result = await facebookLogin({ ...SOCIAL_CONSENT, accessToken: facebookAccessToken({ email: ' Ana@X.com ', name: 'Ana' }) });
     assert.equal(argsOf(create)[0].email, 'ana@x.com');
     assert.equal(argsOf(create)[0].status, 'ACTIVE');
     assert.deepEqual(result.data, { token: 'jwt', user: { user_id: 42, name: 'Ana', email: 'ana@x.com' } });
@@ -45,7 +45,7 @@ describe('facebook_login', () => {
 
   test('cuenta existente ACTIVE: inicia sesion sin crear otra', async () => {
     const { facebookLogin, create } = setup(fakeFacebookTokenVerifier, existing('ACTIVE'));
-    const result = await facebookLogin({ accessToken: facebookAccessToken({ email: 'ana@x.com' }) });
+    const result = await facebookLogin({ ...SOCIAL_CONSENT, accessToken: facebookAccessToken({ email: 'ana@x.com' }) });
     assert.equal(create.mock.callCount(), 0);
     assert.deepEqual(result.data, { token: 'jwt', user: { user_id: 7, name: 'Ana', email: 'ana@x.com' } });
   });
@@ -54,5 +54,19 @@ describe('facebook_login', () => {
     const accessToken = facebookAccessToken({ email: 'ana@x.com' });
     await rejectsWith(setup(fakeFacebookTokenVerifier, existing('BLOCKED')).facebookLogin({ accessToken }), { code: 'ACCOUNT_BLOCKED' });
     await rejectsWith(setup(fakeFacebookTokenVerifier, existing('INACTIVE')).facebookLogin({ accessToken }), { code: 'EMAIL_NOT_VERIFIED' });
+  });
+});
+
+describe('facebook_login y el consentimiento (Ley 1581)', () => {
+  test('cuenta nueva sin consentimiento: TERMS_REQUIRED y no crea la cuenta', async () => {
+    const { facebookLogin, create } = setup();
+    await rejectsWith(facebookLogin({ accessToken: facebookAccessToken({ email: 'nueva@x.com' }) }), { code: 'TERMS_REQUIRED', httpStatus: 400 });
+    assert.equal(create.mock.callCount(), 0);
+  });
+
+  test('cuenta existente ACTIVE entra sin enviar consentimiento', async () => {
+    const result = await setup(fakeFacebookTokenVerifier, existing('ACTIVE'))
+      .facebookLogin({ accessToken: facebookAccessToken({ email: 'ana@x.com' }) });
+    assert.deepEqual(result.data, { token: 'jwt', user: { user_id: 7, name: 'Ana', email: 'ana@x.com' } });
   });
 });

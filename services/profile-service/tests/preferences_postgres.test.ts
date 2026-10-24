@@ -104,6 +104,9 @@ async function withFixture(
       await client.query(sql);
       await client.query(await readFile(resolve(__dirname, '../db/004_achievement_catalog.sql'), 'utf8'));
       await client.query(await readFile(resolve(__dirname, '../db/005_obtainable_achievements.sql'), 'utf8'));
+      // El borrado de cuenta tambien limpia los recibos y la actividad de logros (006 y 007).
+      await client.query(await readFile(resolve(__dirname, '../db/006_translation_milestones.sql'), 'utf8'));
+      await client.query(await readFile(resolve(__dirname, '../db/007_functional_achievements.sql'), 'utf8'));
       // La proyección también necesita la marca de cuentas eliminadas.
       await client.query(await readFile(
         resolve(__dirname, '../db/002_erased_users.sql'),

@@ -1,7 +1,7 @@
 import { AuthRepository } from '../ports/outbound/auth_repository';
 import { PasswordHasher } from '../ports/outbound/auth_provider';
 import { Mailer } from '../ports/outbound/mailer';
-import { authDomainService, DUMMY_HASH, MAX_ATTEMPTS } from '../domain/service';
+import { authDomainService, MAX_ATTEMPTS } from '../domain/service';
 import { DeletionCodes } from '../../users/ports/outbound/deletion_codes';
 
 const TOKEN_TYPE = 'ACCOUNT_DELETION';
@@ -35,7 +35,7 @@ export const makeAccountDeletionCodes = (deps: {
       // Reserva el intento antes de comparar (atomico): peticiones en paralelo no superan MAX_ATTEMPTS.
       const token = await deps.authRepository.reserveAttempt(userId, TOKEN_TYPE, now(), MAX_ATTEMPTS);
       // Sin token igual se compara (contra un hash ficticio) para no revelar por tiempo si existe.
-      const ok = await deps.passwordHasher.compare(code, token ? token.tokenHash : DUMMY_HASH);
+      const ok = await deps.passwordHasher.compare(code, token?.tokenHash ?? null);
       return Boolean(token) && ok;
     },
   };

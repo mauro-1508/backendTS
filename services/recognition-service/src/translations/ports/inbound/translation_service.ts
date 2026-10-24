@@ -10,6 +10,9 @@ export interface TranslationService {
     type: string;
     confidence?: number | null;
     source?: string | null;
+    eligible?: boolean;
+    mode?: 'letters' | 'words';
+    sessionId?: string;
   }): Promise<Translation>;
   list(input: { userId: number | null; limit?: number | string; offset?: number | string }): Promise<Translation[]>;
   getStats(input: { userId: number; permissions: string[] }): Promise<TranslationStats>;

@@ -19,6 +19,7 @@ import json
 import os
 
 import numpy as np
+from rutas import ruta_segura
 
 # Se importa de features_common y no de extract_landmarks: LSC-54 ya trae los
 # landmarks, asi que convertirlo no debe exigir MediaPipe ni OpenCV.
@@ -145,6 +146,7 @@ def load_rep0(folder: str) -> list[dict]:
     que firmante y sena se arrastran de la muestra anterior (misma logica que
     lsc54-rep0.ts en el backend).
     """
+    folder = ruta_segura(folder)
     state_path = os.path.join(folder, "state.json")
     workers = json.load(open(state_path, encoding="utf-8"))["workers"] if os.path.exists(state_path) else []
 
@@ -152,7 +154,8 @@ def load_rep0(folder: str) -> list[dict]:
     inherited: list[str | None] | None = None
 
     for w in workers:
-        path = os.path.join(folder, f"worker-{w['id']:02d}.jsonl")
+        # El id sale de state.json: se fuerza a entero y la ruta se vuelve a validar.
+        path = ruta_segura(os.path.join(folder, f"worker-{int(w['id']):02d}.jsonl"))
         if not os.path.exists(path):
             continue
 
@@ -190,6 +193,9 @@ def main() -> None:
     ap.add_argument("--rep0", required=True, help="carpeta con los worker-XX.jsonl")
     ap.add_argument("--out", required=True, help="archivo .jsonl de salida")
     args = ap.parse_args()
+    # Cada ruta se valida una vez aqui: el resto del script ya recibe rutas seguras.
+    args.rep0 = ruta_segura(args.rep0)
+    args.out = ruta_segura(args.out)
 
     samples = load_rep0(args.rep0)
     print(f"{len(samples)} muestras leidas de {args.rep0}")

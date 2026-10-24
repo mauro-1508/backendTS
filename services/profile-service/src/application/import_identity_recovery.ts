@@ -62,7 +62,7 @@ export const validateIdentityFile = (
 
   const timestamp = typeof value.exportedAt === 'string'
     ? Date.parse(value.exportedAt)
-    : NaN;
+    : Number.NaN;
 
   if (
     !Number.isFinite(timestamp) ||

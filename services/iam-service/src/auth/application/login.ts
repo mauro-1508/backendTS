@@ -1,7 +1,7 @@
 import { UserRepository } from '../../users/ports/outbound/user_repository';
 import { normalizeEmail } from '../../users/domain/service';
 import { PasswordHasher, TokenProvider } from '../ports/outbound/auth_provider';
-import { AccountBlockedError, DUMMY_HASH, EmailNotVerifiedError, InvalidCredentialsError, ValidationError } from '../domain/service';
+import { AccountBlockedError, EmailNotVerifiedError, InvalidCredentialsError, ValidationError } from '../domain/service';
 import { RoleReader } from '../ports/outbound/role_reader';
 import { signSession } from './sign_session';
 import { AuthResult, LoginInput } from '../ports/inbound/auth_service';
@@ -19,7 +19,7 @@ export const makeLogin = (deps: {
 
     const user = await deps.userRepository.findByEmail(normalizeEmail(email));
     // Siempre se ejecuta un bcrypt.compare (contra un hash falso si no hay cuenta o clave) para no filtrar por tiempo.
-    const isPasswordValid = await deps.passwordHasher.compare(password, user?.password ?? DUMMY_HASH);
+    const isPasswordValid = await deps.passwordHasher.compare(password, user?.password ?? null);
     if (!user || !user.password || !isPasswordValid) {
       throw new InvalidCredentialsError();
     }

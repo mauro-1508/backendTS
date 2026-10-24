@@ -1,8 +1,8 @@
--- Migration 007: resumenes y recordatorios para administradores, en la app y por correo (idempotente).
+-- Migration 008: resumenes y recordatorios para administradores, en la app y por correo (idempotente).
 -- admin_recipients: ADMIN conocidos (los marca el middleware al ver su JWT); admin_report_runs: un
 -- registro por reporte y periodo, para que ninguna vuelta del planificador lo envie dos veces.
 -- Sin FK a usuarios: user_id es logico.
---   psql -X -v ON_ERROR_STOP=1 -h localhost -p 5437 -U postgres -d profile -f services/profile-service/db/007_admin_reports.sql
+--   psql -X -v ON_ERROR_STOP=1 -h localhost -p 5437 -U postgres -d profile -f services/profile-service/db/008_admin_reports.sql
 
 SET client_encoding = 'UTF8';
 

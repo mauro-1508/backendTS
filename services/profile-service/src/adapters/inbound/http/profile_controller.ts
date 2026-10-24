@@ -8,6 +8,7 @@ import {
 } from '../../../application/notifications';
 
 export interface ProfileUseCases {
+  recordActivity?: ReturnType<typeof import('../../../application/record_activity').makeRecordActivity>;
   getProfile: ReturnType<typeof makeGetProfile>;
   getPreferences: ReturnType<typeof makeGetPreferences>;
   updatePreferences: ReturnType<typeof makeUpdatePreferences>;
@@ -59,7 +60,13 @@ export const makeProfileController = (useCases: ProfileUseCases) => ({
     res.json(await useCases.getProfile(userIdOf(req)));
   }),
 
+  recordActivity: handle(async (req, res) => {
+    if (req.user!.permissions.includes('users.manage')) return res.status(403).json({ success: false });
+    try { return res.json({ data: await useCases.recordActivity!(userIdOf(req), req.body) }); }
+    catch (error) { if (error instanceof Error && /^(Invalid|Unknown)/.test(error.message)) return res.status(400).json({ success: false }); throw error; }
+  }),
   listAchievements: handle(async (req, res) => {
+    if (req.user!.permissions.includes('users.manage')) return res.status(403).json({ success: false });
     const requested = req.query.catalogVersion;
     if (requested !== undefined && requested !== '1' && requested !== '2') {
       return res.status(HTTP_BAD_REQUEST).json({ success: false, code: 'VALIDATION_ERROR', message: 'catalogVersion debe ser 1 o 2' });

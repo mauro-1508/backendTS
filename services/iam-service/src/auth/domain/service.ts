@@ -8,9 +8,6 @@ export const RESEND_COOLDOWN_MS = 60_000;
 export const MAX_SENDS_PER_HOUR = 5;
 export const ONE_HOUR_MS = 60 * 60 * 1000;
 
-/** Hash bcrypt (coste 10) de una clave inexistente: se compara cuando no hay usuario para igualar tiempos. */
-export const DUMMY_HASH = '$2b$10$rkfeSplziI2zx6pmV8wlneYDuvOlPiBTNOL.fRa6lMtI0i1YFVO52';
-
 /** Error de negocio conocido de auth: mensaje seguro de mostrar, con codigo estable para el cliente. */
 export class AuthError extends Error {
   constructor(
@@ -74,6 +71,12 @@ export class FacebookNotConfiguredError extends AuthError {
 export class FacebookEmailRequiredError extends AuthError {
   constructor() {
     super('Tu cuenta de Facebook no comparte un correo', 'FACEBOOK_EMAIL_REQUIRED');
+  }
+}
+/** Cuenta nueva por Google o Facebook sin aceptar los terminos: la app debe pedirlos y reintentar. */
+export class TermsRequiredError extends AuthError {
+  constructor() {
+    super('Debes aceptar los términos y la política de tratamiento de datos', 'TERMS_REQUIRED');
   }
 }
 /** Fallo interno al crear la cuenta (p. ej. asignar rol): sin detalle al cliente, termina en 500. */

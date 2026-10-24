@@ -50,12 +50,12 @@ export const makePostgresUserRepository = (pool: Pool): UserRepository => ({
     return rows[0] ? toUser(rows[0]) : null;
   },
 
-  create: async ({ name, email, password, status = 'INACTIVE', emailVerifiedAt = null }: NewUser) => {
+  create: async ({ name, email, password, status = 'INACTIVE', emailVerifiedAt = null, termsVersion = null }: NewUser) => {
     const { rows } = await pool.query<UserRow>(
-      `INSERT INTO public.users (name, email, password, status, email_verified_at, terms_accepted, terms_accepted_at)
-       VALUES ($1, $2, $3, $4, $5, true, NOW())
+      `INSERT INTO public.users (name, email, password, status, email_verified_at, terms_accepted, terms_accepted_at, terms_version)
+       VALUES ($1, $2, $3, $4, $5, true, NOW(), $6)
        RETURNING user_id, name, email, password, status, email_verified_at, terms_accepted, terms_accepted_at, created_at`,
-      [name, normalizeEmail(email), password, status, emailVerifiedAt]
+      [name, normalizeEmail(email), password, status, emailVerifiedAt, termsVersion]
     );
     return toUser(rows[0]);
   },

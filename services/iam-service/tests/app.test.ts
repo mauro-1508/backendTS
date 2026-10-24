@@ -8,6 +8,7 @@ import { User } from '../src/users/domain/entity';
 import { makeFakeIamRepository } from './application/iam/fake_iam_repository';
 import {
   facebookAccessToken, fakeFacebookTokenVerifier, fakeGoogleTokenVerifier, googleIdToken, RecordingEventPublisher,
+  SOCIAL_CONSENT,
 } from './helpers/fakes';
 
 const tokenProvider = makeJwtTokenProvider({ secret: 'secreto-iam', expiresIn: '1h' });
@@ -101,7 +102,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
   });
 
   test('GET /api/users/me de una cuenta creada con Google: has_password false', async () => {
-    const google = await post('/api/auth/google', { idToken: googleIdToken({ email: 'linus@example.com', name: 'Linus' }) });
+    const google = await post('/api/auth/google', { ...SOCIAL_CONSENT, idToken: googleIdToken({ email: 'linus@example.com', name: 'Linus' }) });
     const { data } = (await google.json()) as { data: { token: string } };
     const me = await get('/api/users/me', data.token);
     assert.equal(me.status, 200);
@@ -119,7 +120,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
 
   test('registro responde 201, crea la cuenta INACTIVE y publica iam.UserRegistered', async () => {
     const before = publisher.published.length;
-    const response = await post('/api/auth/register', { name: 'Bea', email: 'bea@example.com', password: 'clave-segura' });
+    const response = await post('/api/auth/register', { name: 'Bea', email: 'bea@example.com', password: 'clave-segura', acceptedTerms: true, termsVersion: '2025-01' });
     assert.equal(response.status, 201);
     const data = ((await response.json()) as { data: { user_id: number; status: string } }).data;
     assert.equal(data.status, 'INACTIVE');
@@ -137,7 +138,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
   });
 
   test('registro con correo repetido responde 409', async () => {
-    const response = await post('/api/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'clave-segura' });
+    const response = await post('/api/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'clave-segura', acceptedTerms: true, termsVersion: '2025-01' });
     assert.equal(response.status, 409);
   });
 
@@ -175,9 +176,23 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
   });
 
   test('POST /api/auth/google con correo nuevo crea la cuenta ACTIVE', async () => {
-    const response = await post('/api/auth/google', { idToken: googleIdToken({ email: 'grace@example.com', name: 'Grace' }) });
+    const response = await post('/api/auth/google', { ...SOCIAL_CONSENT, idToken: googleIdToken({ email: 'grace@example.com', name: 'Grace' }) });
     assert.equal(response.status, 200);
     assert.equal(users.find((u) => u.email === 'grace@example.com')?.status, 'ACTIVE');
+  });
+
+  test('POST /api/auth/google con correo nuevo y sin consentimiento responde 400 TERMS_REQUIRED', async () => {
+    const response = await post('/api/auth/google', { idToken: googleIdToken({ email: 'hedy@example.com', name: 'Hedy' }) });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as { code: string }).code, 'TERMS_REQUIRED');
+    assert.equal(users.some((u) => u.email === 'hedy@example.com'), false);
+  });
+
+  test('POST /api/auth/google con acceptedTerms false responde 400 INVALID_BODY', async () => {
+    const idToken = googleIdToken({ email: 'hedy@example.com', name: 'Hedy' });
+    const response = await post('/api/auth/google', { idToken, acceptedTerms: false, termsVersion: '2025-01' });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as { code: string }).code, 'INVALID_BODY');
   });
 
   test('POST /api/auth/google con correo no verificado por Google responde 401 INVALID_GOOGLE_TOKEN', async () => {
@@ -195,7 +210,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
   });
 
   test('POST /api/auth/facebook con correo nuevo crea la cuenta ACTIVE e inicia sesion', async () => {
-    const response = await post('/api/auth/facebook', { accessToken: facebookAccessToken({ email: 'Linus@Example.com', name: 'Linus' }) });
+    const response = await post('/api/auth/facebook', { ...SOCIAL_CONSENT, accessToken: facebookAccessToken({ email: 'Linus@Example.com', name: 'Linus' }) });
     assert.equal(response.status, 200);
     const { data } = (await response.json()) as { data: { token: string; user: { email: string } } };
     assert.ok(data.token);

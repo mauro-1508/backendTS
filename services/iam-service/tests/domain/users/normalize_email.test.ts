@@ -29,7 +29,7 @@ describe('postgresUserRepository con correo normalizado', () => {
 
   test('create guarda el correo normalizado', async () => {
     await repository.create({ name: 'Bea', email: 'Bea@X.com', password: 'h' });
-    assert.deepEqual(calls.at(-1)!.params, ['Bea', 'bea@x.com', 'h', 'INACTIVE', null]);
+    assert.deepEqual(calls.at(-1)!.params, ['Bea', 'bea@x.com', 'h', 'INACTIVE', null, null]);
   });
 
   test('un correo inexistente devuelve null', async () => {

@@ -41,6 +41,7 @@ import os
 
 import numpy as np
 from tensorflow import keras
+from rutas import nombre_seguro, ruta_segura
 
 from train_and_export import exportar, find_dataset
 from train_model import SEQ_LEN, FEATURE_DIM, class_weights, report
@@ -48,7 +49,7 @@ from train_model import SEQ_LEN, FEATURE_DIM, class_weights, report
 
 def cargar_mias(prefijo: str, glosas: list[str]) -> tuple[np.ndarray, np.ndarray]:
     """Lee el par .json/.bin y traduce sus glosas a los indices del modelo."""
-    with open(f"{prefijo}.json", encoding="utf-8") as fh:
+    with open(ruta_segura(f"{prefijo}.json"), encoding="utf-8") as fh:
         indice = json.load(fh)
 
     n, seq, dim = indice["forma"]
@@ -111,9 +112,17 @@ def main() -> None:
     ap.add_argument("--salida", default="/content/tfjs")
     ap.add_argument("--zip", default="/content/modelo_lsc")
     args = ap.parse_args()
+    # Cada ruta se valida una vez aqui: el resto del script ya recibe rutas seguras.
+    args.muestras = ruta_segura(args.muestras)
+    args.dataset = ruta_segura(args.dataset)
+    args.modelos = ruta_segura(args.modelos)
+    args.salida = ruta_segura(args.salida)
+    args.zip = ruta_segura(args.zip)
+    args.base = nombre_seguro(args.base)
+    args.nombre = nombre_seguro(args.nombre)
 
     # ------------------------------------------------------------ datos
-    dataset = find_dataset(args.dataset)
+    dataset = ruta_segura(find_dataset(args.dataset))
     d = np.load(dataset, allow_pickle=True)
     glosas = [str(g) for g in d["glosses"]]
 

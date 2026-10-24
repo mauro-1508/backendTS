@@ -26,6 +26,11 @@ export interface UserDeleted {
 
 /** Texto y glosa de una traduccion; nunca el video ni los landmarks. */
 export interface TranslationProduced {
+  /** Optional for old producers. Eligibility comes from signed access, never request JSON. */
+  eligible?: boolean;
+  mode?: 'letters' | 'words';
+  sessionId?: string;
+
   translationId: number;
   userId: number | null;
   gloss: string;

@@ -58,6 +58,7 @@ export const subscribeToEvents = async (
       await handlers.recordTranslation(
         event.eventId,
         String(event.payload.userId),
+        event.payload,
       );
     }),
   );
