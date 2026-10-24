@@ -1,6 +1,8 @@
 export type NotificationChannel = 'PUSH' | 'EMAIL' | 'IN_APP';
 export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED' | 'READ' | 'CANCELLED';
 export type ReferenceType = 'ACHIEVEMENT' | 'ADMIN_REPORT';
+/** Canales que se crean hoy (ADR-005): la campana de la app y el correo. PUSH queda descartado. */
+export type DeliveryChannel = Extract<NotificationChannel, 'IN_APP' | 'EMAIL'>;
 
 export const ACHIEVEMENT_NOTIFICATION_TYPE_CODE = 'ACHIEVEMENT_UNLOCKED';
 export const ADMIN_WEEKLY_REPORT_TYPE_CODE = 'ADMIN_WEEKLY_REPORT';
@@ -27,6 +29,8 @@ export interface Notification {
 export interface NewNotification {
   userId: string;
   typeCode: string;
+  /** IN_APP por defecto. EMAIL nace PENDING y lo envia el worker de correo. */
+  channel?: DeliveryChannel;
   title: string;
   body: string;
   referenceType?: ReferenceType;

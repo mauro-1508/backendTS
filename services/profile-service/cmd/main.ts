@@ -5,6 +5,7 @@ import {
 import { makeProfileApp } from '../src/app';
 import { startAdminReportsScheduler } from '../src/adapters/inbound/scheduler/admin_reports_scheduler';
 import { makeStatsHttpGateway } from '../src/adapters/outbound/http/stats_http_gateway';
+import { makeNodemailerMailer } from '../src/adapters/outbound/mailer/nodemailer_mailer';
 import { subscribeToEvents } from '../src/adapters/inbound/events/subscriptions';
 import { makeProfileModule } from '../src/profile.module';
 
@@ -16,6 +17,9 @@ const MIN_ADMIN_REPORTS_TICK_MS = 60 * 1000;
 /** Maximo que admite setInterval (int32). */
 const MAX_ADMIN_REPORTS_TICK_MS = 2_147_483_647;
 const SERVICE_TOKEN_EXPIRES_IN = '5m';
+const MAIL_SERVICE = 'gmail';
+const DEFAULT_APP_URL = 'https://traducesenas.tech';
+const DEFAULT_EMAIL_TICK_MS = 60 * 1000;
 
 const config = loadConfig({ prefix: 'PROFILE', defaultPort: PROFILE_DEFAULT_PORT });
 const pool = makePgPool(config.db);
@@ -30,6 +34,15 @@ const parseTickMs = (raw: string | undefined): number => {
 };
 const adminReportsTickMs = parseTickMs(read('ADMIN_REPORTS_TICK_MS'));
 
+// Mismas credenciales que el correo de iam (EMAIL_USER / EMAIL_PASS). Sin ellas los EMAIL esperan PENDING.
+const emailUser = read('EMAIL_USER');
+const emailPass = read('EMAIL_PASS');
+const appUrl = read('APP_URL') ?? DEFAULT_APP_URL;
+if (!/^https?:\/\//.test(appUrl)) throw new Error('PROFILE_APP_URL debe empezar por http:// o https://');
+const mailer = emailUser && emailPass
+  ? makeNodemailerMailer({ service: MAIL_SERVICE, user: emailUser, pass: emailPass, appUrl })
+  : undefined;
+
 const profileModule = makeProfileModule({
   pool,
   eventPublisher: eventBus,
@@ -41,6 +54,7 @@ const profileModule = makeProfileModule({
       serviceTokens: makeJwtTokenProvider({ secret: config.jwt.secret, expiresIn: SERVICE_TOKEN_EXPIRES_IN }),
     })
     : undefined,
+  mailer,
 });
 
 const start = async () => {
@@ -54,11 +68,24 @@ const start = async () => {
     ? startAdminReportsScheduler({ run: runAdminReports, tickMs: adminReportsTickMs })
     : undefined;
 
+  const deliverEmails = profileModule.jobs.deliverEmails;
+  if (!deliverEmails) console.warn('[mailer] faltan EMAIL_USER y EMAIL_PASS: los avisos por correo quedan pendientes');
+  mailer?.verify()
+    .then(() => console.log('[mailer] conexion SMTP verificada'))
+    .catch((error: { name?: string; code?: string }) => {
+      // Solo nombre y codigo: el mensaje puede traer datos del SMTP.
+      console.error('[mailer] el SMTP rechazo la conexion o las credenciales', error?.name ?? 'error', error?.code ?? '');
+    });
+  const emailScheduler = deliverEmails
+    ? startAdminReportsScheduler({ run: deliverEmails, tickMs: DEFAULT_EMAIL_TICK_MS })
+    : undefined;
+
   process.on('SIGTERM', () => {
     server.close();
     void (async () => {
       // Espera la vuelta en curso antes de cerrar la base.
       await reportsScheduler?.stop();
+      await emailScheduler?.stop();
       await eventBus.close();
       await pool.end();
     })();

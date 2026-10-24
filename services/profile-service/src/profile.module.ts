@@ -10,6 +10,7 @@ import {
   makePostgresProfileRepository,
   makePostgresUnitOfWork,
 } from './adapters/outbound/postgres/postgres_repositories';
+import { makePostgresEmailOutbox } from './adapters/outbound/postgres/email_outbox_repository';
 import { makeProfileRoutes } from './adapters/inbound/http/routes';
 import { makeGetProfile } from './application/get_profile';
 import { makeListAchievements } from './application/list_achievements';
@@ -25,8 +26,10 @@ import { makeRecordTranslation } from './application/record_translation';
 import { makeEraseUserProfile } from './application/erase_user_profile';
 import { makeRegisterUserProfile } from './application/register_user_profile';
 import { makeRecoverUserProfile } from './application/recover_user_profile';
+import { makeDeliverEmailNotifications } from './application/deliver_email_notifications';
 import { makeRunAdminReports } from './application/run_admin_reports';
 import { makeTrackAdminRecipient } from './application/track_admin_recipient';
+import { Mailer } from './ports/mailer';
 import { StatsGateway } from './ports/stats_gateway';
 
 /** Composición: único lugar donde se eligen las implementaciones concretas. */
@@ -36,6 +39,8 @@ export const makeProfileModule = (deps: {
   authMiddleware: RequestHandler;
   /** Sin esto no hay resumenes de administracion (jobs.runAdminReports queda indefinido). */
   statsGateway?: StatsGateway;
+  /** Sin esto no se envian correos: los avisos EMAIL esperan PENDING (jobs.deliverEmails indefinido). */
+  mailer?: Mailer;
 }) => {
   const profiles = makePostgresProfileRepository(deps.pool);
   const achievements = makePostgresAchievementRepository(deps.pool);
@@ -76,7 +81,11 @@ export const makeProfileModule = (deps: {
       runAdminReports: deps.statsGateway
         ? makeRunAdminReports({
           stats: deps.statsGateway, recipients: adminRecipients, reportRuns, unitOfWork, logger: console,
+          channels: ['IN_APP', 'EMAIL'],
         })
+        : undefined,
+      deliverEmails: deps.mailer
+        ? makeDeliverEmailNotifications({ outbox: makePostgresEmailOutbox(deps.pool), mailer: deps.mailer, logger: console })
         : undefined,
     },
     // Prepara la recuperación para una integración posterior.

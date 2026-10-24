@@ -1,4 +1,4 @@
--- Migration 007: resumenes y recordatorios IN_APP para administradores (idempotente).
+-- Migration 007: resumenes y recordatorios para administradores, en la app y por correo (idempotente).
 -- admin_recipients: ADMIN conocidos (los marca el middleware al ver su JWT); admin_report_runs: un
 -- registro por reporte y periodo, para que ninguna vuelta del planificador lo envie dos veces.
 -- Sin FK a usuarios: user_id es logico.
@@ -27,8 +27,12 @@ CREATE TABLE IF NOT EXISTS admin_report_runs (
   UNIQUE (kind, period_key)
 );
 
--- Una notificacion por administrador y reporte (reference_type no tiene CHECK).
+-- Una notificacion por administrador, reporte y canal (reference_type no tiene CHECK).
 CREATE UNIQUE INDEX IF NOT EXISTS uq_notifications_admin_report
-  ON notifications (user_id, reference_id) WHERE reference_type = 'ADMIN_REPORT';
+  ON notifications (user_id, reference_id, channel) WHERE reference_type = 'ADMIN_REPORT';
+
+-- Cola del worker de correo (ADR-005): EMAIL pendientes por hora programada.
+CREATE INDEX IF NOT EXISTS idx_notifications_email_pending
+  ON notifications (scheduled_at) WHERE channel = 'EMAIL' AND status = 'PENDING';
 
 COMMIT;

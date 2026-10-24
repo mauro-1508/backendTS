@@ -47,6 +47,26 @@ export interface NotificationRepository {
   markRead(userId: string, notificationId: string): Promise<Notification | null>;
 }
 
+export interface PendingEmail {
+  notificationId: string;
+  /** Correo del perfil; sin el no se puede enviar. */
+  to?: string;
+  title: string;
+  body: string;
+  language: UiLanguage;
+  notificationsEnabled: boolean;
+}
+
+export type EmailOutcome = 'SENT' | 'FAILED' | 'CANCELLED';
+
+export interface EmailOutbox {
+  /**
+   * Bloquea hasta `limit` avisos EMAIL PENDING con scheduled_at vencido (sin esperar a los que tenga
+   * otra instancia), aplica `deliver` a cada uno y guarda su estado. Devuelve cuantos proceso.
+   */
+  processDue(limit: number, deliver: (email: PendingEmail) => Promise<EmailOutcome>): Promise<number>;
+}
+
 export interface ProcessedEventRepository {
   /** Registra el evento; devuelve false si ya estaba registrado. */
   markIfNew(eventId: string): Promise<boolean>;

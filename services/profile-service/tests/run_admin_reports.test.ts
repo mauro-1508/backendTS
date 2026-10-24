@@ -41,7 +41,10 @@ const makeLogger = () => {
   return { logger, errors };
 };
 
-const setup = (admins: AdminRecipient[], now = TUESDAY, gatewayOver: Partial<StatsGateway> = {}) => {
+const setup = (
+  admins: AdminRecipient[], now = TUESDAY, gatewayOver: Partial<StatsGateway> = {},
+  channels?: ('IN_APP' | 'EMAIL')[],
+) => {
   const { logger, errors } = makeLogger();
   const store = makeInMemoryStore([]);
   const { gateway, calls } = makeGateway(gatewayOver);
@@ -51,6 +54,7 @@ const setup = (admins: AdminRecipient[], now = TUESDAY, gatewayOver: Partial<Sta
     reportRuns: store.reportRunQuery,
     unitOfWork: store.unitOfWork,
     logger,
+    channels,
     now: () => now,
   });
   return { store, calls, run, errors };
@@ -80,6 +84,18 @@ describe('run_admin_reports', () => {
       store.notifications.map(n => [n.userId, n.typeCode]),
       [['1', 'ADMIN_WEEKLY_REPORT'], ['2', 'ADMIN_WEEKLY_REPORT'], ['1', 'ADMIN_MONTHLY_REPORT'], ['2', 'ADMIN_MONTHLY_REPORT']],
     );
+  });
+
+  it('con IN_APP y EMAIL crea un aviso por canal y cuenta a cada admin una sola vez', async () => {
+    const { store, run } = setup(admins, TUESDAY, {}, ['IN_APP', 'EMAIL']);
+    const outcomes = await run();
+
+    assert.deepEqual(outcomes.map(o => o.notified), [2, 2]);
+    assert.equal(store.notifications.length, 8);
+    const weeklyOfAdmin1 = store.notifications.filter(n => n.userId === '1' && n.typeCode === 'ADMIN_WEEKLY_REPORT');
+    assert.deepEqual(weeklyOfAdmin1.map(n => n.channel), ['IN_APP', 'EMAIL']);
+    assert.equal(weeklyOfAdmin1[0].body, weeklyOfAdmin1[1].body);
+    assert.equal(weeklyOfAdmin1[0].referenceId, weeklyOfAdmin1[1].referenceId);
   });
 
   it('los dos admins de un reporte comparten el mismo referenceId (el run reclamado)', async () => {

@@ -142,10 +142,14 @@ services:
       PORT: "3005"
       DB_HOST: postgres-profile
       DB_NAME: profile
-      # Resumenes IN_APP para administradores: leen estadisticas por HTTP interno.
+      # Resumenes para administradores: leen estadisticas por HTTP interno.
       RECOGNITION_URL: http://recognition-service:3002
       ANALYTICS_URL: http://analytics-service:3004
       ADMIN_REPORTS_ENABLED: ${ADMIN_REPORTS_ENABLED:-true}
+      # Avisos por correo (ADR-005): mismas credenciales que iam; el boton del correo abre APP_URL.
+      EMAIL_USER: ${EMAIL_USER:-}
+      EMAIL_PASS: ${EMAIL_PASS:-}
+      APP_URL: ${APP_URL:-https://traducesenas.tech}
       ADMIN_REPORTS_TICK_MS: ${ADMIN_REPORTS_TICK_MS:-900000}
     depends_on:
       postgres-profile:

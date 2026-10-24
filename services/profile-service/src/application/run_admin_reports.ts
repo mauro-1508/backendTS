@@ -3,7 +3,7 @@ import {
 } from '../domain/admin_report';
 import { dueReports, Period, periodOf, ReportKind } from '../domain/admin_report_schedule';
 import {
-  ADMIN_MODEL_REMINDER_TYPE_CODE, ADMIN_MONTHLY_REPORT_TYPE_CODE, ADMIN_WEEKLY_REPORT_TYPE_CODE,
+  ADMIN_MODEL_REMINDER_TYPE_CODE, ADMIN_MONTHLY_REPORT_TYPE_CODE, ADMIN_WEEKLY_REPORT_TYPE_CODE, DeliveryChannel,
 } from '../domain/notification';
 import { UiLanguage } from '../domain/preferences';
 import { Logger } from '../ports/logger';
@@ -33,9 +33,12 @@ export const makeRunAdminReports = (deps: {
   reportRuns: ReportRunQuery;
   unitOfWork: UnitOfWork;
   logger: Logger;
+  /** Un aviso por canal y admin; EMAIL lo envia el worker de correo (ADR-005). */
+  channels?: readonly DeliveryChannel[];
   now?: () => Date;
 }) => {
   const now = deps.now ?? (() => new Date());
+  const channels = deps.channels ?? ['IN_APP'];
 
   // Si analytics falla el resumen sale sin la linea de secciones.
   const loadSections = async (period: Period) => {
@@ -83,14 +86,20 @@ export const makeRunAdminReports = (deps: {
         // Mismo bloqueo que la baja de cuenta: no se notifica a quien se esta borrando.
         await repositories.gamificationLocks.lockUser(admin.userId);
         if (await repositories.profiles.isErased(admin.userId)) continue;
-        const created = await repositories.notifications.create({
-          userId: admin.userId,
-          typeCode: TYPE_CODE_BY_KIND[period.kind],
-          ...build(admin.uiLanguage),
-          referenceType: 'ADMIN_REPORT',
-          referenceId: runId,
-        });
-        if (created) notified += 1;
+        const text = build(admin.uiLanguage);
+        let reached = false;
+        for (const channel of channels) {
+          const created = await repositories.notifications.create({
+            userId: admin.userId,
+            typeCode: TYPE_CODE_BY_KIND[period.kind],
+            channel,
+            ...text,
+            referenceType: 'ADMIN_REPORT',
+            referenceId: runId,
+          });
+          reached = reached || created;
+        }
+        if (reached) notified += 1;
       }
       // Sin ningun aviso creado se deshace el reclamo: el periodo no se quema y se reintenta.
       if (notified === 0) throw new Error(`el reporte ${period.kind} ${period.periodKey} no notifico a ningun admin`);
