@@ -56,9 +56,18 @@ services:
       LEXICON_SERVICE_URL: http://lexicon-service:3003
       ANALYTICS_SERVICE_URL: http://analytics-service:3004
       PROFILE_SERVICE_URL: http://profile-service:3005
+    # Arranca cuando los 5 servicios responden /health (HEALTHCHECK de cada Dockerfile).
     depends_on:
-      - iam-service
-      - lexicon-service
+      iam-service:
+        condition: service_healthy
+      recognition-service:
+        condition: service_healthy
+      lexicon-service:
+        condition: service_healthy
+      analytics-service:
+        condition: service_healthy
+      profile-service:
+        condition: service_healthy
     restart: unless-stopped
 
   iam-service:

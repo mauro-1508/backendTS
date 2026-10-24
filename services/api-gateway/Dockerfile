@@ -41,4 +41,7 @@ WORKDIR /app/services/api-gateway
 # Sin privilegios: el proceso no necesita root.
 USER node
 EXPOSE 8080
+# Docker marca el contenedor como healthy solo cuando /health responde;
+# compose espera ese estado antes de levantar el gateway.
+HEALTHCHECK --interval=15s --timeout=3s --start-period=30s --retries=3 CMD wget -qO- http://127.0.0.1:8080/health > /dev/null || exit 1
 CMD ["node", "dist/cmd/main.js"]
