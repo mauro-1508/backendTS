@@ -12,6 +12,7 @@ const makeRecipients = () => {
   const repository: AdminRecipientRepository = {
     touch: async (userId, isAdmin) => { if (isAdmin) admins.add(userId); else admins.delete(userId); },
     listActive: async () => [...admins].map(userId => ({ userId, uiLanguage: 'ES' as const })),
+    listEnabled: async () => [],
   };
   return { admins, repository };
 };
@@ -43,7 +44,7 @@ describe('makeTrackAdminRecipient', () => {
     const touches: string[] = [];
     let clock = 1_000;
     const track = makeTrackAdminRecipient({
-      recipients: { touch: async (userId, isAdmin) => { touches.push(`${userId}:${isAdmin}`); }, listActive: async () => [] },
+      recipients: { touch: async (userId, isAdmin) => { touches.push(`${userId}:${isAdmin}`); }, listActive: async () => [], listEnabled: async () => [] },
       now: () => clock,
     });
     await track('7', ['ADMIN']);
@@ -60,7 +61,7 @@ describe('makeTrackAdminRecipient', () => {
   it('con cache: un cambio de rol va a la base de inmediato', async () => {
     const touches: string[] = [];
     const track = makeTrackAdminRecipient({
-      recipients: { touch: async (userId, isAdmin) => { touches.push(`${userId}:${isAdmin}`); }, listActive: async () => [] },
+      recipients: { touch: async (userId, isAdmin) => { touches.push(`${userId}:${isAdmin}`); }, listActive: async () => [], listEnabled: async () => [] },
       now: () => 1_000,
     });
     await track('7', ['ADMIN']);
@@ -76,6 +77,7 @@ describe('makeTrackAdminRecipient', () => {
       recipients: {
         touch: async () => { touches++; if (failing) throw new Error('db caida'); },
         listActive: async () => [],
+        listEnabled: async () => [],
       },
     });
     await assert.rejects(track('7', ['ADMIN']));
@@ -177,7 +179,7 @@ describe('middleware trackAdmin en las rutas', () => {
     console.error = () => {};
     try {
       const { profile } = routesWith(makeTrackAdminRecipient({
-        recipients: { touch: async () => { throw new Error('db caida'); }, listActive: async () => [] },
+        recipients: { touch: async () => { throw new Error('db caida'); }, listActive: async () => [], listEnabled: async () => [] },
       }));
       const response = await call(profile, '/me', 'admin');
       assert.equal(response.status, 200);

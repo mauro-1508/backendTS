@@ -5,6 +5,7 @@ import { Logger } from '../src/ports/logger';
 import { makeRunAdminReports } from '../src/application/run_admin_reports';
 import { AdminRecipient } from '../src/ports/repositories';
 import { StatsGateway } from '../src/ports/stats_gateway';
+import { AdminDirectory } from '../src/ports/admin_directory';
 import { makePostgresAdminRecipientRepository } from '../src/adapters/outbound/postgres/admin_report_repositories';
 import { makeInMemoryStore } from './in_memory';
 
@@ -44,13 +45,20 @@ const makeLogger = () => {
 const setup = (
   admins: AdminRecipient[], now = TUESDAY, gatewayOver: Partial<StatsGateway> = {},
   channels?: ('IN_APP' | 'EMAIL')[],
+  directory?: AdminDirectory,
 ) => {
   const { logger, errors } = makeLogger();
   const store = makeInMemoryStore([]);
   const { gateway, calls } = makeGateway(gatewayOver);
   const run = makeRunAdminReports({
     stats: gateway,
-    recipients: { touch: async () => {}, listActive: async () => admins },
+    recipients: {
+      touch: async () => {},
+      listActive: async () => admins,
+      // Simula el filtro de perfil: solo los ids de iam que esten en la lista de admins con interruptor.
+      listEnabled: async ids => admins.filter(a => ids.includes(a.userId)),
+    },
+    directory,
     reportRuns: store.reportRunQuery,
     unitOfWork: store.unitOfWork,
     logger,
@@ -96,6 +104,23 @@ describe('run_admin_reports', () => {
     assert.deepEqual(weeklyOfAdmin1.map(n => n.channel), ['IN_APP', 'EMAIL']);
     assert.equal(weeklyOfAdmin1[0].body, weeklyOfAdmin1[1].body);
     assert.equal(weeklyOfAdmin1[0].referenceId, weeklyOfAdmin1[1].referenceId);
+  });
+
+  it('con la lista de iam avisa a los admins de iam que tienen el interruptor encendido', async () => {
+    const { store, run } = setup(admins, TUESDAY, {}, undefined, { listAdminIds: async () => ['2', '99'] });
+    const outcomes = await run();
+    assert.deepEqual(outcomes.map(o => o.notified), [1, 1]);
+    assert.ok(store.notifications.every(n => n.userId === '2'));
+  });
+
+  it('si iam falla avisa a los admins que profile ya conoce y registra el error', async () => {
+    const { store, run, errors } = setup(admins, TUESDAY, {}, undefined, {
+      listAdminIds: async () => { throw new Error('iam caido'); },
+    });
+    const outcomes = await run();
+    assert.deepEqual(outcomes.map(o => o.notified), [2, 2]);
+    assert.equal(store.notifications.length, 4);
+    assert.match(errors[0], /iam no disponible/);
   });
 
   it('los dos admins de un reporte comparten el mismo referenceId (el run reclamado)', async () => {
@@ -293,10 +318,39 @@ describe('listActive (adaptador Postgres)', () => {
     const result = await makePostgresAdminRecipientRepository(db as never).listActive();
 
     assert.deepEqual(result, [{ userId: '1', uiLanguage: 'EN' }]);
-    assert.match(sql, /JOIN user_profiles/);
+    assert.match(sql, /FROM user_profiles/);
     assert.match(sql, /COALESCE\(f\.notifications_enabled, TRUE\)/);
     assert.match(sql, /NOT EXISTS \(SELECT 1 FROM erased_users/);
-    assert.match(sql, /a\.last_seen_at > now\(\) - interval '30 days'/);
+    assert.match(sql, /IN \(SELECT user_id FROM admin_recipients\)/);
+    assert.doesNotMatch(sql, /last_seen_at/);
     assert.match(sql, /COALESCE\(f\.ui_language, 'ES'\)/);
+  });
+});
+
+describe('listEnabled (adaptador Postgres)', () => {
+  it('filtra por los ids de iam con el mismo criterio de interruptor y borrado', async () => {
+    let sql = '';
+    let values: unknown[] = [];
+    const db = {
+      query: async (text: string, params: unknown[]) => {
+        sql = text.replace(/\s+/g, ' ');
+        values = params;
+        return { rows: [{ user_id: '1', ui_language: 'ES' }], rowCount: 1 };
+      },
+    };
+    const result = await makePostgresAdminRecipientRepository(db as never).listEnabled(['1', '2']);
+
+    assert.deepEqual(result, [{ userId: '1', uiLanguage: 'ES' }]);
+    assert.deepEqual(values, [['1', '2']]);
+    assert.match(sql, /p\.user_id = ANY\(\$1::varchar\[\]\)/);
+    assert.match(sql, /COALESCE\(f\.notifications_enabled, TRUE\)/);
+    assert.match(sql, /NOT EXISTS \(SELECT 1 FROM erased_users/);
+  });
+
+  it('sin ids no consulta la base', async () => {
+    let calls = 0;
+    const db = { query: async () => { calls++; return { rows: [], rowCount: 0 }; } };
+    assert.deepEqual(await makePostgresAdminRecipientRepository(db as never).listEnabled([]), []);
+    assert.equal(calls, 0);
   });
 });

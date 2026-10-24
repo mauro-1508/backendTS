@@ -29,6 +29,7 @@ import { makeRecoverUserProfile } from './application/recover_user_profile';
 import { makeDeliverEmailNotifications } from './application/deliver_email_notifications';
 import { makeRunAdminReports } from './application/run_admin_reports';
 import { makeTrackAdminRecipient } from './application/track_admin_recipient';
+import { AdminDirectory } from './ports/admin_directory';
 import { Mailer } from './ports/mailer';
 import { StatsGateway } from './ports/stats_gateway';
 
@@ -39,6 +40,8 @@ export const makeProfileModule = (deps: {
   authMiddleware: RequestHandler;
   /** Sin esto no hay resumenes de administracion (jobs.runAdminReports queda indefinido). */
   statsGateway?: StatsGateway;
+  /** Lista de admins de iam para los reportes; sin esto solo se avisa a los admins que profile ya vio. */
+  adminDirectory?: AdminDirectory;
   /** Sin esto no se envian correos: los avisos EMAIL esperan PENDING (jobs.deliverEmails indefinido). */
   mailer?: Mailer;
 }) => {
@@ -80,7 +83,8 @@ export const makeProfileModule = (deps: {
     jobs: {
       runAdminReports: deps.statsGateway
         ? makeRunAdminReports({
-          stats: deps.statsGateway, recipients: adminRecipients, reportRuns, unitOfWork, logger: console,
+          stats: deps.statsGateway, recipients: adminRecipients, directory: deps.adminDirectory,
+          reportRuns, unitOfWork, logger: console,
           channels: ['IN_APP', 'EMAIL'],
         })
         : undefined,

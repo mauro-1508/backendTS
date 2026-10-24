@@ -4,6 +4,7 @@ import {
 } from '@traduce/shared';
 import { makeProfileApp } from '../src/app';
 import { startAdminReportsScheduler } from '../src/adapters/inbound/scheduler/admin_reports_scheduler';
+import { makeIamAdminDirectory } from '../src/adapters/outbound/http/iam_admin_directory';
 import { makeStatsHttpGateway } from '../src/adapters/outbound/http/stats_http_gateway';
 import { makeNodemailerMailer } from '../src/adapters/outbound/mailer/nodemailer_mailer';
 import { subscribeToEvents } from '../src/adapters/inbound/events/subscriptions';
@@ -12,6 +13,7 @@ import { makeProfileModule } from '../src/profile.module';
 const PROFILE_DEFAULT_PORT = 3005;
 const DEFAULT_RECOGNITION_URL = 'http://recognition-service:3002';
 const DEFAULT_ANALYTICS_URL = 'http://analytics-service:3004';
+const DEFAULT_IAM_URL = 'http://iam-service:3001';
 const DEFAULT_ADMIN_REPORTS_TICK_MS = 15 * 60 * 1000;
 const MIN_ADMIN_REPORTS_TICK_MS = 60 * 1000;
 /** Maximo que admite setInterval (int32). */
@@ -43,6 +45,8 @@ const mailer = emailUser && emailPass
   ? makeNodemailerMailer({ service: MAIL_SERVICE, user: emailUser, pass: emailPass, appUrl })
   : undefined;
 
+const serviceTokens = makeJwtTokenProvider({ secret: config.jwt.secret, expiresIn: SERVICE_TOKEN_EXPIRES_IN });
+
 const profileModule = makeProfileModule({
   pool,
   eventPublisher: eventBus,
@@ -51,8 +55,11 @@ const profileModule = makeProfileModule({
     ? makeStatsHttpGateway({
       recognitionUrl: read('RECOGNITION_URL') ?? DEFAULT_RECOGNITION_URL,
       analyticsUrl: read('ANALYTICS_URL') ?? DEFAULT_ANALYTICS_URL,
-      serviceTokens: makeJwtTokenProvider({ secret: config.jwt.secret, expiresIn: SERVICE_TOKEN_EXPIRES_IN }),
+      serviceTokens,
     })
+    : undefined,
+  adminDirectory: adminReportsEnabled
+    ? makeIamAdminDirectory({ iamUrl: read('IAM_URL') ?? DEFAULT_IAM_URL, serviceTokens })
     : undefined,
   mailer,
 });

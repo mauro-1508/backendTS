@@ -87,8 +87,10 @@ export interface AdminRecipient {
 export interface AdminRecipientRepository {
   /** Registra al usuario como ADMIN visto (con limite de escrituras) o lo quita si ya no lo es. */
   touch(userId: string, isAdmin: boolean): Promise<void>;
-  /** Admins con perfil vigente y notificaciones activadas. */
+  /** Admins vistos por profile con perfil vigente y notificaciones activadas (respaldo si iam no responde). */
   listActive(): Promise<AdminRecipient[]>;
+  /** De los ids dados (admins segun iam), los que tienen perfil vigente y notificaciones activadas. */
+  listEnabled(userIds: readonly string[]): Promise<AdminRecipient[]>;
 }
 
 export interface ReportRunRepository {

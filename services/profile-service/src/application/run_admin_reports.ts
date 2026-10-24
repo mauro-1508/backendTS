@@ -6,6 +6,7 @@ import {
   ADMIN_MODEL_REMINDER_TYPE_CODE, ADMIN_MONTHLY_REPORT_TYPE_CODE, ADMIN_WEEKLY_REPORT_TYPE_CODE, DeliveryChannel,
 } from '../domain/notification';
 import { UiLanguage } from '../domain/preferences';
+import { AdminDirectory } from '../ports/admin_directory';
 import { Logger } from '../ports/logger';
 import {
   AdminRecipient, AdminRecipientRepository, ReportRunQuery, UnitOfWork,
@@ -30,6 +31,8 @@ const TYPE_CODE_BY_KIND: Record<ReportKind, string> = {
 export const makeRunAdminReports = (deps: {
   stats: StatsGateway;
   recipients: AdminRecipientRepository;
+  /** Lista de admins de iam; sin ella (o si falla) se usan los admins que profile ya vio. */
+  directory?: AdminDirectory;
   reportRuns: ReportRunQuery;
   unitOfWork: UnitOfWork;
   logger: Logger;
@@ -39,6 +42,17 @@ export const makeRunAdminReports = (deps: {
 }) => {
   const now = deps.now ?? (() => new Date());
   const channels = deps.channels ?? ['IN_APP'];
+
+  // Todos los admins de iam con el interruptor encendido, hayan entrado o no a la app.
+  const loadAdmins = async (): Promise<AdminRecipient[]> => {
+    if (!deps.directory) return deps.recipients.listActive();
+    try {
+      return await deps.recipients.listEnabled(await deps.directory.listAdminIds());
+    } catch (error) {
+      deps.logger.error('[profile] iam no disponible, se avisa a los admins ya conocidos', error);
+      return deps.recipients.listActive();
+    }
+  };
 
   // Si analytics falla el resumen sale sin la linea de secciones.
   const loadSections = async (period: Period) => {
@@ -116,7 +130,7 @@ export const makeRunAdminReports = (deps: {
   return async (): Promise<ReportOutcome[]> => {
     const due = dueReports(now());
     if (due.length === 0) return [];
-    const admins = await deps.recipients.listActive();
+    const admins = await loadAdmins();
     if (admins.length === 0) return [];
     const outcomes: ReportOutcome[] = [];
     for (const kind of due) {
