@@ -13,5 +13,7 @@ export const PERMISSIONS = {
   MODELS_MANAGE: 'models.manage',
   NOTIFICATIONS_MANAGE: 'notifications.manage',
   SECURITY_POLICY_MANAGE: 'security.policy.manage',
+  /** Solo para tokens de servicio (profile lee a quien avisar); ningun rol lo concede. */
+  ADMIN_DIRECTORY_READ: 'admins.read',
 } as const;
 export type PermissionName = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

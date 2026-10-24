@@ -12,6 +12,7 @@ import { makeFacebookTokenVerifier } from '../src/auth/adapters/outbound/faceboo
 import { makePostgresUserRepository } from '../src/users/adapters/outbound/postgres/user_repository';
 import { makePostgresAccountRepository } from '../src/users/adapters/outbound/postgres/account_repository';
 import { makePostgresUserStatsRepository } from '../src/users/adapters/outbound/postgres/user_stats_repository';
+import { makePostgresAdminDirectoryRepository } from '../src/users/adapters/outbound/postgres/admin_directory_repository';
 import { makePostgresIamRepository } from '../src/iam/adapters/outbound/postgres/iam_repository';
 import { makePostgresOutboxRepository } from '../src/shared/adapters/outbound/postgres/outbox_repository';
 import { makeRelayOutbox } from '../src/shared/application/relay_outbox';
@@ -36,6 +37,7 @@ const app = makeIamApp({
   authRepository: makePostgresAuthRepository(pool),
   accountRepository: makePostgresAccountRepository(pool),
   userStatsRepository: makePostgresUserStatsRepository(pool),
+  adminDirectory: makePostgresAdminDirectoryRepository(pool),
   iamRepository: makePostgresIamRepository(pool),
   passwordHasher: bcryptPasswordHasher,
   tokenProvider,

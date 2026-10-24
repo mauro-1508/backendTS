@@ -54,6 +54,15 @@ export const makeUserController = (userService: UserService) => ({
     }
   },
 
+  adminIds: async (_req: Request, res: Response, next: NextFunction) => {
+    try {
+      const userIds = await userService.listAdminIds();
+      return res.status(200).json({ success: true, data: { userIds } });
+    } catch (error) {
+      return next(error);
+    }
+  },
+
   me: async (req: Request, res: Response) => {
     try {
       const user = await userService.getById(req.user!.userId);
