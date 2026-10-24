@@ -11,9 +11,10 @@ import { subscribeToEvents } from '../src/adapters/inbound/events/subscriptions'
 import { makeProfileModule } from '../src/profile.module';
 
 const PROFILE_DEFAULT_PORT = 3005;
-const DEFAULT_RECOGNITION_URL = 'http://recognition-service:3002';
-const DEFAULT_ANALYTICS_URL = 'http://analytics-service:3004';
-const DEFAULT_IAM_URL = 'http://iam-service:3001';
+// Valores para desarrollo local; en Docker los fija docker-compose (RECOGNITION_URL, ANALYTICS_URL, IAM_URL).
+const DEFAULT_RECOGNITION_URL = 'http://localhost:3002';
+const DEFAULT_ANALYTICS_URL = 'http://localhost:3004';
+const DEFAULT_IAM_URL = 'http://localhost:3001';
 const DEFAULT_ADMIN_REPORTS_TICK_MS = 15 * 60 * 1000;
 const MIN_ADMIN_REPORTS_TICK_MS = 60 * 1000;
 /** Maximo que admite setInterval (int32). */

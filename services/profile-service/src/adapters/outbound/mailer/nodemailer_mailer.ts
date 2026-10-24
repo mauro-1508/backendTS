@@ -13,6 +13,8 @@ export interface MailerConfig {
 export const makeNodemailerMailer = (config: MailerConfig): Mailer & { verify: () => Promise<void> } => {
   const transporter = nodemailer.createTransport({
     service: config.service,
+    // Conexion TLS desde el inicio (Gmail, puerto 465).
+    secure: true,
     // Sin esto un SMTP caido deja la transaccion del lote abierta durante minutos.
     connectionTimeout: 10_000,
     greetingTimeout: 10_000,
