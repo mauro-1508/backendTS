@@ -171,6 +171,17 @@ describe('api-gateway', () => {
       assert.ok(Object.values(body.services).every(s => s.status === 'up'));
     });
 
+    test('/api/health responde lo mismo que /health', async () => {
+      const [interno, publico] = await Promise.all(
+        ['/health', '/api/health'].map(async path => {
+          const response = await fetch(`${base}${path}`);
+          assert.equal(response.status, 200);
+          return response.json();
+        }),
+      );
+      assert.deepEqual(publico, interno);
+    });
+
     test('un servicio caido: status degraded y ese servicio en down', async () => {
       const dead = http.createServer();
       await listen(dead);
@@ -328,7 +339,7 @@ describe('loadGatewayConfig', () => {
   });
 
   test('la version sale del package.json raiz', () => {
-    assert.equal(loadGatewayConfig({ JWT_SECRET }).version, '1.2.0');
+    assert.equal(loadGatewayConfig({ JWT_SECRET }).version, '1.3.0');
   });
 });
 

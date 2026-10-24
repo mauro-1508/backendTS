@@ -13,12 +13,18 @@ export interface LoginInput {
   password: string;
 }
 
-export interface GoogleLoginInput {
+/** Consentimiento (Ley 1581) que la app manda en el login social; solo se exige al crear la cuenta. */
+export interface SocialConsentInput {
+  acceptedTerms?: boolean;
+  termsVersion?: string;
+}
+
+export interface GoogleLoginInput extends SocialConsentInput {
   /** ID token que Google entrega al cliente; el backend lo verifica, nunca confia en correo o nombre enviados aparte. */
   idToken: string;
 }
 
-export interface FacebookLoginInput {
+export interface FacebookLoginInput extends SocialConsentInput {
   /** Access token que Facebook entrega al cliente; el backend lo valida con la Graph API. */
   accessToken: string;
 }

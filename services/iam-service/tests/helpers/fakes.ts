@@ -80,3 +80,6 @@ export const fakeFacebookTokenVerifier = {
     return { email, name };
   },
 };
+
+/** Consentimiento que la app manda al crear una cuenta con Google o Facebook (Ley 1581). */
+export const SOCIAL_CONSENT = { acceptedTerms: true as const, termsVersion: '2025-01' };

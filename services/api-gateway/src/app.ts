@@ -16,7 +16,11 @@ export interface GatewayDeps {
   fetchFn?: FetchLike;
 }
 
-const HEALTH_PATH = '/health';
+/**
+ * `/health` para Docker y la red interna; `/api/health` para afuera, porque
+ * Caddy solo manda al gateway lo que empieza por /api y no recorta la ruta.
+ */
+const HEALTH_PATHS = ['/health', '/api/health'];
 /** Endpoints de /api/auth que se pueden usar para adivinar credenciales o códigos, o para crear cuentas en masa. */
 const SENSITIVE_AUTH_PATHS = [
   '/api/auth/login',
@@ -42,7 +46,7 @@ export const makeGatewayApp = ({ config, tokenProvider, fetchFn = fetch }: Gatew
   if (config.trustProxy) app.set('trust proxy', config.trustProxy);
 
   app.use(cors(makeCorsOptions(config.corsOrigins)));
-  app.get(HEALTH_PATH, makeHealthHandler({
+  app.get(HEALTH_PATHS, makeHealthHandler({
     serviceUrls: config.serviceUrls, timeoutMs: config.healthTimeoutMs, fetchFn,
     version: config.version ?? UNKNOWN_VERSION,
   }));

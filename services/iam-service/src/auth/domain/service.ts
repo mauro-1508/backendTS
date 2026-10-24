@@ -73,6 +73,12 @@ export class FacebookEmailRequiredError extends AuthError {
     super('Tu cuenta de Facebook no comparte un correo', 'FACEBOOK_EMAIL_REQUIRED');
   }
 }
+/** Cuenta nueva por Google o Facebook sin aceptar los terminos: la app debe pedirlos y reintentar. */
+export class TermsRequiredError extends AuthError {
+  constructor() {
+    super('Debes aceptar los términos y la política de tratamiento de datos', 'TERMS_REQUIRED');
+  }
+}
 /** Fallo interno al crear la cuenta (p. ej. asignar rol): sin detalle al cliente, termina en 500. */
 export class RegistrationFailedError extends Error {
   constructor() {

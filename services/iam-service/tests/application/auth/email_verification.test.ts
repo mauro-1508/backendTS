@@ -15,6 +15,7 @@ import { makeAuthRoutes } from '../../../src/auth/adapters/inbound/http/routes';
 import {
   assertMatch, argsOf, fakeFacebookTokenVerifier, fakeGoogleTokenVerifier, fakeRes, flush, googleIdToken, rejectsWith, resolvesMatching,
   RecordingEventPublisher,
+  SOCIAL_CONSENT,
 } from '../../helpers/fakes';
 
 type U = {
@@ -341,7 +342,7 @@ describe('google_login segun estado', () => {
 
   test('cuenta nueva: se crea ACTIVE con emailVerifiedAt y se publica iam.UserRegistered', async () => {
     const ctx = setup();
-    await resolvesMatching(ctx.googleLogin({ idToken: googleIdToken({ email: 'nueva@x.com', name: 'Nueva' }) }), { data: { token: 'jwt' } });
+    await resolvesMatching(ctx.googleLogin({ ...SOCIAL_CONSENT, idToken: googleIdToken({ email: 'nueva@x.com', name: 'Nueva' }) }), { data: { token: 'jwt' } });
     assertMatch(ctx.db.get('nueva@x.com'), { status: 'ACTIVE' });
     assert.ok(ctx.db.get('nueva@x.com')!.emailVerifiedAt instanceof Date);
     assert.deepEqual(ctx.eventPublisher.published, [
