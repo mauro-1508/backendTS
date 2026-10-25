@@ -37,7 +37,10 @@ export const makeProfileRoutes = (deps: { useCases: ProfileUseCases; authMiddlew
   const trackAdmin = deps.trackAdmin ? [makeTrackAdminMiddleware(deps.trackAdmin)] : [];
 
   const profile = Router();
-  profile.use(deps.authMiddleware, ...trackAdmin);
+  profile.use(deps.authMiddleware);
+  // La lectura del reto no actualiza tampoco el directorio de administradores.
+  profile.get('/challenges/today', controller.getTodayChallenge);
+  if (trackAdmin.length) profile.use(...trackAdmin);
   profile.get('/me', controller.getProfile);
   profile.patch('/me', authorizePreferencesPatch, controller.updateProfile);
   profile.get('/preferences', controller.getPreferences);

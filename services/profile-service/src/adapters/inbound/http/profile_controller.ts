@@ -8,6 +8,7 @@ import {
 } from '../../../application/notifications';
 
 export interface ProfileUseCases {
+  getTodayChallenge?: ReturnType<typeof import('../../../application/daily_challenge').makeGetTodayChallenge>;
   recordActivity?: ReturnType<typeof import('../../../application/record_activity').makeRecordActivity>;
   getProfile: ReturnType<typeof makeGetProfile>;
   getPreferences: ReturnType<typeof makeGetPreferences>;
@@ -48,6 +49,10 @@ const handle = (fn: (req: Request, res: Response) => Promise<unknown>) =>
   };
 
 export const makeProfileController = (useCases: ProfileUseCases) => ({
+  getTodayChallenge: handle(async (req, res) => {
+    if (req.user!.permissions.includes('users.manage')) return res.status(403).json({ success: false });
+    return res.json(await useCases.getTodayChallenge!(userIdOf(req)));
+  }),
   getProfile: handle(async (req, res) => { res.json(await useCases.getProfile(userIdOf(req))); }),
 
   getPreferences: handle(async (req, res) => { res.json(await useCases.getPreferences(userIdOf(req))); }),

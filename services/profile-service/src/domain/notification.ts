@@ -1,6 +1,6 @@
 export type NotificationChannel = 'PUSH' | 'EMAIL' | 'IN_APP';
 export type NotificationStatus = 'PENDING' | 'SENT' | 'FAILED' | 'READ' | 'CANCELLED';
-export type ReferenceType = 'ACHIEVEMENT' | 'ADMIN_REPORT';
+export type ReferenceType = 'ACHIEVEMENT' | 'ADMIN_REPORT' | 'CHALLENGE';
 /** Canales que se crean hoy (ADR-007): la campana de la app y el correo. PUSH queda descartado. */
 export type DeliveryChannel = Extract<NotificationChannel, 'IN_APP' | 'EMAIL'>;
 

@@ -1,3 +1,4 @@
+import { ChallengeAssignment, ChallengeDefinition, DailyChallenge } from '../domain/challenge';
 import { ReportKind } from '../domain/admin_report_schedule';
 import { AchievementMetric, AchievementProgress } from '../domain/achievement';
 import { NewNotification, Notification, NotificationPage, NotificationQuery } from '../domain/notification';
@@ -110,7 +111,17 @@ export interface ReportRunQuery {
 }
 
 /** Repositorios que comparten una misma transaccion. */
+export interface ChallengeRepository {
+  listActive(): Promise<ChallengeDefinition[]>;
+  findAssignment(userId: string, date: string): Promise<ChallengeAssignment | null>;
+  /** Se invoca bajo el bloqueo del usuario; conserva la instantánea original. */
+  save(userId: string, challenge: DailyChallenge): Promise<ChallengeAssignment>;
+  /** Unicidad por asignación; devuelve true solo si concede puntos nuevos. */
+  grantReward(userId: string, assignment: ChallengeAssignment): Promise<boolean>;
+}
+
 export interface TransactionalRepositories {
+  challenges: ChallengeRepository;
   profiles: ProfileRepository;
   achievements: AchievementRepository;
   notifications: NotificationRepository;

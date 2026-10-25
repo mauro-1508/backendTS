@@ -1,3 +1,4 @@
+import { makeGetTodayChallenge } from './application/daily_challenge';
 import { makeRecordActivity } from './application/record_activity';
 import { RequestHandler } from 'express';
 import { Pool } from 'pg';
@@ -54,6 +55,7 @@ export const makeProfileModule = (deps: {
   const unitOfWork = makePostgresUnitOfWork(deps.pool);
 
   const useCases = {
+    getTodayChallenge: makeGetTodayChallenge({ unitOfWork }),
     getProfile: makeGetProfile({ profiles }),
     getPreferences: makeGetPreferences({ profiles }),
     updatePreferences: makeUpdatePreferences({
