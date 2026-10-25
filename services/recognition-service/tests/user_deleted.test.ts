@@ -34,6 +34,7 @@ const fakeTranslations = (userIds: Array<number | null>) => {
     },
     listByUser: async () => [],
     softDelete: async () => null,
+    purgeOlderThan: async () => 0,
     eraseUser: async userId => {
       erased.add(userId);
       const before = rows.length;
@@ -169,7 +170,7 @@ describe('recognition: usuario borrado no puede recrear traducciones', () => {
     }
   });
 
-  test('adaptador Postgres: eraseUser = lock + erased_users + DELETE en una transaccion', async () => {
+  test('adaptador Postgres: eraseUser = lock + erased_users + DELETE (y su resumen de retencion) en una transaccion', async () => {
     const queries: string[] = [];
     const client = {
       query: async (sql: string) => { queries.push(sql.replace(/\s+/g, ' ').trim()); return { rowCount: 3, rows: [] }; },
@@ -181,7 +182,9 @@ describe('recognition: usuario borrado no puede recrear traducciones', () => {
     assert.match(queries[1], /pg_advisory_xact_lock/);
     assert.match(queries[2], /^INSERT INTO public\.erased_users/);
     assert.match(queries[3], /^DELETE FROM public\.translations WHERE user_id = \$1$/);
-    assert.equal(queries[4], 'COMMIT');
+    assert.match(queries[4], /^DELETE FROM public\.translation_daily_counts WHERE user_id = \$1$/);
+    assert.match(queries[5], /^DELETE FROM public\.translation_user_words WHERE user_id = \$1$/);
+    assert.equal(queries[6], 'COMMIT');
   });
 
   test('adaptador Postgres: create es un INSERT condicional bajo el mismo lock; sin fila = AccountErasedError', async () => {

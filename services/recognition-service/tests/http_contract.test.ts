@@ -43,6 +43,7 @@ describe('contrato HTTP: sobre { success, message?, data? }', () => {
       create: async input => ({ ...STORED, inputText: input.inputText, outputText: input.outputText, type: input.type }),
       listByUser: async () => [STORED],
       eraseUser: async () => 0,
+      purgeOlderThan: async () => 0,
       softDelete: async ({ translationId }) => (removable ? { translationId } : null),
     };
     const query = async (sql: string) => {
