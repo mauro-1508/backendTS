@@ -8,5 +8,6 @@
     <include file="changelogs/005_translations.xml"/>
     <include file="changelogs/006_sign_templates.xml"/>
     <include file="changelogs/007_sign_templates_word_kind.xml"/>
+    <include file="changelogs/008_translation_retention.xml"/>
 
 </databaseChangeLog>
