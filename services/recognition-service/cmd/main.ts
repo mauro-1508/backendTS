@@ -10,12 +10,15 @@ import {
   ensureSampleIndexes, GESTURE_SAMPLES_COLLECTION, makeMongoSampleRepository, SampleDocument,
 } from '../src/samples/adapters/outbound/mongo/mongo_sample_repository';
 import { SampleRepository } from '../src/samples/ports/outbound/sample_repository';
+import { startRetentionScheduler } from '../src/translations/adapters/inbound/scheduler/retention_scheduler';
 
 const RECOGNITION_DEFAULT_PORT = 3002;
 const ADMIN_ROLE = 'ADMIN';
+// La retencion se mide en dias: con una vuelta cada 6 horas nada pasa mas de un cuarto de dia de su fecha.
+const RETENTION_TICK_MS = 6 * 60 * 60 * 1000;
 
 const config = loadConfig({ prefix: 'RECOGNITION', defaultPort: RECOGNITION_DEFAULT_PORT });
-const { mongoUrl } = loadRecognitionConfig();
+const { mongoUrl, translationRetentionDays } = loadRecognitionConfig();
 const pool = makePgPool(config.db);
 const eventBus = createEventBus(config.rabbitmqUrl);
 const tokenProvider = makeJwtTokenProvider(config.jwt);
@@ -34,12 +37,13 @@ const makeSampleRepository = async (): Promise<SampleRepository> => {
 
 const start = async () => {
   const sampleRepository = await makeSampleRepository();
-  const { app, subscribe } = makeRecognitionModule({
+  const { app, subscribe, jobs } = makeRecognitionModule({
     pool,
     eventBus,
     sampleRepository,
     authMiddleware: makeAuthMiddleware(tokenProvider),
     requireAdmin: requireRole(ADMIN_ROLE),
+    translationRetentionDays,
   });
 
   const server = app.listen(config.port, () => {
@@ -47,11 +51,20 @@ const start = async () => {
   });
   subscribe();
 
+  if (!jobs.purgeExpiredTranslations) console.warn('[recognition] TRANSLATION_RETENTION_DAYS=0: las traducciones no se borran');
+  const retentionScheduler = jobs.purgeExpiredTranslations
+    ? startRetentionScheduler({ run: jobs.purgeExpiredTranslations, tickMs: RETENTION_TICK_MS })
+    : undefined;
+
   process.on('SIGTERM', () => {
     server.close();
-    void eventBus.close();
-    void pool.end();
-    void mongoClient?.close();
+    void (async () => {
+      // Espera la vuelta de retencion en curso antes de cerrar la base.
+      await retentionScheduler?.stop();
+      await eventBus.close();
+      await pool.end();
+      await mongoClient?.close();
+    })();
   });
 };
 

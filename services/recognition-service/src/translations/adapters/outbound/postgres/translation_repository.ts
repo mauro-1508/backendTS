@@ -79,6 +79,9 @@ export const makePostgresTranslationRepository = (pool: Pool): TranslationReposi
       await client.query(LOCK_USER, [userId]);
       await client.query('INSERT INTO public.erased_users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
       const result = await client.query('DELETE FROM public.translations WHERE user_id = $1', [userId]);
+      // El resumen de la retencion tambien es suyo: se borra con la cuenta.
+      await client.query('DELETE FROM public.translation_daily_counts WHERE user_id = $1', [userId]);
+      await client.query('DELETE FROM public.translation_user_words WHERE user_id = $1', [userId]);
       await client.query('COMMIT');
       return result.rowCount ?? 0;
     } catch (error) {
@@ -98,5 +101,34 @@ export const makePostgresTranslationRepository = (pool: Pool): TranslationReposi
       [translationId, userId]
     );
     return rows[0] ? { translationId: rows[0].translation_id } : null;
+  },
+
+  purgeOlderThan: async cutoff => {
+    // Una sola sentencia: el DELETE y los dos INSERT del resumen se aplican juntos o ninguno.
+    // Las que el usuario ya habia borrado (is_deleted) se eliminan sin sumar, como en las estadisticas.
+    const { rows } = await pool.query<{ purged: number }>(
+      `WITH old AS (
+         DELETE FROM public.translations
+         WHERE created_at < $1
+         RETURNING user_id, output_text, created_at, is_deleted
+       ), counted AS (
+         INSERT INTO public.translation_daily_counts (user_id, day, total)
+         SELECT user_id, (created_at AT TIME ZONE 'America/Bogota')::date, COUNT(*)::int
+         FROM old
+         WHERE is_deleted = FALSE
+         GROUP BY 1, 2
+         ON CONFLICT (user_id, day) DO UPDATE
+           SET total = public.translation_daily_counts.total + EXCLUDED.total
+       ), words AS (
+         INSERT INTO public.translation_user_words (user_id, word)
+         SELECT DISTINCT user_id, lower(btrim(output_text))
+         FROM old
+         WHERE is_deleted = FALSE AND user_id IS NOT NULL AND btrim(output_text) <> ''
+         ON CONFLICT DO NOTHING
+       )
+       SELECT COUNT(*)::int AS purged FROM old`,
+      [cutoff],
+    );
+    return rows[0]?.purged ?? 0;
   },
 });

@@ -21,6 +21,7 @@
 #   docker compose exec -T postgres-profile   psql -X -v ON_ERROR_STOP=1 -U postgres -d profile < services/profile-service/db/008_admin_reports.sql
 #   docker compose exec -T postgres-recognition psql -U postgres -d recognition < services/recognition-service/db/003_erased_users.sql
 #   docker compose exec -T postgres-recognition psql -X -v ON_ERROR_STOP=1 -U postgres -d recognition < services/recognition-service/db/004_sign_templates_word_kind.sql
+#   docker compose exec -T postgres-recognition psql -X -v ON_ERROR_STOP=1 -U postgres -d recognition < services/recognition-service/db/005_translation_retention.sql
 #   (si 009 ya se aplico con una version anterior, volver a ejecutarla: es idempotente y anade las columnas nuevas)
 # Orden de despliegue de iam.UserDeleted: el outbox publica con mandatory=true, asi que un evento sin
 #   cola destino FALLA y se reintenta (no se pierde). Aun asi, levanta/despliega primero los consumidores
@@ -102,6 +103,8 @@ services:
       DB_HOST: postgres-recognition
       DB_NAME: recognition
       MONGO_URL: mongodb://${MONGO_ROOT_USER:-signa}:${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD en .env o exportalo}@mongo:27017/recognition?authSource=admin
+      # Las traducciones se borran a los N dias (sus conteos quedan en el resumen de estadisticas)
+      TRANSLATION_RETENTION_DAYS: ${RECOGNITION_TRANSLATION_RETENTION_DAYS:-30}
     depends_on:
       postgres-recognition:
         condition: service_healthy
@@ -214,6 +217,7 @@ services:
       - ./services/recognition-service/db/002_sign_templates.sql:/docker-entrypoint-initdb.d/002_sign_templates.sql:ro
       - ./services/recognition-service/db/003_erased_users.sql:/docker-entrypoint-initdb.d/003_erased_users.sql:ro
       - ./services/recognition-service/db/004_sign_templates_word_kind.sql:/docker-entrypoint-initdb.d/004_sign_templates_word_kind.sql:ro
+      - ./services/recognition-service/db/005_translation_retention.sql:/docker-entrypoint-initdb.d/005_translation_retention.sql:ro
     healthcheck: *pg-healthcheck
 
   postgres-lexicon:

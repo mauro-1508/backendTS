@@ -10,4 +10,9 @@ export interface TranslationRepository {
    */
   eraseUser(userId: number): Promise<number>;
   softDelete(params: { translationId: number; userId: number }): Promise<{ translationId: number } | null>;
+  /**
+   * Retencion: borra de verdad las traducciones creadas antes de `cutoff` y, en la misma
+   * sentencia, suma sus conteos y palabras al resumen de estadisticas. Devuelve cuantas borro.
+   */
+  purgeOlderThan(cutoff: Date): Promise<number>;
 }
