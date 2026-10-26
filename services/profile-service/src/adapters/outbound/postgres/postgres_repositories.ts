@@ -158,7 +158,7 @@ export const makePostgresAchievementRepository = (db: Queryable): AchievementRep
 
   async findAllProgress(userId, catalogVersion = 1) {
     // Preserve the v1 metric vocabulary; new measurements are published through v2.
-    const visibility = "a.is_active AND a.availability = 'available' AND a.metric IN ('TRANSLATIONS_COMPLETED','ACTIVE_SECONDS','VOICE_COMPLETED','FAVORITE_WORD','DISTINCT_WORDS','LETTERS_VIEWED','BOTH_MODES','TRANSLATION_DAYS','WORD_CATEGORIES') AND a.code <> 'firstSign'";
+    const visibility = "a.is_active AND a.availability = 'available' AND a.metric IN ('DAILY_CHALLENGE_POINTS','TRANSLATIONS_COMPLETED','ACTIVE_SECONDS','VOICE_COMPLETED','FAVORITE_WORD','DISTINCT_WORDS','LETTERS_VIEWED','BOTH_MODES','TRANSLATION_DAYS','WORD_CATEGORIES') AND a.code <> 'firstSign'";
     const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE ${visibility} ${catalogVersion === 1 ? "AND a.metric = 'TRANSLATIONS_COMPLETED'" : ""} ORDER BY CASE WHEN a.collection = 'legacy' THEN 0 ELSE 1 END, a.target_count, a.code`, [userId]);
     return rows.map(toProgress);
   },
@@ -202,11 +202,13 @@ export const makePostgresAchievementRepository = (db: Queryable): AchievementRep
 });
 
 const NOTIFICATION_COLUMNS = `notification_id, notification_type_id, channel, title, body, reference_type,
-  reference_id, status, sent_at, read_at, created_at`;
+  reference_id, status, sent_at, read_at, created_at,
+  (SELECT code FROM notification_types t WHERE t.notification_type_id=notifications.notification_type_id) AS type_code`;
 
 const toNotification = (row: Record<string, any>): Notification => ({
   id: row.notification_id,
   typeId: row.notification_type_id,
+  typeCode: row.type_code,
   channel: row.channel,
   title: row.title,
   body: row.body,
