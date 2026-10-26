@@ -60,3 +60,58 @@ Las variables de cada servicio están documentadas en `.env.example`.
 npm run build            # compila shared y todos los servicios
 npm test                 # corre los tests de shared y de cada servicio (node:test)
 ```
+
+## Recompensas de retos y medallas
+
+La migración `services/profile-service/db/010_challenge_reward_achievements.sql` se aplica
+después de 009. Añade `dailyChallengePoints500`, `dailyChallengePoints1000` y
+`dailyChallengePoints3000`, publicados en catálogo v2 con `challengeRewards=1`. Las peticiones v2 anteriores
+conservan sus 21 reglas para proteger sus validadores de métricas cerrados.
+v1 conserva su vocabulario
+y sus cinco reglas. No modifica las 21 reglas anteriores, sus UUID ni su historia.
+Las tres medallas conceden **cero puntos adicionales** y tienen textos ES/EN/FR/PT.
+
+La única medida es `sum(challenge_rewards.points)` del usuario: excluye catálogo,
+progreso parcial y premios de logros. La migración inicializa también a usuarios
+con recompensas anteriores, sin exigir otro reto. Reconoce metas alcanzadas con la
+fecha de ejecución de la migración, sin inferir fechas históricas ni crear avisos.
+Sin recompensas, las lecturas devuelven cero sin crear filas. Repetir 010 conserva
+filas existentes y personalizaciones del catálogo. Las lecturas no escriben progreso.
+
+Cada recompensa nueva recalcula el total dentro de la misma transacción y bloqueo
+por usuario. Actualiza las tres medidas y desbloquea/notifica cada medalla una vez;
+los reintentos no vuelven a sumar. El borrado usa las tablas existentes y conserva
+`erased_users`, que impide recrear datos con eventos tardíos.
+
+`GET /profile/challenges/today` añade `assignmentId`, `reward` (puntos y fecha reales,
+o null) y las localizaciones de la instantánea. Las notificaciones añaden `typeCode`.
+El frontend cruza `CHALLENGE_COMPLETED`, la referencia de asignación, finalización y
+recompensa antes de presentar el aviso en la cola compartida de logros. No concede
+puntos en el cliente. Servidores anteriores siguen siendo legibles sin afirmar una
+recompensa que no confirman.
+
+En una base existente, detener los consumidores de Profile durante la migración,
+aplicar 009 si falta y luego 010 con `psql -X -v ON_ERROR_STOP=1`; después arrancar
+el backend actualizado y el frontend. El montaje para bases nuevas y los comandos
+de migración están en `docker-compose.yml`. No basta reiniciar un volumen existente:
+los scripts de init solo se ejecutan sobre bases nuevas. No se ha ejecutado aquí
+ninguna migración de aplicación ni despliegue.
+
+Las pruebas de `challenge_reward_achievements*.test.ts` distinguen repositorios en
+memoria de PostgreSQL real. Los fixtures del consumidor incluyen 009 y los del
+esquema completo también 010; las pruebas históricas de 004/006 conservan su corte
+de catálogo intencional. Usar Node 22. Las notas de validación y entrega de esta
+tarea se guardan fuera del repositorio, en `~/Documentos/notas-recompensas-retos`.
+
+
+### Total confirmado de puntos de retos del Perfil
+
+`GET /api/profile/challenges/rewards/summary` requiere JWT y devuelve
+`{ "success": true, "data": { "totalPoints": 0 } }`. La identidad procede solo del token;
+se rechaza a quien tiene `users.manage` (403), igual que en retos/logros.
+Reutiliza `ChallengeRepository.rewardTotal`: `COALESCE(SUM(points),0)` exclusivamente
+en `challenge_rewards` del usuario. No se limita por metas de medallas ni suma puntos
+del catálogo; no crea perfiles, asignaciones, recompensas, progreso ni notificaciones,
+y evita el middleware de escritura del directorio administrativo.
+La ruta es aditiva: no cambia los contratos anteriores ni requiere otra migración.
+Errores de consulta o totales fuera del rango entero seguro fallan; no se convierten en cero.
