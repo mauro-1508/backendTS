@@ -30,7 +30,7 @@ it('API exige JWT, usa solo identidad del token y conserva contrato y prefijo', 
     assert.equal(response.status, 200);
     const body = await response.json() as any;
     assert.equal(body.success, true);
-    assert.deepEqual(Object.keys(body.data).sort(), ['challengeId','code','name','description','targetCount','currentCount','points','completed','completedAt','date'].sort());
+    assert.deepEqual(Object.keys(body.data).sort(), ['assignmentId', 'reward', 'localizations', 'challengeId','code','name','description','targetCount','currentCount','points','completed','completedAt','date'].sort());
     assert.equal(body.data.currentCount,0); assert.deepEqual(seen,['7']);
     assert.equal(store.assignments.size,0);
     assert.equal((await fetch(url,{ headers: { Authorization: 'Bearer admin' } })).status,403);

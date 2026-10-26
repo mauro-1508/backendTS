@@ -113,6 +113,7 @@ async function withFixture(
         'utf8',
       ));
       await client.query(await readFile(resolve(__dirname, '../db/009_daily_challenges.sql'), 'utf8'));
+      await client.query(await readFile(resolve(__dirname, '../db/010_challenge_reward_achievements.sql'), 'utf8'));
       // El borrado de cuenta tambien saca al usuario de admin_recipients (008).
       await client.query(await readFile(resolve(__dirname, '../db/008_admin_reports.sql'), 'utf8'));
     } finally {
