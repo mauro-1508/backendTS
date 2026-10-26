@@ -173,7 +173,7 @@ const stats = (over: Partial<TranslationStats> = {}): TranslationStats => ({
 describe('buildWeeklyDigest', () => {
   it('tono GOOD: 5 dias activos y volumen al alza celebra con el porcentaje', () => {
     const { title, body } = buildWeeklyDigest({ stats: stats() }, 'ES');
-    assert.match(title, /Semana en racha/);
+    assert.match(title, /Las traducciones subieron esta semana/);
     assert.match(title, /\(\+20%\)$/);
     assert.match(body, /5 de 7 días/);
     assert.match(body, /Volumen: 120 traducciones, \+20% frente a la semana anterior/);
