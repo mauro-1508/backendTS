@@ -1,3 +1,5 @@
+import { makeGetChallengeRewardSummary } from './application/get_challenge_reward_summary';
+import { makePostgresChallengeRepository } from './adapters/outbound/postgres/challenge_repository';
 import { makeGetTodayChallenge } from './application/daily_challenge';
 import { makeRecordActivity } from './application/record_activity';
 import { RequestHandler } from 'express';
@@ -55,6 +57,7 @@ export const makeProfileModule = (deps: {
   const unitOfWork = makePostgresUnitOfWork(deps.pool);
 
   const useCases = {
+    getChallengeRewardSummary: makeGetChallengeRewardSummary({ challenges: makePostgresChallengeRepository(deps.pool) }),
     getTodayChallenge: makeGetTodayChallenge({ unitOfWork }),
     getProfile: makeGetProfile({ profiles }),
     getPreferences: makeGetPreferences({ profiles }),
