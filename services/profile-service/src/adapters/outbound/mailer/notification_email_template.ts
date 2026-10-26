@@ -55,7 +55,12 @@ export const escapeHtml = (value: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
-const siteUrl = (appUrl: string, path: string): string => `${appUrl.replace(/\/+$/, '')}${path}`;
+const siteUrl = (appUrl: string, path: string): string => {
+  // Sin expresion regular: quitar las barras finales una a una no tiene costo de backtracking.
+  let end = appUrl.length;
+  while (end > 0 && appUrl[end - 1] === '/') end--;
+  return `${appUrl.slice(0, end)}${path}`;
+};
 
 /** Enlace al panel de administracion de la web, sin barra doble si APP_URL ya termina en "/". */
 export const adminLink = (appUrl: string): string => siteUrl(appUrl, ADMIN_PATH);
