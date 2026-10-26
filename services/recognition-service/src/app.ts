@@ -1,6 +1,6 @@
 import express, { Express, RequestHandler } from 'express';
 import { Pool } from 'pg';
-import { EventPublisher, errorHandler } from '@traduce/shared';
+import { EventPublisher, errorHandler, HealthCheck, makeServiceHealthHandler } from '@traduce/shared';
 import { makeTranslationsModule } from './translations/translations.module';
 import { makePostgresTranslationRepository } from './translations/adapters/outbound/postgres/translation_repository';
 import { makeIaModule } from './ia/ia.module';
@@ -24,15 +24,15 @@ export interface RecognitionAppDeps {
   requireAdmin: RequestHandler;
   /** Repositorio de traducciones compartido con otros modulos; si falta, el modulo crea el suyo. */
   translationRepository?: TranslationRepository;
+  /** Comprobaciones de GET /health (p. ej. las colas `.dead`); sin ellas responde siempre ok. */
+  healthChecks?: Record<string, HealthCheck>;
 }
 
 export const makeRecognitionApp = (deps: RecognitionAppDeps): Express => {
   const app = express();
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
-  app.get('/health', (_req, res) => {
-    res.json({ status: 'ok', service: SERVICE_NAME });
-  });
+  app.get('/health', makeServiceHealthHandler(SERVICE_NAME, deps.healthChecks));
 
   app.use(TRANSLATIONS_ROUTE, makeTranslationsModule({
     ...deps,

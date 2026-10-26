@@ -1,5 +1,5 @@
 import { Express } from 'express';
-import { EventPublisher, EventSubscriber } from '@traduce/shared';
+import { EventPublisher, EventSubscriber, RetryMonitor } from '@traduce/shared';
 import { makeRecognitionApp, RecognitionAppDeps } from './app';
 import { makeAccountsModule } from './accounts/accounts.module';
 import { subscribeToUserDeleted } from './accounts/adapters/inbound/events/user_deleted_subscriber';
@@ -15,6 +15,8 @@ export const makeRecognitionModule = (
     eventBus: EventPublisher & EventSubscriber;
     /** 0 = las traducciones no se borran. */
     translationRetentionDays: number;
+    /** Registra los borrados que no terminan, para /health (consumer_retrying). */
+    retryMonitor?: RetryMonitor;
   },
 ): { app: Express; subscribe: () => void; jobs: { purgeExpiredTranslations?: () => Promise<number> } } => {
   // Un solo repositorio de traducciones: lo usan las rutas HTTP y la limpieza de cuenta.
@@ -27,6 +29,7 @@ export const makeRecognitionModule = (
     authMiddleware: deps.authMiddleware,
     requireAdmin: deps.requireAdmin,
     translationRepository,
+    healthChecks: deps.healthChecks,
   });
 
   const accounts = makeAccountsModule({
@@ -44,7 +47,7 @@ export const makeRecognitionModule = (
     // El broker puede tardar en estar arriba: subscribeWithRetry reintenta sin bloquear el arranque.
     subscribe: () => {
       void subscribeToLexiconEvents(deps.eventBus);
-      void subscribeToUserDeleted(deps.eventBus, accounts.userDeletedHandler);
+      void subscribeToUserDeleted(deps.eventBus, accounts.userDeletedHandler, { monitor: deps.retryMonitor });
     },
   };
 };
