@@ -2,6 +2,7 @@ export * from './config/load_config';
 export * from './database/postgres';
 export * from './http/auth_middleware';
 export * from './http/error_handler';
+export * from './http/health';
 export * from './http/require_role';
 export * from './http/require_permission';
 export * from './security/token_provider';
@@ -23,3 +24,4 @@ export * from './recovery/identity_file';
 export * from './recovery/command_support';
 
 export * from './events/account_deletion_topology';
+export * from './events/dead_letter_check';
