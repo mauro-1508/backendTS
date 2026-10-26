@@ -72,6 +72,15 @@ export const accountDomainService = {
   },
 };
 
+/** Tipos de caracter que cuenta el registro; las mismas expresiones que `passwordStrength.ts` del Frontend. */
+const REGISTRATION_PASSWORD_KINDS = [/[A-Z]/, /[a-z]/, /\d/, /[^A-Za-z0-9]/];
+export const MIN_REGISTRATION_PASSWORD_KINDS = 3;
+
+/** Minimo del registro, igual al `meetsMinimum` de la app: 8 caracteres y 3 de los 4 tipos. */
+export const meetsRegistrationPasswordMinimum = (password: string): boolean =>
+  password.length >= MIN_PASSWORD_LENGTH &&
+  REGISTRATION_PASSWORD_KINDS.filter((kind) => kind.test(password)).length >= MIN_REGISTRATION_PASSWORD_KINDS;
+
 /** Forma canonica del correo: sin espacios en los extremos y en minusculas (coincide con ck_users_email_normalized). */
 export const normalizeEmail = (raw: string): string => raw.trim().toLowerCase();
 
@@ -93,6 +102,11 @@ export const userDomainService = {
   }): void {
     if (!name || !email || !password) {
       throw new InvalidUserDataError('Nombre, email y contraseña son obligatorios');
+    }
+    if (!meetsRegistrationPasswordMinimum(password)) {
+      throw new InvalidUserDataError(
+        'La contraseña debe tener al menos 8 caracteres y combinar 3 de estos tipos: mayúsculas, minúsculas, números y símbolos'
+      );
     }
     // Ley 1581: la autorizacion debe ser expresa y quedar registrada con la version aceptada.
     if (acceptedTerms !== true || !termsVersion?.trim()) {

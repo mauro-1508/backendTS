@@ -121,8 +121,8 @@ const setup = (users: U[] = []) => {
   };
 };
 
-const ana: U = { userId: 7, name: 'Ana', email: 'ana@x.com', password: 'h:clave-larga', status: 'INACTIVE', emailVerifiedAt: null };
-const input = { name: 'Ana', email: 'Ana@X.com', password: 'clave-larga', acceptedTerms: true, termsVersion: '2025-01' };
+const ana: U = { userId: 7, name: 'Ana', email: 'ana@x.com', password: 'h:Clave-larga1', status: 'INACTIVE', emailVerifiedAt: null };
+const input = { name: 'Ana', email: 'Ana@X.com', password: 'Clave-larga1', acceptedTerms: true, termsVersion: '2025-01' };
 const codeOf = (ctx: ReturnType<typeof setup>) => argsOf(ctx.sendVerificationCode)[0].code as string;
 const INVALID_CODE = { code: 'INVALID_CODE', httpStatus: 400 };
 
@@ -183,7 +183,7 @@ describe('verify-email', () => {
   test('codigo valido: activa la cuenta y fija emailVerifiedAt', async () => {
     const ctx = setup();
     await ctx.register(input);
-    await resolvesMatching(ctx.verify({ email: 'ANA@x.com', code: codeOf(ctx), password: 'clave-larga' }), { success: true });
+    await resolvesMatching(ctx.verify({ email: 'ANA@x.com', code: codeOf(ctx), password: 'Clave-larga1' }), { success: true });
     assertMatch(ctx.db.get('ana@x.com'), { status: 'ACTIVE' });
     assert.notEqual(ctx.db.get('ana@x.com')!.emailVerifiedAt, null);
   });
@@ -192,12 +192,12 @@ describe('verify-email', () => {
     const ctx = setup([{ ...ana, userId: 8, name: 'Bea', email: 'bea@x.com', status: 'ACTIVE' }]);
     await ctx.register(input);
     const code = codeOf(ctx);
-    await rejectsWith(ctx.verify({ email: 'ana@x.com', code: '000000', password: 'clave-larga' }), INVALID_CODE);
-    await ctx.verify({ email: 'ana@x.com', code, password: 'clave-larga' });
-    await rejectsWith(ctx.verify({ email: 'ana@x.com', code, password: 'clave-larga' }), { code: 'INVALID_CODE' });
-    await rejectsWith(ctx.verify({ email: 'nadie@x.com', code, password: 'clave-larga' }), { code: 'INVALID_CODE' });
+    await rejectsWith(ctx.verify({ email: 'ana@x.com', code: '000000', password: 'Clave-larga1' }), INVALID_CODE);
+    await ctx.verify({ email: 'ana@x.com', code, password: 'Clave-larga1' });
+    await rejectsWith(ctx.verify({ email: 'ana@x.com', code, password: 'Clave-larga1' }), { code: 'INVALID_CODE' });
+    await rejectsWith(ctx.verify({ email: 'nadie@x.com', code, password: 'Clave-larga1' }), { code: 'INVALID_CODE' });
     hasher.compare.mock.resetCalls();
-    await rejectsWith(ctx.verify({ email: 'bea@x.com', code, password: 'clave-larga' }), { code: 'INVALID_CODE' });
+    await rejectsWith(ctx.verify({ email: 'bea@x.com', code, password: 'Clave-larga1' }), { code: 'INVALID_CODE' });
     assert.ok(hasher.compare.mock.calls.some((c) => c.arguments[0] === code && c.arguments[1] === null));
     assert.equal(hasher.compare.mock.callCount(), 2);
   });
@@ -207,7 +207,7 @@ describe('verify-email', () => {
     await ctx.register(input);
     const code = codeOf(ctx);
     ctx.advance(15 * 60 * 1000 + 1);
-    await rejectsWith(ctx.verify({ email: 'ana@x.com', code, password: 'clave-larga' }), { code: 'INVALID_CODE' });
+    await rejectsWith(ctx.verify({ email: 'ana@x.com', code, password: 'Clave-larga1' }), { code: 'INVALID_CODE' });
     assert.equal(ctx.db.get('ana@x.com')!.status, 'INACTIVE');
   });
 
@@ -215,9 +215,9 @@ describe('verify-email', () => {
     const ctx = setup();
     await ctx.register(input);
     const code = codeOf(ctx);
-    for (let i = 0; i < 5; i++) await ctx.verify({ email: 'ana@x.com', code: '000000', password: 'clave-larga' }).catch(() => {});
+    for (let i = 0; i < 5; i++) await ctx.verify({ email: 'ana@x.com', code: '000000', password: 'Clave-larga1' }).catch(() => {});
     assert.equal(ctx.tokens[0].attempts, 5);
-    await rejectsWith(ctx.verify({ email: 'ana@x.com', code, password: 'clave-larga' }), { code: 'INVALID_CODE' });
+    await rejectsWith(ctx.verify({ email: 'ana@x.com', code, password: 'Clave-larga1' }), { code: 'INVALID_CODE' });
     assert.equal(ctx.db.get('ana@x.com')!.status, 'INACTIVE');
   });
 
@@ -225,7 +225,7 @@ describe('verify-email', () => {
     const ctx = setup();
     await ctx.register(input);
     mock.method(ctx.authRepository, 'consumeAndActivate', async () => false);
-    await rejectsWith(ctx.verify({ email: 'ana@x.com', code: codeOf(ctx), password: 'clave-larga' }), { code: 'INVALID_CODE' });
+    await rejectsWith(ctx.verify({ email: 'ana@x.com', code: codeOf(ctx), password: 'Clave-larga1' }), { code: 'INVALID_CODE' });
   });
 });
 
@@ -261,7 +261,7 @@ describe('login segun estado', () => {
   const build = (status: U['status']) => setup([{ ...ana, status }]);
 
   test('contrasena correcta: ACTIVE entra, INACTIVE 403 EMAIL_NOT_VERIFIED, BLOCKED 403 ACCOUNT_BLOCKED', async () => {
-    const creds = { email: 'ana@x.com', password: 'clave-larga' };
+    const creds = { email: 'ana@x.com', password: 'Clave-larga1' };
     await resolvesMatching(build('ACTIVE').login(creds), { data: { token: 'jwt' } });
     await rejectsWith(build('INACTIVE').login(creds), { code: 'EMAIL_NOT_VERIFIED', httpStatus: 403 });
     await rejectsWith(build('BLOCKED').login(creds), { code: 'ACCOUNT_BLOCKED', httpStatus: 403 });
@@ -300,13 +300,13 @@ describe('verify-email exige la contrasena', () => {
     assert.equal(hasher.compare.mock.callCount(), 2);
     assert.equal(ctx.db.get('ana@x.com')!.status, 'INACTIVE');
     assert.equal(ctx.tokens[0].attempts, 1);
-    await resolvesMatching(ctx.verify({ email: 'ana@x.com', code: codeOf(ctx), password: 'clave-larga' }), { success: true });
+    await resolvesMatching(ctx.verify({ email: 'ana@x.com', code: codeOf(ctx), password: 'Clave-larga1' }), { success: true });
     assert.equal(ctx.db.get('ana@x.com')!.status, 'ACTIVE');
   });
 
   test('cuenta BLOCKED: INVALID_CODE y sigue BLOCKED', async () => {
     const ctx = setup([{ ...ana, status: 'BLOCKED' }]);
-    await rejectsWith(ctx.verify({ email: 'ana@x.com', code: '123456', password: 'clave-larga' }), { code: 'INVALID_CODE' });
+    await rejectsWith(ctx.verify({ email: 'ana@x.com', code: '123456', password: 'Clave-larga1' }), { code: 'INVALID_CODE' });
     assert.equal(ctx.db.get('ana@x.com')!.status, 'BLOCKED');
   });
 });
@@ -314,7 +314,7 @@ describe('verify-email exige la contrasena', () => {
 describe('pre-account hijacking', () => {
   test('atacante registra con P; la victima recupera y activa con su contrasena; P ya no sirve', async () => {
     const ctx = setup();
-    await ctx.register({ name: 'Ana', email: 'ana@x.com', password: 'clave-atacante', acceptedTerms: true, termsVersion: '2025-01' });
+    await ctx.register({ name: 'Ana', email: 'ana@x.com', password: 'Clave-atacante1', acceptedTerms: true, termsVersion: '2025-01' });
     const verificationCode = codeOf(ctx);
     ctx.advance(61_000);
     await ctx.forgot({ email: 'ana@x.com' });
@@ -328,7 +328,7 @@ describe('pre-account hijacking', () => {
     assert.notEqual(user.emailVerifiedAt, null);
     assert.equal(user.password, 'h:clave-victima');
     assert.ok(ctx.tokens.filter((t) => t.tokenType === 'EMAIL_VERIFICATION').every((t) => t.revokedAt || t.usedAt));
-    await rejectsWith(ctx.login({ email: 'ana@x.com', password: 'clave-atacante' }), { code: 'INVALID_CREDENTIALS' });
+    await rejectsWith(ctx.login({ email: 'ana@x.com', password: 'Clave-atacante1' }), { code: 'INVALID_CREDENTIALS' });
     await resolvesMatching(ctx.login({ email: 'ana@x.com', password: 'clave-victima' }), { data: { token: 'jwt' } });
     await rejectsWith(ctx.verify({ email: 'ana@x.com', code: verificationCode, password: 'clave-victima' }), { code: 'INVALID_CODE' });
   });

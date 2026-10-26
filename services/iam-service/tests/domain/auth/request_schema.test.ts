@@ -11,6 +11,7 @@ import { makeAuthController } from '../../../src/auth/adapters/inbound/http/auth
 import { EmailAlreadyExistsError, InvalidCodeError } from '../../../src/auth/domain/service';
 import { makeRegister } from '../../../src/auth/application/register';
 import { AuthService } from '../../../src/auth/ports/inbound/auth_service';
+import { InvalidUserDataError, meetsRegistrationPasswordMinimum } from '../../../src/users/domain/service';
 import { argsOf, assertMatch, fakeRes, RecordingEventPublisher } from '../../helpers/fakes';
 
 const schemas = [registerBodySchema, loginBodySchema, forgotPasswordBodySchema, verifyCodeBodySchema, resetPasswordBodySchema];
@@ -195,5 +196,34 @@ describe('register exige consentimiento (Ley 1581)', () => {
 
     await register({ ...base, acceptedTerms: true, termsVersion: '2025-01' });
     assert.equal(argsOf(create)[0].termsVersion, '2025-01');
+  });
+});
+
+describe('register exige el mismo minimo de contraseña que la app', () => {
+  test('8 caracteres y 3 de 4 tipos (mayúscula, minúscula, número, símbolo)', () => {
+    for (const ok of ['Abcdefg1', 'abcdef1!', 'ABCDEF1!', 'Abcdefg!', 'abcdéfg1']) {
+      assert.equal(meetsRegistrationPasswordMinimum(ok), true, ok);
+    }
+    for (const weak of ['a', 'Abc1!', 'abcdefgh', 'abcdefg1', 'Abcdefgh', '12345678', 'clave-larga']) {
+      assert.equal(meetsRegistrationPasswordMinimum(weak), false, weak);
+    }
+  });
+
+  test('el caso de uso no crea la cuenta con una contraseña débil', async () => {
+    const create = mock.fn(async () => ({ userId: 3, name: 'Ana', email: 'ana@x.com', status: 'INACTIVE' }));
+    const register = makeRegister({
+      userRepository: { findByEmail: async () => null, create, deleteById: async () => undefined } as never,
+      passwordHasher: { hash: async () => 'h', compare: async () => true },
+      roleAssigner: { assignDefaultRole: async () => undefined },
+      authRepository: {} as never,
+      mailer: { sendVerificationCode: async () => undefined, sendPasswordResetCode: async () => undefined, sendAccountDeletionCode: async () => undefined },
+      eventPublisher: new RecordingEventPublisher(),
+    });
+
+    await assert.rejects(
+      register({ name: 'Ana', email: 'ana@x.com', password: 'a', acceptedTerms: true, termsVersion: '2025-01' }),
+      (error: unknown) => error instanceof InvalidUserDataError && /al menos 8 caracteres/.test(error.message),
+    );
+    assert.equal(create.mock.callCount(), 0);
   });
 });
