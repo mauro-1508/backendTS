@@ -112,6 +112,9 @@ export interface ReportRunQuery {
 
 /** Repositorios que comparten una misma transaccion. */
 export interface ChallengeRepository {
+  /** Solo puntos concedidos, nunca valores actuales del catálogo. */
+  rewardTotal(userId: string): Promise<number>;
+  findReward(userId: string, assignmentId: string): Promise<{ points: number; grantedAt: string } | null>;
   listActive(): Promise<ChallengeDefinition[]>;
   findAssignment(userId: string, date: string): Promise<ChallengeAssignment | null>;
   /** Se invoca bajo el bloqueo del usuario; conserva la instantánea original. */

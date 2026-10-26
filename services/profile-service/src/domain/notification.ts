@@ -15,6 +15,7 @@ export const MAX_NOTIFICATION_TITLE_LENGTH = 150;
 export interface Notification {
   id: string;
   typeId: string;
+  typeCode?: string;
   channel: NotificationChannel;
   title: string;
   body: string;
