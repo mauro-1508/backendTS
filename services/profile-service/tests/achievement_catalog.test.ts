@@ -232,6 +232,10 @@ it('migration preserves legacy UUIDs, progress, dates and notifications and is r
       const modern = v2.filter(p => 'collection' in p.achievement && p.achievement.collection === 'catalog');
       assert.equal(modern.length, 0);
       assert.deepEqual(v2.map(p => p.achievement.code), ['FIRST_TRANSLATION','TEN_TRANSLATIONS','FIFTY_TRANSLATIONS']);
+      // Preparar tablas independientes del consumidor actual, conservando el catálogo histórico de 005.
+      for (const file of ['008_admin_reports.sql', '009_daily_challenges.sql']) {
+        await pool.query(readFileSync(resolve(__dirname, '../db', file), 'utf8'));
+      }
       // The deletion guard is part of the real translation unit of work.
       await pool.query(readFileSync(resolve(__dirname, '../db/002_erased_users.sql'), 'utf8'));
       await pool.query(`INSERT INTO user_preferences (user_id, notifications_enabled) VALUES ('bob', FALSE)`);

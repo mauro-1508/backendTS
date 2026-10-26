@@ -85,5 +85,12 @@ gamification_test; no carga .env. Usa esquemas aleatorios desechables del helper
 Sin URL omite explícitamente las pruebas; GAMIFICATION_PG_TESTS=1 exige su ejecución y falla
 si no hay conexión. CI ya proporciona esa instancia y bandera. No usar bases de aplicación.
 
-Pendiente de evidencia local: PostgreSQL real, RabbitMQ/gateway/Recognition integrados y
-validación visual real. Consultar las notas externas de ejecución para resultados exactos.
+La comprobación PostgreSQL de fixtures valida persistencia y concurrencia dentro de Profile.
+El flujo integrado RabbitMQ/gateway/Recognition y la validación visual siguen pendientes.
+Consultar las notas externas de ejecución para resultados exactos.
+
+Los fixtures históricos de `functional_achievements`, `achievement_catalog` y
+`translation_milestones` preparan también 008/009 antes de invocar el consumidor actual.
+Los dos últimos conservan su catálogo anterior a 007 para verificar la historia y activación
+de sus migraciones; las tablas independientes de retos no deben adelantar esa activación.
+`gamification_concurrency`, `preferences_postgres` y `daily_challenges_postgres` ya incluyen 009.
