@@ -85,6 +85,7 @@ describe('notification_email_template', () => {
     assert.match(html, /<a href="https:\/\/traducesenas\.tech\/admin"/);
     assert.match(html, /Ir a mirar/);
     assert.match(html, /app TraduceSeñas/);
+    assert.match(html, /<img src="https:\/\/traducesenas\.tech\/icons\/icon-192\.png"/);
   });
 
   it('usa el texto del boton en ingles y escapa el contenido', () => {

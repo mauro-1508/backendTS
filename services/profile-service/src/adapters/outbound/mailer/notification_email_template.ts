@@ -10,6 +10,8 @@ const MUTED = '#6B7280';
 
 // Todos los avisos por correo son reportes de administracion: el boton lleva al panel.
 const ADMIN_PATH = '/admin';
+// Icono que ya publica la web (frontend public/icons); se pide por URL para no adjuntarlo en cada correo.
+const LOGO_PATH = '/icons/icon-192.png';
 
 interface EmailTexts {
   kicker: string;
@@ -53,8 +55,10 @@ export const escapeHtml = (value: string): string =>
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;');
 
+const siteUrl = (appUrl: string, path: string): string => `${appUrl.replace(/\/+$/, '')}${path}`;
+
 /** Enlace al panel de administracion de la web, sin barra doble si APP_URL ya termina en "/". */
-export const adminLink = (appUrl: string): string => `${appUrl.replace(/\/+$/, '')}${ADMIN_PATH}`;
+export const adminLink = (appUrl: string): string => siteUrl(appUrl, ADMIN_PATH);
 
 /**
  * El cuerpo del aviso es texto plano: se escapa y cada salto de linea se vuelve un parrafo.
@@ -63,6 +67,7 @@ export const adminLink = (appUrl: string): string => `${appUrl.replace(/\/+$/, '
 export const notificationEmail = (input: { title: string; body: string; language: UiLanguage; appUrl: string }) => {
   const texts = TEXTS[input.language] ?? TEXTS.ES;
   const href = escapeHtml(adminLink(input.appUrl));
+  const logo = escapeHtml(siteUrl(input.appUrl, LOGO_PATH));
   const paragraphs = input.body
     .split('\n')
     .filter(line => line.trim().length > 0)
@@ -74,7 +79,14 @@ export const notificationEmail = (input: { title: string; body: string; language
          style="max-width:560px;margin:0 auto;background:#ffffff;border-radius:12px;overflow:hidden;">
     <tr>
       <td style="background:${PRIMARY};padding:20px 28px;">
-        <span style="font-size:20px;font-weight:bold;color:#ffffff;">🤟 ${BRAND}</span>
+        <table role="presentation" cellpadding="0" cellspacing="0" border="0">
+          <tr>
+            <td style="background:#ffffff;border-radius:10px;padding:4px;">
+              <img src="${logo}" width="40" height="40" alt="${BRAND}" style="display:block;border:0;">
+            </td>
+            <td style="padding-left:12px;font-size:20px;font-weight:bold;color:#ffffff;">${BRAND}</td>
+          </tr>
+        </table>
       </td>
     </tr>
     <tr>
@@ -87,7 +99,7 @@ export const notificationEmail = (input: { title: string; body: string; language
             <td style="border-radius:8px;background:${PRIMARY};">
               <a href="${href}"
                  style="display:inline-block;padding:14px 32px;font-size:16px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:8px;">
-                ${texts.button} →
+                ${texts.button}
               </a>
             </td>
           </tr>
