@@ -14,7 +14,8 @@ import { makePostgresAccountRepository } from '../src/users/adapters/outbound/po
 import { makePostgresUserStatsRepository } from '../src/users/adapters/outbound/postgres/user_stats_repository';
 import { makePostgresAdminDirectoryRepository } from '../src/users/adapters/outbound/postgres/admin_directory_repository';
 import { makePostgresIamRepository } from '../src/iam/adapters/outbound/postgres/iam_repository';
-import { makePostgresOutboxRepository } from '../src/shared/adapters/outbound/postgres/outbox_repository';
+import { makePostgresOutboxMonitor, makePostgresOutboxRepository } from '../src/shared/adapters/outbound/postgres/outbox_repository';
+import { makeOutboxHealthCheck } from '../src/shared/application/outbox_health';
 import { makeRelayOutbox } from '../src/shared/application/relay_outbox';
 import { outboxRelayMode } from '../src/shared/application/outbox_policy';
 import { startOutboxRelayLoop } from '../src/shared/application/run_outbox_relay';
@@ -46,6 +47,7 @@ const app = makeIamApp({
   googleTokenVerifier: makeGoogleTokenVerifier(googleClientIds),
   facebookTokenVerifier: makeFacebookTokenVerifier(facebookCredentials),
   authMiddleware: makeAuthMiddleware(tokenProvider),
+  healthChecks: { outbox: makeOutboxHealthCheck({ monitor: makePostgresOutboxMonitor(pool) }) },
 });
 
 // Publica los eventos del outbox (iam.UserDeleted, ...) con confirmacion del broker y reintentos.
