@@ -229,6 +229,10 @@ describe('api-gateway', () => {
         assert.equal((await fetch(`${urlOf(app)}/api/auth/forgot-password`, { method: 'POST' })).status, 429);
         assert.equal((await fetch(`${urlOf(app)}/api/auth/google`, { method: 'POST' })).status, 429);
         assert.equal((await fetch(`${urlOf(app)}/api/auth/facebook`, { method: 'POST' })).status, 429);
+        // Crear cuentas y verificar el correo tambien: cada registro envia un correo.
+        assert.equal((await fetch(`${urlOf(app)}/api/auth/register`, { method: 'POST' })).status, 429);
+        assert.equal((await fetch(`${urlOf(app)}/api/auth/verify-email`, { method: 'POST' })).status, 429);
+        assert.equal((await fetch(`${urlOf(app)}/api/auth/resend-verification`, { method: 'POST' })).status, 429);
       } finally {
         await close(app);
       }

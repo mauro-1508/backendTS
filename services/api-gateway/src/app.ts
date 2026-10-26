@@ -23,6 +23,9 @@ export interface GatewayDeps {
 const HEALTH_PATHS = ['/health', '/api/health'];
 /** Endpoints de /api/auth que se pueden usar para adivinar credenciales o códigos, o para crear cuentas en masa. */
 const SENSITIVE_AUTH_PATHS = [
+  '/api/auth/register',
+  '/api/auth/verify-email',
+  '/api/auth/resend-verification',
   '/api/auth/login',
   '/api/auth/forgot-password',
   '/api/auth/verify-code',
