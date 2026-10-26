@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { describe, it } from 'node:test';
 import { makeDeliverEmailNotifications } from '../src/application/deliver_email_notifications';
-import { notificationEmail } from '../src/adapters/outbound/mailer/notification_email_template';
+import { adminLink, notificationEmail } from '../src/adapters/outbound/mailer/notification_email_template';
 import { NotificationEmail } from '../src/ports/mailer';
 import { EmailOutbox, EmailOutcome, PendingEmail } from '../src/ports/repositories';
 
@@ -77,22 +77,27 @@ describe('deliver_email_notifications', () => {
 });
 
 describe('notification_email_template', () => {
-  it('incluye el boton que abre la app y el asunto con la marca', () => {
+  it('incluye el boton al panel de administracion y el asunto con la marca', () => {
     const { subject, html } = notificationEmail({
       title: 'Resumen semanal', body: 'Hola', language: 'ES', appUrl: 'https://traducesenas.tech',
     });
     assert.equal(subject, 'Resumen semanal - TraduceSeñas');
-    assert.match(html, /<a href="https:\/\/traducesenas\.tech"/);
-    assert.match(html, /Abrir TraduceSeñas/);
+    assert.match(html, /<a href="https:\/\/traducesenas\.tech\/admin"/);
+    assert.match(html, /Ir a mirar/);
+    assert.match(html, /app TraduceSeñas/);
   });
 
   it('usa el texto del boton en ingles y escapa el contenido', () => {
     const { html } = notificationEmail({
       title: '<b>x</b>', body: 'a & b\n<script>', language: 'EN', appUrl: 'https://traducesenas.tech',
     });
-    assert.match(html, /Open TraduceSeñas/);
+    assert.match(html, /Take a look/);
     assert.match(html, /&lt;b&gt;x&lt;\/b&gt;/);
     assert.match(html, /<p[^>]*>a &amp; b<\/p><p[^>]*>&lt;script&gt;<\/p>/);
     assert.doesNotMatch(html, /<script>/);
+  });
+
+  it('no duplica la barra si APP_URL termina en "/"', () => {
+    assert.equal(adminLink('https://traducesenas.tech/'), 'https://traducesenas.tech/admin');
   });
 });
