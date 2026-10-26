@@ -1,3 +1,4 @@
+import { makePostgresChallengeRepository } from './challenge_repository';
 import { emptyActivity } from '../../../domain/activity';
 import { Pool, PoolClient, QueryResultRow } from 'pg';
 import { AchievementProgress } from '../../../domain/achievement';
@@ -53,6 +54,8 @@ export const makePostgresProfileRepository = (db: Queryable): ProfileRepository 
   isErased,
 
   async eraseUser(userId) {
+    await db.query('DELETE FROM challenge_rewards WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM user_challenges WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM achievement_translation_receipts WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM achievement_activity WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM user_achievements WHERE user_id = $1', [userId]);
@@ -302,6 +305,7 @@ export const makePostgresGamificationLocks = (
 export const makePostgresRepositories = (
   db: Queryable,
 ): TransactionalRepositories => ({
+  challenges: makePostgresChallengeRepository(db),
   activity: {
     async recordTranslationIfNew(userId, translationId) {
       const result = await db.query(`INSERT INTO achievement_translation_receipts(user_id,translation_id)

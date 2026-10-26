@@ -1,3 +1,5 @@
+import { ChallengeAssignment, ChallengeDefinition } from '../src/domain/challenge';
+import { randomUUID } from 'node:crypto';
 import { emptyActivity, ActivityState } from '../src/domain/activity';
 import { AchievementProgress } from '../src/domain/achievement';
 import { NewNotification } from '../src/domain/notification';
@@ -26,6 +28,9 @@ export const makeAchievement = (
 
 /** Repositorios en memoria para probar casos de uso sin base de datos. */
 export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
+  const challenges: ChallengeDefinition[] = [];
+  const assignments = new Map<string, ChallengeAssignment>();
+  const rewards = new Map<string, { userId: string; points: number }>();
   const activities = new Map<string, ActivityState>();
   const receipts = new Set<string>();
   const progressByUser = new Map<string, Map<string, AchievementProgress>>();
@@ -52,6 +57,21 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
     );
 
   const repositories: TransactionalRepositories = {
+    challenges: {
+      listActive: async () => structuredClone(challenges),
+      findAssignment: async (userId, date) => structuredClone(assignments.get(`${userId}:${date}`) ?? null),
+      save: async (userId, challenge) => {
+        const key = `${userId}:${challenge.date}`;
+        const existing = assignments.get(key);
+        const result = existing?.completed ? existing : { ...challenge, assignmentId: existing?.assignmentId ?? randomUUID() };
+        assignments.set(key, structuredClone(result));
+        return structuredClone(result);
+      },
+      grantReward: async (userId, assignment) => {
+        if (rewards.has(assignment.assignmentId)) return false;
+        rewards.set(assignment.assignmentId, { userId, points: assignment.points }); return true;
+      },
+    },
     activity: {
       recordTranslationIfNew: async (userId, id) => {
         const key = `${userId}:${id}`;
@@ -75,6 +95,9 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
       },
       isErased: async userId => erasedUsers.has(userId),
       eraseUser: async userId => {
+        for (const [key, assignment] of assignments) if (key.startsWith(`${userId}:`)) {
+          rewards.delete(assignment.assignmentId); assignments.delete(key);
+        }
         activities.delete(userId);
         for (const key of receipts) if (key.startsWith(`${userId}:`)) receipts.delete(key);
         erasedUsers.add(userId);
@@ -191,6 +214,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
   };
 
   return {
+    challenges, assignments, rewards,
     repositories,
     unitOfWork,
     reportRunQuery,

@@ -92,6 +92,10 @@ it('006 preserves UUIDs/history, starts fresh counters and earns both milestones
       await pool.query(`INSERT INTO notifications (user_id,notification_type_id,title,body,reference_type,reference_id)
         SELECT 'archived',nt.notification_type_id,'Historical notice','Historical body','ACHIEVEMENT',a.achievement_id
         FROM achievements a CROSS JOIN notification_types nt WHERE a.code='thousandSigns'`);
+      // Las tablas de retos son independientes; no adelantar 006/007, cuyos estados se verifican aquí.
+      for (const file of ['008_admin_reports.sql', '009_daily_challenges.sql']) {
+        await pool.query(readFileSync(resolve(__dirname, '../db', file), 'utf8'));
+      }
       const record = makeRecordTranslation({ unitOfWork: makePostgresUnitOfWork(pool), eventPublisher: { publish: async () => {} } });
       const beforeActivation = randomUUID();
       await record(beforeActivation,'veteran');
