@@ -29,9 +29,18 @@
 #   cola destino FALLA y se reintenta (no se pierde). Aun asi, levanta/despliega primero los consumidores
 #   (recognition, analytics, profile: crean sus colas *.user-deleted al arrancar) y despues iam.
 
+# Logs de Docker con tope (json-file, 10 MB x 3 archivos por contenedor): un error que se repite
+# en bucle (p. ej. el relay del outbox sin base de datos) no puede llenar el disco del servidor.
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 x-postgres: &postgres
   image: postgres:16-alpine
   restart: unless-stopped
+  logging: *default-logging
   environment: &postgres-env
     POSTGRES_USER: postgres
     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Define POSTGRES_PASSWORD en .env o exportalo}
@@ -73,6 +82,7 @@ services:
       profile-service:
         condition: service_healthy
     restart: unless-stopped
+    logging: *default-logging
 
   iam-service:
     build:
@@ -94,6 +104,7 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    logging: *default-logging
 
   recognition-service:
     build:
@@ -115,6 +126,7 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    logging: *default-logging
 
   lexicon-service:
     build:
@@ -132,6 +144,7 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    logging: *default-logging
 
   analytics-service:
     build:
@@ -148,6 +161,7 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    logging: *default-logging
 
   profile-service:
     build:
@@ -174,6 +188,7 @@ services:
       rabbitmq:
         condition: service_healthy
     restart: unless-stopped
+    logging: *default-logging
 
   postgres-iam:
     <<: *postgres
@@ -276,6 +291,7 @@ services:
   mongo:
     image: mongo:7
     restart: unless-stopped
+    logging: *default-logging
     environment:
       MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER:-signa}
       MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASSWORD:?Define MONGO_ROOT_PASSWORD en .env o exportalo}
@@ -287,6 +303,7 @@ services:
   rabbitmq:
     image: rabbitmq:3-management-alpine
     restart: unless-stopped
+    logging: *default-logging
     environment:
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER:-signa}
       RABBITMQ_DEFAULT_PASS: ${RABBITMQ_PASSWORD:?Define RABBITMQ_PASSWORD en .env o exportalo}
