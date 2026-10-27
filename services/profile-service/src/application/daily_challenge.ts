@@ -1,3 +1,4 @@
+import { updateChallengeRewardAchievements } from './challenge_reward_achievements';
 import { TranslationProduced } from '@traduce/shared';
 import { bogotaDate, challengeText, initialChallenge, selectChallenge } from '../domain/challenge';
 import { DEFAULT_PREFERENCES, Preferences } from '../domain/preferences';
@@ -34,6 +35,7 @@ export const advanceDailyChallenge = async (
       body: text.description, referenceType: 'CHALLENGE', referenceId: updated.assignmentId,
     });
   }
+  return granted ? updateChallengeRewardAchievements(repositories, userId, preferences) : [];
 };
 
 export const makeGetTodayChallenge = (deps: { unitOfWork: UnitOfWork; now?: () => Date }) =>
@@ -51,6 +53,9 @@ export const makeGetTodayChallenge = (deps: { unitOfWork: UnitOfWork; now?: () =
     const preferences = await repositories.profiles.findPreferences(userId) ?? DEFAULT_PREFERENCES;
     const text = challengeText(challenge, preferences.uiLanguage);
     return { success: true, data: {
+      assignmentId: existing?.assignmentId ?? null,
+      reward: existing ? await repositories.challenges.findReward(userId, existing.assignmentId) : null,
+      localizations: challenge.localizations,
       challengeId: challenge.challengeId, code: challenge.code, ...text,
       targetCount: challenge.targetCount, currentCount: challenge.currentCount, points: challenge.points,
       completed: challenge.completed, completedAt: challenge.completedAt, date: challenge.date,

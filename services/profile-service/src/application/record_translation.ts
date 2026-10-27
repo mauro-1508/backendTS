@@ -35,10 +35,10 @@ export const makeRecordTranslation = (deps: { unitOfWork: UnitOfWork; eventPubli
     if (await repositories.profiles.isErased(userId)) return [];
     if (event && repositories.activity && !await repositories.activity.recordTranslationIfNew(userId, event.translationId)) return [];
     const preferences = (await repositories.profiles.findPreferences(userId)) ?? DEFAULT_PREFERENCES;
-    if (event) await advanceDailyChallenge(repositories, userId, event, preferences);
+    const challengeUnlocks = event ? await advanceDailyChallenge(repositories, userId, event, preferences) ?? [] : [];
     const pending = (await repositories.achievements.findProgressByMetric(userId, TRANSLATIONS_METRIC))
       .filter(progress => isObtainable(progress.achievement) && !isUnlocked(progress));
-    const unlockedNow: AchievementProgress[] = [];
+    const unlockedNow: AchievementProgress[] = [...challengeUnlocks];
 
     for (const progress of pending) {
       const next = advanceProgress(progress, TRANSLATION_INCREMENT, new Date());

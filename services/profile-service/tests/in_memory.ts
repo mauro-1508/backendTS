@@ -58,6 +58,11 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
 
   const repositories: TransactionalRepositories = {
     challenges: {
+      rewardTotal: async userId => [...rewards.values()].filter(r => r.userId === userId).reduce((sum,r) => sum+r.points,0),
+      findReward: async (userId,id) => {
+        const reward = rewards.get(id);
+        return reward?.userId === userId ? { points: reward.points, grantedAt: '2026-10-25T12:00:00.000Z' } : null;
+      },
       listActive: async () => structuredClone(challenges),
       findAssignment: async (userId, date) => structuredClone(assignments.get(`${userId}:${date}`) ?? null),
       save: async (userId, challenge) => {
@@ -95,6 +100,8 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
       },
       isErased: async userId => erasedUsers.has(userId),
       eraseUser: async userId => {
+        // Incluye recompensas históricas aunque la prueba no cargue su asignación.
+        for (const [id, reward] of rewards) if (reward.userId === userId) rewards.delete(id);
         for (const [key, assignment] of assignments) if (key.startsWith(`${userId}:`)) {
           rewards.delete(assignment.assignmentId); assignments.delete(key);
         }

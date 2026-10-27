@@ -12,6 +12,14 @@ const assignmentOf = (row: Record<string, any>): ChallengeAssignment => ({
   completedAt: row.completed_at?.toISOString() ?? null,
 });
 export const makePostgresChallengeRepository = (db: Queryable): ChallengeRepository => ({
+  async rewardTotal(userId) {
+    const { rows } = await db.query('SELECT COALESCE(sum(points),0) AS total FROM challenge_rewards WHERE user_id=$1', [userId]);
+    return Number(rows[0].total);
+  },
+  async findReward(userId, assignmentId) {
+    const { rows } = await db.query('SELECT points,granted_at FROM challenge_rewards WHERE user_id=$1 AND user_challenge_id=$2', [userId,assignmentId]);
+    return rows[0] ? { points: rows[0].points, grantedAt: rows[0].granted_at.toISOString() } : null;
+  },
   async listActive() {
     const { rows } = await db.query('SELECT * FROM challenges WHERE is_active ORDER BY code COLLATE "C"');
     return rows.map(definitionOf);

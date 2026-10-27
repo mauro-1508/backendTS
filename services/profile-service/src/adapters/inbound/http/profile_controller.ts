@@ -8,6 +8,7 @@ import {
 } from '../../../application/notifications';
 
 export interface ProfileUseCases {
+  getChallengeRewardSummary?: ReturnType<typeof import('../../../application/get_challenge_reward_summary').makeGetChallengeRewardSummary>;
   getTodayChallenge?: ReturnType<typeof import('../../../application/daily_challenge').makeGetTodayChallenge>;
   recordActivity?: ReturnType<typeof import('../../../application/record_activity').makeRecordActivity>;
   getProfile: ReturnType<typeof makeGetProfile>;
@@ -49,6 +50,10 @@ const handle = (fn: (req: Request, res: Response) => Promise<unknown>) =>
   };
 
 export const makeProfileController = (useCases: ProfileUseCases) => ({
+  getChallengeRewardSummary: handle(async (req, res) => {
+    if (req.user!.permissions.includes('users.manage')) return res.status(403).json({ success: false });
+    return res.json(await useCases.getChallengeRewardSummary!(userIdOf(req)));
+  }),
   getTodayChallenge: handle(async (req, res) => {
     if (req.user!.permissions.includes('users.manage')) return res.status(403).json({ success: false });
     return res.json(await useCases.getTodayChallenge!(userIdOf(req)));
@@ -76,8 +81,16 @@ export const makeProfileController = (useCases: ProfileUseCases) => ({
     if (requested !== undefined && requested !== '1' && requested !== '2') {
       return res.status(HTTP_BAD_REQUEST).json({ success: false, code: 'VALIDATION_ERROR', message: 'catalogVersion debe ser 1 o 2' });
     }
+    const challengeRewards = req.query.challengeRewards;
+    if (challengeRewards !== undefined && challengeRewards !== '1') {
+      return res.status(HTTP_BAD_REQUEST).json({ success: false, code: 'VALIDATION_ERROR', message: 'challengeRewards debe ser 1' });
+    }
     const version = requested === '2' ? 2 : 1;
-    const data = await useCases.listAchievements(userIdOf(req), version);
+    const progress = await useCases.listAchievements(userIdOf(req), version);
+    // Los clientes v2 anteriores validan una lista cerrada de métricas. Solo los
+    // que anuncian esta capacidad reciben la nueva; v1 conserva sus cinco reglas.
+    const data = version === 2 && challengeRewards === '1' ? progress
+      : progress.filter(p => p.achievement.metric !== 'DAILY_CHALLENGE_POINTS');
     return res.json(version === 2 ? { data, meta: { catalogVersion: 2 } } : { data });
   }),
 
