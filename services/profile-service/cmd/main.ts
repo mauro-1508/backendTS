@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import {
-  createEventBus, loadConfig, makeAuthMiddleware, makeEnvReader, makeJwtTokenProvider, makePgPool,
+  createEventBus, loadConfig, makeAuthMiddleware, makeConsumerRetryCheck, makeDeadLetterCheck, makeEnvReader, makeJwtTokenProvider,
+  makePgPool, makeRetryMonitor,
 } from '@traduce/shared';
 import { makeProfileApp } from '../src/app';
 import { startAdminReportsScheduler } from '../src/adapters/inbound/scheduler/admin_reports_scheduler';
@@ -27,6 +28,7 @@ const DEFAULT_EMAIL_TICK_MS = 60 * 1000;
 const config = loadConfig({ prefix: 'PROFILE', defaultPort: PROFILE_DEFAULT_PORT });
 const pool = makePgPool(config.db);
 const eventBus = createEventBus(config.rabbitmqUrl);
+const retryMonitor = makeRetryMonitor();
 
 const read = makeEnvReader(process.env, 'PROFILE');
 const adminReportsEnabled = read('ADMIN_REPORTS_ENABLED') !== 'false';
@@ -66,8 +68,11 @@ const profileModule = makeProfileModule({
 });
 
 const start = async () => {
-  await subscribeToEvents(eventBus, profileModule.eventHandlers);
-  const server = makeProfileApp(profileModule).listen(config.port, () => {
+  await subscribeToEvents(eventBus, profileModule.eventHandlers, retryMonitor);
+  const server = makeProfileApp(profileModule, {
+    dead_letters: makeDeadLetterCheck(eventBus),
+    consumer_retrying: makeConsumerRetryCheck(retryMonitor),
+  }).listen(config.port, () => {
     console.log(`profile-service escuchando en el puerto ${config.port}`);
   });
 

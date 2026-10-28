@@ -1,19 +1,20 @@
-import express, { Express, RequestHandler } from 'express';
-import { errorHandler } from '@traduce/shared';
+import express, { Express } from 'express';
+import { errorHandler, HealthCheck, makeServiceHealthHandler } from '@traduce/shared';
 import { makeAnalyticsModule } from './analytics.module';
 
 const SERVICE_NAME = 'analytics-service';
 const JSON_BODY_LIMIT = '100kb';
 const ANALYTICS_ROUTE = '/api/analytics';
 
-export const makeAnalyticsApp = (deps: Parameters<typeof makeAnalyticsModule>[0]): Express => {
+/** `healthChecks`: comprobaciones de GET /health (p. ej. las colas `.dead`); sin ellas responde siempre ok. */
+export const makeAnalyticsApp = (
+  deps: Parameters<typeof makeAnalyticsModule>[0],
+  healthChecks?: Record<string, HealthCheck>,
+): Express => {
   const app = express();
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
-  const health: RequestHandler = (_req, res) => {
-    res.json({ status: 'ok', service: SERVICE_NAME });
-  };
-  app.get('/health', health);
+  app.get('/health', makeServiceHealthHandler(SERVICE_NAME, healthChecks));
 
   app.use(ANALYTICS_ROUTE, makeAnalyticsModule(deps).router);
   app.use(errorHandler);

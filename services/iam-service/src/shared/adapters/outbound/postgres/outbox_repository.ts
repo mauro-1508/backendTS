@@ -1,6 +1,6 @@
 import { Pool } from 'pg';
 import { randomUUID } from 'node:crypto';
-import { OutboxEvent, OutboxRepository } from '../../../ports/outbox_repository';
+import { OutboxEvent, OutboxMonitor, OutboxRepository } from '../../../ports/outbox_repository';
 
 interface OutboxRow {
   event_id: string;
@@ -67,5 +67,15 @@ export const makePostgresOutboxRepository = (pool: Pool): OutboxRepository => ({
       [before],
     );
     return result.rowCount ?? 0;
+  },
+});
+
+// Usa el indice parcial idx_outbox_events_due (published_at IS NULL).
+export const makePostgresOutboxMonitor = (pool: Pool): OutboxMonitor => ({
+  async pendingSummary() {
+    const { rows } = await pool.query<{ pending: number; oldest: Date | null }>(
+      'SELECT COUNT(*)::int AS pending, MIN(created_at) AS oldest FROM public.outbox_events WHERE published_at IS NULL',
+    );
+    return { pending: rows[0]?.pending ?? 0, oldestPendingAt: rows[0]?.oldest ?? null };
   },
 });

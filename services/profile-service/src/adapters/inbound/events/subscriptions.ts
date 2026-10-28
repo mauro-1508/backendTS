@@ -4,6 +4,7 @@ import {
   EventSubscriber,
   isTranslationProduced,
   isUserDeleted,
+  RetryMonitor,
   withRetry,
   withValidPayload,
 } from '@traduce/shared';
@@ -38,6 +39,8 @@ const withValidUser = <T extends { userId: string }>(
 export const subscribeToEvents = async (
   subscriber: EventSubscriber,
   handlers: EventHandlers,
+  /** Registra los borrados que no terminan, para /health (consumer_retrying). */
+  retryMonitor?: RetryMonitor,
 ): Promise<void> => {
   await subscriber.subscribe(
     { queue: USER_REGISTERED_QUEUE, pattern: CONSUMED_EVENTS.UserRegistered },
@@ -66,6 +69,6 @@ export const subscribeToEvents = async (
   await subscriber.subscribe(
     { queue: USER_DELETED_QUEUE, pattern: EVENT_TYPES.UserDeleted },
     // La limpieza válida permanece pendiente con backoff; no se pierde al agotar cinco intentos.
-    withRetry(withValidPayload(isUserDeleted, event => handlers.eraseUserProfile(event.eventId, String(event.payload.userId)), undefined, 'reject'), { attempts: Infinity }),
+    withRetry(withValidPayload(isUserDeleted, event => handlers.eraseUserProfile(event.eventId, String(event.payload.userId)), undefined, 'reject'), { attempts: Infinity, monitor: retryMonitor }),
   );
 };

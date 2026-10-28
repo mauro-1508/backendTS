@@ -1,6 +1,7 @@
 import amqp, { Channel, ConfirmChannel, ConsumeMessage } from 'amqplib';
 import { exponentialBackoffMs } from './backoff';
 import { EventBus, EventEnvelope, EventHandler, PublishOptions, Subscription } from './event_bus';
+import { DeadLetterInspector } from './dead_letter_check';
 import { EVENT_TYPES } from './contracts';
 import { USER_DELETED_QUEUES } from './account_deletion_topology';
 import { makeEnvelope } from './make_envelope';
@@ -46,7 +47,7 @@ interface RegisteredSubscription {
  * exponencial y las vuelve a registrar. Los mensajes que el handler rechaza van a la cola de
  * mensajes muertos de su cola en vez de descartarse.
  */
-export class RabbitMqEventBus implements EventBus {
+export class RabbitMqEventBus implements EventBus, DeadLetterInspector {
   private connection?: Connection;
   private channelPromise?: Promise<ConfirmChannel>;
   private readonly subscriptions = new Map<string, RegisteredSubscription>();
@@ -116,6 +117,28 @@ export class RabbitMqEventBus implements EventBus {
     const registered = { subscription, handler };
     await this.consume(await this.channel(), registered);
     this.subscriptions.set(subscription.queue, registered);
+  }
+
+  /**
+   * Mensajes en `<cola>.dead` de cada cola suscrita. Usa un canal aparte: si el broker cierra ese canal
+   * (por ejemplo, una cola que no existe) el de consumo no se entera. Sin conexion con el broker, rechaza.
+   */
+  async deadLetterCounts(): Promise<Record<string, number>> {
+    await this.channel();
+    const connection = this.connection;
+    if (!connection) throw new Error('sin conexion con RabbitMQ');
+    const channel = await connection.createChannel();
+    // Sin este listener, un cierre del broker en este canal tumbaria el proceso.
+    channel.on('error', () => undefined);
+    try {
+      const counts: Record<string, number> = {};
+      for (const queue of this.subscriptions.keys()) {
+        counts[queue] = (await channel.checkQueue(`${queue}${DEAD_LETTER_QUEUE_SUFFIX}`)).messageCount;
+      }
+      return counts;
+    } finally {
+      await channel.close().catch(() => undefined);
+    }
   }
 
   async close(): Promise<void> {

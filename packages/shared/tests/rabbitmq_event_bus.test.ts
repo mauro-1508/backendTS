@@ -42,9 +42,27 @@ class FakeChannel extends EventEmitter {
   nack(message: unknown, _allUpTo: boolean, requeue: boolean) { if (this.ackError) throw this.ackError; this.nacked.push({ message, requeue }); }
 }
 
+/** Canal aparte de deadLetterCounts: solo consulta colas. */
+class FakeCheckChannel extends EventEmitter {
+  closed = false;
+  constructor(private readonly counts: Map<string, number>) { super(); }
+  async checkQueue(queue: string) {
+    if (!this.counts.has(queue)) throw new Error(`NOT_FOUND - no queue '${queue}'`);
+    return { queue, messageCount: this.counts.get(queue)!, consumerCount: 0 };
+  }
+  async close() { this.closed = true; }
+}
+
 class FakeConnection extends EventEmitter {
   readonly channel = new FakeChannel();
+  readonly deadCounts = new Map<string, number>();
+  readonly checkChannels: FakeCheckChannel[] = [];
   async createConfirmChannel() { return this.channel; }
+  async createChannel() {
+    const channel = new FakeCheckChannel(this.deadCounts);
+    this.checkChannels.push(channel);
+    return channel;
+  }
   async close() { this.emit('close'); }
 }
 
@@ -98,6 +116,31 @@ describe('RabbitMqEventBus', () => {
     assert.ok(channel.bindings.some(b => b.queue === 'svc.queue.dead' && b.exchange === DEAD_LETTER_EXCHANGE));
     assert.ok(channel.bindings.some(b => b.queue === 'svc.queue' && b.exchange === EVENTS_EXCHANGE && b.key === 'iam.*'));
     await bus.close();
+  });
+
+  test('deadLetterCounts cuenta los mensajes de la cola .dead de cada suscripcion, en un canal aparte', async () => {
+    const { connect, connections } = makeConnector();
+    const bus = new RabbitMqEventBus('amqp://x', { connect });
+    await bus.subscribe(SUBSCRIPTION, async () => {});
+    await bus.subscribe({ queue: 'svc.other', pattern: 'lexicon.*' }, async () => {});
+    connections[0].deadCounts.set('svc.queue.dead', 2).set('svc.other.dead', 0);
+
+    assert.deepEqual(await bus.deadLetterCounts(), { 'svc.queue': 2, 'svc.other': 0 });
+    assert.equal(connections[0].checkChannels.length, 1);
+    assert.equal(connections[0].checkChannels[0].closed, true);
+    await bus.close();
+  });
+
+  test('deadLetterCounts rechaza si la cola no existe o no hay broker, y cierra su canal', async () => {
+    const { connect, connections } = makeConnector();
+    const bus = new RabbitMqEventBus('amqp://x', { connect });
+    await bus.subscribe(SUBSCRIPTION, async () => {});
+    await assert.rejects(bus.deadLetterCounts(), /NOT_FOUND/);
+    assert.equal(connections[0].checkChannels[0].closed, true);
+    await bus.close();
+
+    const down = new RabbitMqEventBus('amqp://x', { connect: makeConnector(1).connect });
+    await assert.rejects(down.deadLetterCounts(), /broker caido/);
   });
 
   test('usa el prefetch por defecto si no se configura', async () => {

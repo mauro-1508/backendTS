@@ -24,3 +24,8 @@ export interface OutboxRepository {
   /** Borra los ya publicados antes de `before`; devuelve cuantos. */
   purgePublishedBefore(before: Date): Promise<number>;
 }
+
+/** Lectura para /health: cuantos eventos siguen sin publicar y desde cuando espera el mas viejo. */
+export interface OutboxMonitor {
+  pendingSummary(): Promise<{ pending: number; oldestPendingAt: Date | null }>;
+}

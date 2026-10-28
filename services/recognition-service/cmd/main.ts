@@ -1,7 +1,8 @@
 import 'dotenv/config';
 import { MongoClient } from 'mongodb';
 import {
-  createEventBus, loadConfig, makeAuthMiddleware, makeJwtTokenProvider, makePgPool, requireRole,
+  createEventBus, loadConfig, makeAuthMiddleware, makeConsumerRetryCheck, makeDeadLetterCheck, makeJwtTokenProvider, makePgPool,
+  makeRetryMonitor, requireRole,
 } from '@traduce/shared';
 import { makeRecognitionModule } from '../src/recognition.module';
 import { loadRecognitionConfig } from '../src/config';
@@ -22,6 +23,7 @@ const { mongoUrl, translationRetentionDays } = loadRecognitionConfig();
 const pool = makePgPool(config.db);
 const eventBus = createEventBus(config.rabbitmqUrl);
 const tokenProvider = makeJwtTokenProvider(config.jwt);
+const retryMonitor = makeRetryMonitor();
 const mongoClient = mongoUrl ? new MongoClient(mongoUrl) : null;
 
 const makeSampleRepository = async (): Promise<SampleRepository> => {
@@ -44,6 +46,8 @@ const start = async () => {
     authMiddleware: makeAuthMiddleware(tokenProvider),
     requireAdmin: requireRole(ADMIN_ROLE),
     translationRetentionDays,
+    retryMonitor,
+    healthChecks: { dead_letters: makeDeadLetterCheck(eventBus), consumer_retrying: makeConsumerRetryCheck(retryMonitor) },
   });
 
   const server = app.listen(config.port, () => {
