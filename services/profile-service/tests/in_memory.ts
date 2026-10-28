@@ -1,8 +1,10 @@
+import { ChallengeAssignment, ChallengeDefinition } from '../src/domain/challenge';
+import { randomUUID } from 'node:crypto';
 import { emptyActivity, ActivityState } from '../src/domain/activity';
 import { AchievementProgress } from '../src/domain/achievement';
 import { NewNotification } from '../src/domain/notification';
 import { DEFAULT_PREFERENCES, Preferences } from '../src/domain/preferences';
-import {NewProfile,TransactionalRepositories,UnitOfWork,} from '../src/ports/repositories';
+import {NewProfile,ReportRunQuery,TransactionalRepositories,UnitOfWork,} from '../src/ports/repositories';
 
 export const makeAchievement = (
   code: string,
@@ -26,6 +28,9 @@ export const makeAchievement = (
 
 /** Repositorios en memoria para probar casos de uso sin base de datos. */
 export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
+  const challenges: ChallengeDefinition[] = [];
+  const assignments = new Map<string, ChallengeAssignment>();
+  const rewards = new Map<string, { userId: string; points: number }>();
   const activities = new Map<string, ActivityState>();
   const receipts = new Set<string>();
   const progressByUser = new Map<string, Map<string, AchievementProgress>>();
@@ -36,6 +41,7 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
   const processed = new Set<string>();
   const createdProfiles: string[] = [];
   const erasedUsers = new Set<string>();
+  const claimedReports = new Map<string, string>();
 
   const progressOf = (userId: string) => {
     if (!progressByUser.has(userId)) {
@@ -51,6 +57,26 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
     );
 
   const repositories: TransactionalRepositories = {
+    challenges: {
+      rewardTotal: async userId => [...rewards.values()].filter(r => r.userId === userId).reduce((sum,r) => sum+r.points,0),
+      findReward: async (userId,id) => {
+        const reward = rewards.get(id);
+        return reward?.userId === userId ? { points: reward.points, grantedAt: '2026-10-25T12:00:00.000Z' } : null;
+      },
+      listActive: async () => structuredClone(challenges),
+      findAssignment: async (userId, date) => structuredClone(assignments.get(`${userId}:${date}`) ?? null),
+      save: async (userId, challenge) => {
+        const key = `${userId}:${challenge.date}`;
+        const existing = assignments.get(key);
+        const result = existing?.completed ? existing : { ...challenge, assignmentId: existing?.assignmentId ?? randomUUID() };
+        assignments.set(key, structuredClone(result));
+        return structuredClone(result);
+      },
+      grantReward: async (userId, assignment) => {
+        if (rewards.has(assignment.assignmentId)) return false;
+        rewards.set(assignment.assignmentId, { userId, points: assignment.points }); return true;
+      },
+    },
     activity: {
       recordTranslationIfNew: async (userId, id) => {
         const key = `${userId}:${id}`;
@@ -74,6 +100,11 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
       },
       isErased: async userId => erasedUsers.has(userId),
       eraseUser: async userId => {
+        // Incluye recompensas históricas aunque la prueba no cargue su asignación.
+        for (const [id, reward] of rewards) if (reward.userId === userId) rewards.delete(id);
+        for (const [key, assignment] of assignments) if (key.startsWith(`${userId}:`)) {
+          rewards.delete(assignment.assignmentId); assignments.delete(key);
+        }
         activities.delete(userId);
         for (const key of receipts) if (key.startsWith(`${userId}:`)) receipts.delete(key);
         erasedUsers.add(userId);
@@ -157,21 +188,50 @@ export const makeInMemoryStore = (catalog: AchievementProgress[]) => {
     gamificationLocks: {
       lockUser: async () => {},
     },
+
+    reportRuns: {
+      claim: async (kind, periodKey) => {
+        const key = `${kind}:${periodKey}`;
+        if (claimedReports.has(key)) return null;
+
+        claimedReports.set(key, `run-${claimedReports.size + 1}`);
+        return claimedReports.get(key)!;
+      },
+    },
+  };
+
+  const reportRunQuery: ReportRunQuery = {
+    isClaimed: async (kind, periodKey) => claimedReports.has(`${kind}:${periodKey}`),
   };
 
   const unitOfWork: UnitOfWork = {
-    run: work => work(repositories),
+    run: async work => {
+      // Imita el rollback de las reservas de reportes si la transaccion falla.
+      const claimedBefore = new Map(claimedReports);
+      const notificationsBefore = notifications.length;
+      try {
+        return await work(repositories);
+      } catch (error) {
+        claimedReports.clear();
+        claimedBefore.forEach((value, key) => claimedReports.set(key, value));
+        notifications.length = notificationsBefore;
+        throw error;
+      }
+    },
   };
 
   return {
+    challenges, assignments, rewards,
     repositories,
     unitOfWork,
+    reportRunQuery,
     notifications,
     notifiedAchievements,
     preferencesByUser,
     profilesByUser,
     createdProfiles,
     erasedUsers,
+    claimedReports,
     progressOf,
   };
 };

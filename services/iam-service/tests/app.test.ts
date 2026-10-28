@@ -15,9 +15,9 @@ const tokenProvider = makeJwtTokenProvider({ secret: 'secreto-iam', expiresIn: '
 const JSON_HEADERS = { 'content-type': 'application/json' };
 const noMail = async () => undefined;
 
-// Cuenta ACTIVE ya existente (id 10 existe en el repositorio de iam falso) con la clave "clave-segura".
+// Cuenta ACTIVE ya existente (id 10 existe en el repositorio de iam falso) con la clave "Clave-segura1".
 const ada: User = {
-  userId: 10, name: 'Ada', email: 'ada@example.com', password: 'h:clave-segura', status: 'ACTIVE',
+  userId: 10, name: 'Ada', email: 'ada@example.com', password: 'h:Clave-segura1', status: 'ACTIVE',
   emailVerifiedAt: new Date(), termsAccepted: true, termsAcceptedAt: null, createdAt: new Date(),
 };
 
@@ -48,6 +48,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
       authRepository: { issueTokenIfAllowed: async () => 'issued' } as never,
       accountRepository: { changePassword: async () => undefined, erase: async () => 'erased' },
       userStatsRepository: { getStats: async () => ({ totalUsers: 1, activeAccounts: 1 }) },
+      adminDirectory: { listActiveAdminIds: async () => [] },
       iamRepository: iam.repo,
       mailer: { sendVerificationCode: noMail, sendPasswordResetCode: noMail, sendAccountDeletionCode: noMail },
       googleTokenVerifier: fakeGoogleTokenVerifier,
@@ -72,7 +73,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
   const get = (path: string, token?: string) =>
     fetch(`${base}${path}`, { headers: token ? { authorization: `Bearer ${token}` } : {} });
   const loginAsAda = async () => {
-    const response = await post('/api/auth/login', { email: 'ada@example.com', password: 'clave-segura' });
+    const response = await post('/api/auth/login', { email: 'ada@example.com', password: 'Clave-segura1' });
     return { response, body: (await response.json()) as { data: { token: string } } };
   };
 
@@ -119,7 +120,7 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
 
   test('registro responde 201, crea la cuenta INACTIVE y publica iam.UserRegistered', async () => {
     const before = publisher.published.length;
-    const response = await post('/api/auth/register', { name: 'Bea', email: 'bea@example.com', password: 'clave-segura', acceptedTerms: true, termsVersion: '2025-01' });
+    const response = await post('/api/auth/register', { name: 'Bea', email: 'bea@example.com', password: 'Clave-segura1', acceptedTerms: true, termsVersion: '2025-01' });
     assert.equal(response.status, 201);
     const data = ((await response.json()) as { data: { user_id: number; status: string } }).data;
     assert.equal(data.status, 'INACTIVE');
@@ -131,14 +132,22 @@ describe('iam-service HTTP (con repositorios falsos)', () => {
   });
 
   test('una cuenta recien registrada no puede iniciar sesion hasta verificar el correo (403)', async () => {
-    const response = await post('/api/auth/login', { email: 'bea@example.com', password: 'clave-segura' });
+    const response = await post('/api/auth/login', { email: 'bea@example.com', password: 'Clave-segura1' });
     assert.equal(response.status, 403);
     assert.equal(((await response.json()) as { code: string }).code, 'EMAIL_NOT_VERIFIED');
   });
 
   test('registro con correo repetido responde 409', async () => {
-    const response = await post('/api/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'clave-segura', acceptedTerms: true, termsVersion: '2025-01' });
+    const response = await post('/api/auth/register', { name: 'Ada', email: 'ada@example.com', password: 'Clave-segura1', acceptedTerms: true, termsVersion: '2025-01' });
     assert.equal(response.status, 409);
+  });
+
+  test('registro con contraseña débil responde 400 VALIDATION_ERROR y no publica nada', async () => {
+    const before = publisher.published.length;
+    const response = await post('/api/auth/register', { name: 'Cora', email: 'cora@example.com', password: 'a', acceptedTerms: true, termsVersion: '2025-01' });
+    assert.equal(response.status, 400);
+    assert.equal(((await response.json()) as { code: string }).code, 'VALIDATION_ERROR');
+    assert.equal(publisher.published.length, before);
   });
 
   test('login con credenciales invalidas responde 400 INVALID_CREDENTIALS', async () => {

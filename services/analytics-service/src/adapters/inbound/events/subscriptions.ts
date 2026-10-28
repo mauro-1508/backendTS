@@ -1,4 +1,4 @@
-import { EVENT_TYPES, EventSubscriber, subscribeWithRetry, withRetry } from '@traduce/shared';
+import { EVENT_TYPES, EventSubscriber, RetryMonitor, subscribeWithRetry, withRetry } from '@traduce/shared';
 import { UsageEventRepository } from '../../../domain/repository';
 import { makeEraseUserLink } from '../../../application/erase_user_link';
 import { makeIngestTranslationProduced, makeIngestUserRegistered } from '../../../application/ingest_events';
@@ -15,6 +15,8 @@ export const USER_DELETED_QUEUE = 'analytics-service.user-deleted';
 export const subscribeToDomainEvents = async (deps: {
   subscriber: EventSubscriber;
   repository: UsageEventRepository;
+  /** Registra los borrados que no terminan, para /health (consumer_retrying). */
+  retryMonitor?: RetryMonitor;
 }): Promise<void> => {
   const { subscriber, repository } = deps;
   await Promise.all([
@@ -32,7 +34,7 @@ export const subscribeToDomainEvents = async (deps: {
       subscriber,
       { queue: USER_DELETED_QUEUE, pattern: EVENT_TYPES.UserDeleted },
       // La limpieza válida permanece pendiente con backoff; no se pierde al agotar cinco intentos.
-      withRetry(makeEraseUserLink({ repository }), { attempts: Infinity }),
+      withRetry(makeEraseUserLink({ repository }), { attempts: Infinity, monitor: deps.retryMonitor }),
     ),
   ]);
 };

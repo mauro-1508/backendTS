@@ -110,4 +110,13 @@ describe('borrado de perfil (iam.UserDeleted)', () => {
     assert.equal(queries.length, 1);
     assert.match(queries[0], /FROM erased_users/);
   });
+
+  it('adaptador Postgres: tambien limpia admin_recipients del usuario borrado', async () => {
+    const calls: { sql: string; params: unknown[] }[] = [];
+    const db = { query: async (sql: string, params: unknown[]) => { calls.push({ sql: sql.replace(/\s+/g, ' ').trim(), params }); return { rows: [], rowCount: 0 }; } };
+    await makePostgresProfileRepository(db as never).eraseUser('7');
+    const recipientDelete = calls.find(c => /DELETE FROM admin_recipients WHERE user_id = \$1/.test(c.sql));
+    assert.ok(recipientDelete);
+    assert.deepEqual(recipientDelete.params, ['7']);
+  });
 });

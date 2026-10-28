@@ -1,6 +1,7 @@
 import { InvalidEventPayloadError } from './payload_validators';
 import { exponentialBackoffMs } from './backoff';
 import { EventHandler } from './event_bus';
+import { RetryMonitor } from './retry_monitor';
 
 export interface RetryHandlerOptions {
   /** Intentos totales antes de rendirse (el bus manda entonces el mensaje a `.dead`). */
@@ -8,6 +9,8 @@ export interface RetryHandlerOptions {
   backoffMs?: (attempt: number) => number;
   sleep?: (ms: number) => Promise<void>;
   log?: (message: string, error: unknown) => void;
+  /** Registra los eventos que estan reintentando, para que /health los vea (consumer_retrying). */
+  monitor?: RetryMonitor;
 }
 
 export const DEFAULT_HANDLER_ATTEMPTS = 5;
@@ -25,24 +28,31 @@ export const withRetry = (handler: EventHandler, options: RetryHandlerOptions = 
     backoffMs = (attempt: number) => exponentialBackoffMs(attempt, { baseMs: 500, maxMs: 10_000 }),
     sleep = defaultSleep,
     log = (message: string, error: unknown) => console.error(message, error),
+    monitor,
   } = options;
   return async event => {
-    for (let attempt = 0; ; attempt++) {
-      try {
-        await handler(event);
-        return;
-      } catch (error) {
-        if (error instanceof InvalidEventPayloadError) throw error;
-        if (attempt + 1 >= attempts) {
-          log('[events] ALERTA: ' + event.type + ' (' + event.eventId + ') fallo ' + attempts + ' veces; va a la cola de mensajes muertos', error);
-          throw error;
+    try {
+      for (let attempt = 0; ; attempt++) {
+        try {
+          await handler(event);
+          return;
+        } catch (error) {
+          if (error instanceof InvalidEventPayloadError) throw error;
+          if (attempt + 1 >= attempts) {
+            log('[events] ALERTA: ' + event.type + ' (' + event.eventId + ') fallo ' + attempts + ' veces; va a la cola de mensajes muertos', error);
+            throw error;
+          }
+          // La limpieza válida no se abandona: mensaje sin ACK, redelivery al reiniciar.
+          if (attempts === Infinity && (attempt + 1) % DEFAULT_HANDLER_ATTEMPTS === 0) {
+            log('[events] limpieza pendiente; reintentando ' + event.type, new Error('consumer_retry'));
+          }
+          monitor?.retrying(event);
+          await sleep(backoffMs(attempt));
         }
-        // La limpieza válida no se abandona: mensaje sin ACK, redelivery al reiniciar.
-        if (attempts === Infinity && (attempt + 1) % DEFAULT_HANDLER_ATTEMPTS === 0) {
-          log('[events] limpieza pendiente; reintentando ' + event.type, new Error('consumer_retry'));
-        }
-        await sleep(backoffMs(attempt));
       }
+    } finally {
+      // Con exito o rendido, el evento deja de contar como "reintentando".
+      monitor?.settled(event.eventId);
     }
   };
 };

@@ -1,5 +1,5 @@
 import express, { Express, RequestHandler } from 'express';
-import { errorHandler } from '@traduce/shared';
+import { errorHandler, HealthCheck, makeServiceHealthHandler } from '@traduce/shared';
 import { makeAuthModule, AuthModuleDeps } from './auth/auth.module';
 import { makeAccountDeletionCodes } from './auth/application/account_deletion_codes';
 import { makeUsersModule, UsersModuleDeps } from './users/users.module';
@@ -17,16 +17,15 @@ export type IamAppDeps = Omit<AuthModuleDeps, 'roleAssigner' | 'roleReader'> &
   Omit<UsersModuleDeps, 'permissionChecker' | 'adminGuard' | 'deletionCodes'> & {
     iamRepository: IamRepository;
     authMiddleware: RequestHandler;
+    /** Comprobaciones de GET /health (p. ej. el outbox); sin ellas responde siempre ok. */
+    healthChecks?: Record<string, HealthCheck>;
   };
 
 export const makeIamApp = (deps: IamAppDeps): Express => {
   const app = express();
   app.use(express.json({ limit: JSON_BODY_LIMIT }));
 
-  const health: RequestHandler = (_req, res) => {
-    res.json({ status: 'ok', service: SERVICE_NAME });
-  };
-  app.get('/health', health);
+  app.get('/health', makeServiceHealthHandler(SERVICE_NAME, deps.healthChecks));
 
   // auth y users no conocen iam: reciben adaptadores que cumplen sus puertos.
   const iam = makeIamModule(deps);

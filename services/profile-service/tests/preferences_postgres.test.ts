@@ -112,6 +112,10 @@ async function withFixture(
         resolve(__dirname, '../db/002_erased_users.sql'),
         'utf8',
       ));
+      await client.query(await readFile(resolve(__dirname, '../db/009_daily_challenges.sql'), 'utf8'));
+      await client.query(await readFile(resolve(__dirname, '../db/010_challenge_reward_achievements.sql'), 'utf8'));
+      // El borrado de cuenta tambien saca al usuario de admin_recipients (008).
+      await client.query(await readFile(resolve(__dirname, '../db/008_admin_reports.sql'), 'utf8'));
     } finally {
       // Destruye la conexión por si la migración falló con una transacción abierta.
       client.release(true);

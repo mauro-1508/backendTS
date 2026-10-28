@@ -1,3 +1,4 @@
+import { makePostgresChallengeRepository } from './challenge_repository';
 import { emptyActivity } from '../../../domain/activity';
 import { Pool, PoolClient, QueryResultRow } from 'pg';
 import { AchievementProgress } from '../../../domain/achievement';
@@ -8,6 +9,7 @@ import {
   ProcessedEventRepository, ProfileRepository,
   TransactionalRepositories, UnitOfWork,
 } from '../../../ports/repositories';
+import { makePostgresReportRunRepository } from './admin_report_repositories';
 
 /** Lo unico que los repositorios necesitan: Pool y PoolClient (transaccion) lo cumplen. */
 export interface Queryable {
@@ -52,11 +54,14 @@ export const makePostgresProfileRepository = (db: Queryable): ProfileRepository 
   isErased,
 
   async eraseUser(userId) {
+    await db.query('DELETE FROM challenge_rewards WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM user_challenges WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM achievement_translation_receipts WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM achievement_activity WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM user_achievements WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM notifications WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM user_preferences WHERE user_id = $1', [userId]);
+    await db.query('DELETE FROM admin_recipients WHERE user_id = $1', [userId]);
     await db.query('DELETE FROM user_profiles WHERE user_id = $1', [userId]);
     await db.query('INSERT INTO erased_users (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING', [userId]);
   },
@@ -153,7 +158,7 @@ export const makePostgresAchievementRepository = (db: Queryable): AchievementRep
 
   async findAllProgress(userId, catalogVersion = 1) {
     // Preserve the v1 metric vocabulary; new measurements are published through v2.
-    const visibility = "a.is_active AND a.availability = 'available' AND a.metric IN ('TRANSLATIONS_COMPLETED','ACTIVE_SECONDS','VOICE_COMPLETED','FAVORITE_WORD','DISTINCT_WORDS','LETTERS_VIEWED','BOTH_MODES','TRANSLATION_DAYS','WORD_CATEGORIES') AND a.code <> 'firstSign'";
+    const visibility = "a.is_active AND a.availability = 'available' AND a.metric IN ('DAILY_CHALLENGE_POINTS','TRANSLATIONS_COMPLETED','ACTIVE_SECONDS','VOICE_COMPLETED','FAVORITE_WORD','DISTINCT_WORDS','LETTERS_VIEWED','BOTH_MODES','TRANSLATION_DAYS','WORD_CATEGORIES') AND a.code <> 'firstSign'";
     const { rows } = await db.query(`${ACHIEVEMENT_PROGRESS_SELECT} WHERE ${visibility} ${catalogVersion === 1 ? "AND a.metric = 'TRANSLATIONS_COMPLETED'" : ""} ORDER BY CASE WHEN a.collection = 'legacy' THEN 0 ELSE 1 END, a.target_count, a.code`, [userId]);
     return rows.map(toProgress);
   },
@@ -197,11 +202,13 @@ export const makePostgresAchievementRepository = (db: Queryable): AchievementRep
 });
 
 const NOTIFICATION_COLUMNS = `notification_id, notification_type_id, channel, title, body, reference_type,
-  reference_id, status, sent_at, read_at, created_at`;
+  reference_id, status, sent_at, read_at, created_at,
+  (SELECT code FROM notification_types t WHERE t.notification_type_id=notifications.notification_type_id) AS type_code`;
 
 const toNotification = (row: Record<string, any>): Notification => ({
   id: row.notification_id,
   typeId: row.notification_type_id,
+  typeCode: row.type_code,
   channel: row.channel,
   title: row.title,
   body: row.body,
@@ -215,12 +222,15 @@ const toNotification = (row: Record<string, any>): Notification => ({
 
 export const makePostgresNotificationRepository = (db: Queryable): NotificationRepository => ({
   async create(notification) {
+    // IN_APP ya esta entregado al crearse; EMAIL queda PENDING para el worker de correo.
     const result = await db.query(
       `INSERT INTO notifications
          (user_id, notification_type_id, channel, title, body,
-          reference_type, reference_id, status, sent_at)
-       SELECT $1, notification_type_id, 'IN_APP', $3, $4,
-              $5, $6, 'SENT', CURRENT_TIMESTAMP
+          reference_type, reference_id, status, scheduled_at, sent_at)
+       SELECT $1, notification_type_id, $7::varchar, $3, $4, $5, $6,
+              CASE WHEN $7::varchar = 'EMAIL' THEN 'PENDING' ELSE 'SENT' END,
+              CASE WHEN $7::varchar = 'EMAIL' THEN CURRENT_TIMESTAMP END,
+              CASE WHEN $7::varchar = 'EMAIL' THEN NULL ELSE CURRENT_TIMESTAMP END
        FROM notification_types
        WHERE code = $2 AND is_active`,
       [
@@ -230,24 +240,26 @@ export const makePostgresNotificationRepository = (db: Queryable): NotificationR
         notification.body,
         notification.referenceType ?? null,
         notification.referenceId ?? null,
+        notification.channel ?? 'IN_APP',
       ],
     );
 
     return result.rowCount === 1;
   },
 
+  // La campana solo muestra IN_APP: los EMAIL son copias que salen por correo.
   async list(userId, { page, limit, unreadOnly }) {
     const unreadFilter = unreadOnly ? 'AND read_at IS NULL' : '';
     const [items, counts] = await Promise.all([
       db.query(
-        `SELECT ${NOTIFICATION_COLUMNS} FROM notifications WHERE user_id = $1 ${unreadFilter}
+        `SELECT ${NOTIFICATION_COLUMNS} FROM notifications WHERE user_id = $1 AND channel = 'IN_APP' ${unreadFilter}
           ORDER BY created_at DESC LIMIT $2 OFFSET $3`,
         [userId, limit, (page - 1) * limit],
       ),
       db.query(
         `SELECT COUNT(*) FILTER (WHERE ${unreadOnly ? 'read_at IS NULL' : 'TRUE'}) AS total,
                 COUNT(*) FILTER (WHERE read_at IS NULL) AS unread
-           FROM notifications WHERE user_id = $1`,
+           FROM notifications WHERE user_id = $1 AND channel = 'IN_APP'`,
         [userId],
       ),
     ]);
@@ -261,7 +273,7 @@ export const makePostgresNotificationRepository = (db: Queryable): NotificationR
   async markRead(userId, notificationId) {
     const { rows } = await db.query(
       `UPDATE notifications SET status = 'READ', read_at = COALESCE(read_at, CURRENT_TIMESTAMP)
-        WHERE notification_id = $1 AND user_id = $2 RETURNING ${NOTIFICATION_COLUMNS}`,
+        WHERE notification_id = $1 AND user_id = $2 AND channel = 'IN_APP' RETURNING ${NOTIFICATION_COLUMNS}`,
       [notificationId, userId],
     );
     return rows[0] ? toNotification(rows[0]) : null;
@@ -295,6 +307,7 @@ export const makePostgresGamificationLocks = (
 export const makePostgresRepositories = (
   db: Queryable,
 ): TransactionalRepositories => ({
+  challenges: makePostgresChallengeRepository(db),
   activity: {
     async recordTranslationIfNew(userId, translationId) {
       const result = await db.query(`INSERT INTO achievement_translation_receipts(user_id,translation_id)
@@ -315,6 +328,7 @@ export const makePostgresRepositories = (
   notifications: makePostgresNotificationRepository(db),
   processedEvents: makePostgresProcessedEventRepository(db),
   gamificationLocks: makePostgresGamificationLocks(db),
+  reportRuns: makePostgresReportRunRepository(db),
 });
 
 /** Cada `run` abre una transaccion: commit si termina bien, rollback si falla. */

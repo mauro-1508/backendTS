@@ -176,13 +176,10 @@ async function withFixture(
     const client = await firstPool.connect();
     try {
       await client.query(sql);
-      await client.query(await readFile(resolve(__dirname, '../db/004_achievement_catalog.sql'), 'utf8'));
-      await client.query(await readFile(resolve(__dirname, '../db/005_obtainable_achievements.sql'), 'utf8'));
-      // La proyección también necesita la marca de cuentas eliminadas.
-      await client.query(await readFile(
-        resolve(__dirname, '../db/002_erased_users.sql'),
-        'utf8',
-      ));
+      // Esquema completo en orden, incluido retos y reconocimiento histórico.
+      for (const file of ['002_erased_users.sql', '003_ui_languages.sql', '004_achievement_catalog.sql', '005_obtainable_achievements.sql', '006_translation_milestones.sql', '007_functional_achievements.sql', '008_admin_reports.sql', '009_daily_challenges.sql', '010_challenge_reward_achievements.sql']) {
+        await client.query(await readFile(resolve(__dirname, '../db', file), 'utf8'));
+      }
     } finally {
       client.release(true);
     }

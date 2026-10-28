@@ -11,6 +11,13 @@
 # Con este archivo el gateway deja de publicarse en el puerto 8080: todo entra por 443 (y 80 redirige a 443).
 # Los APK que apunten a http://IP:8080 dejan de funcionar; hay que generarlos con https://DOMAIN/api.
 
+# Mismo tope de logs que docker-compose.yml para web y caddy (un anchor no se comparte entre archivos).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 services:
   api-gateway:
     ports: !reset []
@@ -30,11 +37,13 @@ services:
   web:
     build:
       context: ${FRONTEND_DIR:-../frontendTS}
-    restart: unless-stopped
+    restart: unless-stopped
+    logging: *default-logging
 
   caddy:
     image: caddy:2-alpine
-    restart: unless-stopped
+    restart: unless-stopped
+    logging: *default-logging
     ports:
       - "80:80"
       - "443:443"

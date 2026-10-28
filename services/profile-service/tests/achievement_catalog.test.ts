@@ -149,6 +149,29 @@ describe('expanded catalogue contract', () => {
     assert.equal(store.progressOf('alice').size, 0);
     assert.equal(store.notifications.length, 0);
   });
+  it('publishes the new metric only to v2 clients explicitly opting in', async () => {
+    const reward = makeAchievement('dailyChallengePoints500',500);
+    reward.achievement.metric = 'DAILY_CHALLENGE_POINTS'; reward.achievement.points = 0;
+    const previous = makeAchievement('FIRST_TRANSLATION',1);
+    const unused = async (): Promise<never> => { throw new Error('Unexpected use case'); };
+    let calls=0;
+    const controller = makeProfileController({
+      getProfile:unused,getPreferences:unused,updatePreferences:unused,
+      listNotifications:unused,markNotificationRead:unused,
+      listAchievements:async () => { calls++; return [previous,reward]; },
+    });
+    for(const [version,capability,count,statusCode] of [
+      ['1',undefined,1,200],['1','1',1,200],['2',undefined,1,200],['2','1',2,200],
+      ['2','true',0,400],['2',['1','1'],0,400],
+    ] as const) {
+      let body:any, status=200;
+      const response={json:(value:unknown)=>{body=value;return response;},status:(value:number)=>{status=value;return response;}} as unknown as Response;
+      await controller.listAchievements({user:{userId:7,permissions:[]},query:{catalogVersion:version,challengeRewards:capability}} as unknown as Request,response);
+      assert.equal(status,statusCode);
+      if(status===200) assert.equal(body.data.length,count);
+    }
+    assert.equal(calls,4);
+  });
 });
 
 it('migration preserves legacy UUIDs, progress, dates and notifications and is repeatable',
@@ -232,6 +255,10 @@ it('migration preserves legacy UUIDs, progress, dates and notifications and is r
       const modern = v2.filter(p => 'collection' in p.achievement && p.achievement.collection === 'catalog');
       assert.equal(modern.length, 0);
       assert.deepEqual(v2.map(p => p.achievement.code), ['FIRST_TRANSLATION','TEN_TRANSLATIONS','FIFTY_TRANSLATIONS']);
+      // Preparar tablas independientes del consumidor actual, conservando el catálogo histórico de 005.
+      for (const file of ['008_admin_reports.sql', '009_daily_challenges.sql']) {
+        await pool.query(readFileSync(resolve(__dirname, '../db', file), 'utf8'));
+      }
       // The deletion guard is part of the real translation unit of work.
       await pool.query(readFileSync(resolve(__dirname, '../db/002_erased_users.sql'), 'utf8'));
       await pool.query(`INSERT INTO user_preferences (user_id, notifications_enabled) VALUES ('bob', FALSE)`);

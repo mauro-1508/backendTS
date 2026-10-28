@@ -113,10 +113,14 @@ it('new migration preserves history and obtains 21 rules, with real transaction 
     const history=(await pool.query('SELECT * FROM user_achievements ORDER BY achievement_id')).rows;
     const migration=readFileSync(resolve(__dirname,'../db/007_functional_achievements.sql'),'utf8');
     await pool.query(migration); await pool.query(migration);
+    // El consumidor actual también usa retos; completar el esquema sin alterar la prueba histórica de 007.
+    for (const file of ['008_admin_reports.sql', '009_daily_challenges.sql', '010_challenge_reward_achievements.sql']) {
+      await pool.query(readFileSync(resolve(__dirname, '../db', file), 'utf8'));
+    }
     assert.deepEqual((await pool.query('SELECT * FROM user_achievements ORDER BY achievement_id')).rows,history);
     for(const row of identity) assert.deepEqual((await pool.query('SELECT achievement_id,code,points FROM achievements WHERE code=$1',[row.code])).rows[0],row);
     const list=makeListAchievements({achievements:makePostgresAchievementRepository(pool)});
-    assert.equal((await list('1',2)).length,21);
+    assert.equal((await list('1',2)).length,24);
     assert.equal((await list('1',1)).length,5);
     const record=makeRecordTranslation({unitOfWork:makePostgresUnitOfWork(pool),eventPublisher:publisher});
     const recordSecond=makeRecordTranslation({unitOfWork:makePostgresUnitOfWork(second),eventPublisher:publisher});

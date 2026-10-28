@@ -1,6 +1,8 @@
+import { ChallengeAssignment, ChallengeDefinition, DailyChallenge } from '../domain/challenge';
+import { ReportKind } from '../domain/admin_report_schedule';
 import { AchievementMetric, AchievementProgress } from '../domain/achievement';
 import { NewNotification, Notification, NotificationPage, NotificationQuery } from '../domain/notification';
-import { Preferences, PreferencesPatch, Profile } from '../domain/preferences';
+import { Preferences, PreferencesPatch, Profile, UiLanguage } from '../domain/preferences';
 
 export interface NewProfile {
   userId: string;
@@ -52,6 +54,26 @@ export interface NotificationRepository {
   markRead(userId: string, notificationId: string): Promise<Notification | null>;
 }
 
+export interface PendingEmail {
+  notificationId: string;
+  /** Correo del perfil; sin el no se puede enviar. */
+  to?: string;
+  title: string;
+  body: string;
+  language: UiLanguage;
+  notificationsEnabled: boolean;
+}
+
+export type EmailOutcome = 'SENT' | 'FAILED' | 'CANCELLED';
+
+export interface EmailOutbox {
+  /**
+   * Bloquea hasta `limit` avisos EMAIL PENDING con scheduled_at vencido (sin esperar a los que tenga
+   * otra instancia), aplica `deliver` a cada uno y guarda su estado. Devuelve cuantos proceso.
+   */
+  processDue(limit: number, deliver: (email: PendingEmail) => Promise<EmailOutcome>): Promise<number>;
+}
+
 export interface ProcessedEventRepository {
   /** Registra el evento; devuelve false si ya estaba registrado. */
   markIfNew(eventId: string): Promise<boolean>;
@@ -64,13 +86,51 @@ export interface GamificationLocks {
 }
 
 
+export interface AdminRecipient {
+  userId: string;
+  uiLanguage: UiLanguage;
+}
+
+export interface AdminRecipientRepository {
+  /** Registra al usuario como ADMIN visto (con limite de escrituras) o lo quita si ya no lo es. */
+  touch(userId: string, isAdmin: boolean): Promise<void>;
+  /** Admins vistos por profile con perfil vigente y notificaciones activadas (respaldo si iam no responde). */
+  listActive(): Promise<AdminRecipient[]>;
+  /** De los ids dados (admins segun iam), los que tienen perfil vigente y notificaciones activadas. */
+  listEnabled(userIds: readonly string[]): Promise<AdminRecipient[]>;
+}
+
+export interface ReportRunRepository {
+  /** Reserva el periodo; devuelve el id de la ejecucion o null si otro ya lo reservo. */
+  claim(kind: ReportKind, periodKey: string): Promise<string | null>;
+}
+
+/** Consulta fuera de la transaccion: evita pedir estadisticas de un periodo que ya se envio. */
+export interface ReportRunQuery {
+  isClaimed(kind: ReportKind, periodKey: string): Promise<boolean>;
+}
+
 /** Repositorios que comparten una misma transaccion. */
+export interface ChallengeRepository {
+  /** Solo puntos concedidos, nunca valores actuales del catálogo. */
+  rewardTotal(userId: string): Promise<number>;
+  findReward(userId: string, assignmentId: string): Promise<{ points: number; grantedAt: string } | null>;
+  listActive(): Promise<ChallengeDefinition[]>;
+  findAssignment(userId: string, date: string): Promise<ChallengeAssignment | null>;
+  /** Se invoca bajo el bloqueo del usuario; conserva la instantánea original. */
+  save(userId: string, challenge: DailyChallenge): Promise<ChallengeAssignment>;
+  /** Unicidad por asignación; devuelve true solo si concede puntos nuevos. */
+  grantReward(userId: string, assignment: ChallengeAssignment): Promise<boolean>;
+}
+
 export interface TransactionalRepositories {
+  challenges: ChallengeRepository;
   profiles: ProfileRepository;
   achievements: AchievementRepository;
   notifications: NotificationRepository;
   processedEvents: ProcessedEventRepository;
   gamificationLocks: GamificationLocks;
+  reportRuns: ReportRunRepository;
   activity?: ActivityRepository;
 }
 
