@@ -343,7 +343,7 @@ describe('loadGatewayConfig', () => {
   });
 
   test('la version sale del package.json raiz', () => {
-    assert.equal(loadGatewayConfig({ JWT_SECRET }).version, '1.3.0');
+    assert.equal(loadGatewayConfig({ JWT_SECRET }).version, '1.4.0');
   });
 });
 
