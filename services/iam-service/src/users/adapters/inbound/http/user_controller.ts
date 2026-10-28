@@ -63,11 +63,11 @@ export const makeUserController = (userService: UserService) => ({
     }
   },
 
-  me: async (req: Request, res: Response) => {
+  me: async (req: Request, res: Response, next: NextFunction) => {
     try {
       const user = await userService.getById(req.user!.userId);
       if (!user) {
-        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+        return res.status(404).json({ success: false, code: 'USER_NOT_FOUND', message: 'Usuario no encontrado' });
       }
       return res.status(200).json({
         success: true,
@@ -76,7 +76,8 @@ export const makeUserController = (userService: UserService) => ({
         data: { user_id: user.userId, name: user.name, email: user.email, has_password: Boolean(user.password) },
       });
     } catch (error) {
-      return res.status(400).json({ success: false, message: (error as Error).message });
+      // Un fallo de la base no es culpa del cliente: 500 generico, sin el detalle interno.
+      return next(error);
     }
   },
 });
